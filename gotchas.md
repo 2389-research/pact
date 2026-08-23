@@ -16,3 +16,5 @@
 - Doctor Biz's product order is tool-first: build a usable `pact` CLI against
   the bundled Python behavior, then use the tool to refine its own contract.
   Do not block the MVP on completing every later protocol decision.
+- The Go module path is `pact` until a real hosting location exists. Do not
+  invent a remote import path; change it once publication is concrete.
