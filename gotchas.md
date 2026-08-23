@@ -13,3 +13,6 @@
   inherited `GOROOT` is stale.
 - `docs/pact-ledger-skill.zip.sha256` records the original `/mnt/data` path.
   Verify the digest value against the local ZIP; do not rely on that path.
+- Doctor Biz's product order is tool-first: build a usable `pact` CLI against
+  the bundled Python behavior, then use the tool to refine its own contract.
+  Do not block the MVP on completing every later protocol decision.
