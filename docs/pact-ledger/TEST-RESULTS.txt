@@ -1,0 +1,28 @@
+PACT package test report
+Generated: 2026-08-23T20:01:00Z
+Python: 3.13.5
+cryptography: 46.0.4
+jsonschema: 4.26.0
+
+test_frozen_vectors (test_conformance.CanonicalizationVectorTest.test_frozen_vectors) ... ok
+test_all_schemas_are_well_formed_and_examples_validate (test_contract.PactContractTest.test_all_schemas_are_well_formed_and_examples_validate) ... ok
+test_canonical_json_normalizes_unicode_and_rejects_floats (test_contract.PactContractTest.test_canonical_json_normalizes_unicode_and_rejects_floats) ... ok
+test_namespace_and_event_pattern_semantics (test_contract.PactContractTest.test_namespace_and_event_pattern_semantics) ... ok
+test_secret_scanner_allows_indirection_and_rejects_raw_values (test_contract.PactContractTest.test_secret_scanner_allows_indirection_and_rejects_raw_values) ... ok
+test_append_only_correction_keeps_original_bytes (test_pact.PactCliTest.test_append_only_correction_keeps_original_bytes) ... ok
+test_bounded_subdelegation_authorizes_one_child_level (test_pact.PactCliTest.test_bounded_subdelegation_authorizes_one_child_level) ... ok
+test_causal_revocation_preserves_but_unauthorizes_later_commit (test_pact.PactCliTest.test_causal_revocation_preserves_but_unauthorizes_later_commit) ... ok
+test_directory_sync_unions_objects_without_overwrite (test_pact.PactCliTest.test_directory_sync_unions_objects_without_overwrite) ... ok
+test_forbidden_subdelegation_is_not_authorized (test_pact.PactCliTest.test_forbidden_subdelegation_is_not_authorized) ... ok
+test_full_lifecycle_and_checkpoint (test_pact.PactCliTest.test_full_lifecycle_and_checkpoint) ... ok
+test_native_fork_and_explicit_merge (test_pact.PactCliTest.test_native_fork_and_explicit_merge) ... ok
+test_scoped_delegation_authorizes_agent_commit (test_pact.PactCliTest.test_scoped_delegation_authorizes_agent_commit) ... ok
+test_secret_like_payload_is_refused (test_pact.PactCliTest.test_secret_like_payload_is_refused) ... ok
+test_tampering_is_detected (test_pact.PactCliTest.test_tampering_is_detected) ... ok
+test_event_batch_examples (test_schemas.SchemaTest.test_event_batch_examples) ... ok
+test_projection_manifest_example (test_schemas.SchemaTest.test_projection_manifest_example) ... ok
+
+----------------------------------------------------------------------
+Ran 17 tests in 6.690s
+
+OK

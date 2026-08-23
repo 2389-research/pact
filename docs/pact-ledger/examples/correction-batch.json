@@ -1,0 +1,25 @@
+{
+  "namespace": "org/example/project/widget/build",
+  "events": [
+    {
+      "local_id": "invalidate-prior-pass",
+      "kind": "decision",
+      "type": "pact.assertion.invalidated",
+      "subject": "capability/unit-test-suite",
+      "schema_ref": "pact:core/generic-object/v1",
+      "payload": {
+        "target_event_ref": "pact:event:sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef#interpret",
+        "reason_code": "wrong-fixture",
+        "reason": "The prior execution used a fixture that bypassed the behavior under test."
+      },
+      "evidence": [],
+      "caused_by": [],
+      "supersedes": [
+        "pact:event:sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef#interpret"
+      ],
+      "tags": [
+        "correction"
+      ]
+    }
+  ]
+}

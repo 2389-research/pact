@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pact.local/schemas/event.schema.json",
+  "title": "PACT v1 Semantic Event",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "local_id",
+    "kind",
+    "type",
+    "subject",
+    "schema_ref",
+    "payload",
+    "evidence",
+    "caused_by",
+    "supersedes",
+    "tags"
+  ],
+  "properties": {
+    "local_id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+    },
+    "kind": {
+      "enum": ["observation", "assertion", "action", "decision", "control"]
+    },
+    "type": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._/-]{0,255}$"
+    },
+    "subject": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512
+    },
+    "schema_ref": {
+      "type": "string",
+      "anyOf": [
+        {
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        {
+          "pattern": "^pact:core/[a-z0-9._/-]+/v[0-9]+$"
+        }
+      ]
+    },
+    "payload": {
+      "type": "object"
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/evidence"
+      }
+    },
+    "caused_by": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/eventRef"
+      },
+      "uniqueItems": true
+    },
+    "supersedes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^pact:event:sha256:[0-9a-f]{64}#[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+      },
+      "uniqueItems": true
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 128
+      },
+      "uniqueItems": true
+    }
+  },
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "eventRef": {
+      "type": "string",
+      "anyOf": [
+        {
+          "pattern": "^local:[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+        },
+        {
+          "pattern": "^pact:event:sha256:[0-9a-f]{64}#[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"
+        }
+      ]
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ref", "digest", "media_type", "role"],
+      "properties": {
+        "ref": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048
+        },
+        "digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "media_type": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "role": {
+          "enum": ["primary", "supporting", "derived"]
+        },
+        "redacted": {
+          "type": "boolean"
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 512
+        }
+      }
+    }
+  }
+}

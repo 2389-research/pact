@@ -1,0 +1,39 @@
+{
+  "namespace": "org/example/project/widget/governance",
+  "events": [
+    {
+      "local_id": "delegate-reviewer",
+      "kind": "control",
+      "type": "pact.authority.delegated",
+      "subject": "authority/agent/reviewer-example",
+      "schema_ref": "pact:core/authority-delegation/v1",
+      "payload": {
+        "delegate_key_id": "ed25519:sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        "delegate_label": "agent/reviewer-example",
+        "namespace_patterns": [
+          "org/example/project/widget/audit/**"
+        ],
+        "event_type_patterns": [
+          "audit.observation.*",
+          "audit.finding.proposed"
+        ],
+        "epoch": "org/example/authority-epoch/1",
+        "lease": {
+          "not_before": "2026-08-23T15:00:00Z",
+          "not_after": "2026-08-23T18:00:00Z"
+        },
+        "allow_subdelegation": false,
+        "max_subdelegation_depth": 0,
+        "capabilities": [
+          "commit"
+        ]
+      },
+      "evidence": [],
+      "caused_by": [],
+      "supersedes": [],
+      "tags": [
+        "authority"
+      ]
+    }
+  ]
+}

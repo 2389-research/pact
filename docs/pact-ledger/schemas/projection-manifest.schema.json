@@ -1,0 +1,116 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pact.local/schemas/projection-manifest.schema.json",
+  "title": "PACT v1 Projection Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "scope",
+    "checkpoint",
+    "frontier_digest",
+    "policy_ref",
+    "schema_refs",
+    "projector_ref",
+    "parameters",
+    "artifact",
+    "counts",
+    "status",
+    "generated_at"
+  ],
+  "properties": {
+    "format": {
+      "const": "pact/projection-manifest/v1"
+    },
+    "scope": {
+      "type": "string",
+      "minLength": 1
+    },
+    "checkpoint": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/digest"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "frontier_digest": {
+      "$ref": "#/$defs/digest"
+    },
+    "policy_ref": {
+      "$ref": "#/$defs/digest"
+    },
+    "schema_refs": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/digest"
+      },
+      "uniqueItems": true
+    },
+    "projector_ref": {
+      "$ref": "#/$defs/digest"
+    },
+    "parameters": {
+      "type": "object"
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ref", "digest", "media_type"],
+      "properties": {
+        "ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "digest": {
+          "$ref": "#/$defs/digest"
+        },
+        "media_type": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "commits_seen",
+        "events_seen",
+        "accepted",
+        "rejected",
+        "irrelevant",
+        "unresolved"
+      ],
+      "properties": {
+        "commits_seen": {"type": "integer", "minimum": 0},
+        "events_seen": {"type": "integer", "minimum": 0},
+        "accepted": {"type": "integer", "minimum": 0},
+        "rejected": {"type": "integer", "minimum": 0},
+        "irrelevant": {"type": "integer", "minimum": 0},
+        "unresolved": {"type": "integer", "minimum": 0}
+      }
+    },
+    "status": {
+      "enum": ["COMPLETE", "INCOMPLETE"]
+    },
+    "incomplete_reasons": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "generated_at": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    }
+  }
+}

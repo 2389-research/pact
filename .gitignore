@@ -1,0 +1,10 @@
+# ABOUTME: Keeps generated build, test, and private session state out of version control.
+# ABOUTME: Canonical source, docs, schemas, and conformance fixtures stay tracked.
+
+/.private-journal/
+/.superpowers/
+/bin/
+/coverage/
+/tmp/
+*.prof
+

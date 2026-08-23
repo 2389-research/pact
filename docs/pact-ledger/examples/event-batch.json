@@ -1,0 +1,55 @@
+{
+  "namespace": "org/example/project/widget/build",
+  "correlation_id": "run/example-42",
+  "metadata": {
+    "workflow": "example-build"
+  },
+  "events": [
+    {
+      "local_id": "execute",
+      "kind": "observation",
+      "type": "build.test.executed",
+      "subject": "build/linux-amd64/42",
+      "schema_ref": "pact:core/generic-object/v1",
+      "payload": {
+        "command": "make test",
+        "exit_code": 0,
+        "result": "pass"
+      },
+      "evidence": [
+        {
+          "ref": "file:///external/evidence/build-42.log",
+          "digest": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+          "media_type": "text/plain",
+          "role": "primary",
+          "description": "Exact captured command output"
+        }
+      ],
+      "caused_by": [],
+      "supersedes": [],
+      "tags": [
+        "ci",
+        "linux"
+      ]
+    },
+    {
+      "local_id": "interpret",
+      "kind": "assertion",
+      "type": "build.capability.verified",
+      "subject": "capability/unit-test-suite",
+      "schema_ref": "pact:core/generic-object/v1",
+      "payload": {
+        "result": "verified",
+        "basis": "all required test processes exited successfully"
+      },
+      "evidence": [],
+      "caused_by": [
+        "local:execute"
+      ],
+      "supersedes": [],
+      "tags": [
+        "ci"
+      ]
+    }
+  ]
+}

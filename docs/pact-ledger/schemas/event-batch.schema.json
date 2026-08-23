@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pact.local/schemas/event-batch.schema.json",
+  "title": "PACT v1 Commit Event Batch",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["events"],
+  "properties": {
+    "namespace": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{0,511}$"
+    },
+    "observed_at": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "correlation_id": {
+      "type": "string",
+      "maxLength": 255
+    },
+    "metadata": {
+      "type": "object"
+    },
+    "events": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "https://pact.local/schemas/event.schema.json"
+      }
+    }
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "format": "pact/projection-manifest/v1",
+  "scope": "org/example/project/widget",
+  "checkpoint": "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "frontier_digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "policy_ref": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+  "schema_refs": [
+    "sha256:3333333333333333333333333333333333333333333333333333333333333333"
+  ],
+  "projector_ref": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+  "parameters": {},
+  "artifact": {
+    "ref": "file:///external/output/current-state.json",
+    "digest": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
+    "media_type": "application/json"
+  },
+  "counts": {
+    "commits_seen": 12,
+    "events_seen": 21,
+    "accepted": 17,
+    "rejected": 2,
+    "irrelevant": 1,
+    "unresolved": 1
+  },
+  "status": "INCOMPLETE",
+  "incomplete_reasons": [
+    "one concurrent assertion remains unresolved"
+  ],
+  "generated_at": "2026-08-23T15:04:05Z"
+}

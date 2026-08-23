@@ -1,0 +1,145 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pact.local/schemas/checkpoint.schema.json",
+  "title": "PACT v1 Signed Checkpoint",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format", "body", "body_digest", "signature"],
+  "properties": {
+    "format": {
+      "const": "pact/checkpoint/v1"
+    },
+    "body": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scope",
+        "frontier",
+        "policy_ref",
+        "schema_refs",
+        "authority_epoch",
+        "previous_checkpoint",
+        "actor",
+        "observed_at",
+        "metadata"
+      ],
+      "properties": {
+        "scope": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{0,511}$"
+        },
+        "frontier": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["namespace", "heads"],
+            "properties": {
+              "namespace": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{0,511}$"
+              },
+              "heads": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "$ref": "#/$defs/digest"
+                },
+                "uniqueItems": true
+              }
+            }
+          }
+        },
+        "policy_ref": {
+          "$ref": "#/$defs/digest"
+        },
+        "schema_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/digest"
+          },
+          "uniqueItems": true
+        },
+        "authority_epoch": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "previous_checkpoint": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/digest"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "actor": {
+          "$ref": "#/$defs/actor"
+        },
+        "observed_at": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "metadata": {
+          "type": "object"
+        }
+      }
+    },
+    "body_digest": {
+      "$ref": "#/$defs/digest"
+    },
+    "signature": {
+      "$ref": "#/$defs/signature"
+    }
+  },
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "keyId": {
+      "type": "string",
+      "pattern": "^ed25519:sha256:[0-9a-f]{64}$"
+    },
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key_id", "label"],
+      "properties": {
+        "key_id": {
+          "$ref": "#/$defs/keyId"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        }
+      }
+    },
+    "signature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "key_id", "public_key", "value"],
+      "properties": {
+        "algorithm": {
+          "const": "ed25519"
+        },
+        "key_id": {
+          "$ref": "#/$defs/keyId"
+        },
+        "public_key": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "value": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+$"
+        }
+      }
+    }
+  }
+}
