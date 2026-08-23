@@ -26,6 +26,9 @@ func Parse(raw []byte) (any, error) {
 	if !utf8.Valid(raw) {
 		return nil, fmt.Errorf("JSON is not valid UTF-8")
 	}
+	if err := validateSurrogateEscapes(raw); err != nil {
+		return nil, err
+	}
 
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.UseNumber()
@@ -40,6 +43,62 @@ func Parse(raw []byte) (any, error) {
 		return nil, fmt.Errorf("invalid JSON after value: %w", err)
 	}
 	return value, nil
+}
+
+func validateSurrogateEscapes(raw []byte) error {
+	inString := false
+	for index := 0; index < len(raw); index++ {
+		switch raw[index] {
+		case '"':
+			inString = !inString
+		case '\\':
+			if !inString || index+1 >= len(raw) {
+				continue
+			}
+			if raw[index+1] != 'u' {
+				index++
+				continue
+			}
+			surrogate, ok := escapedUTF16(raw, index+2)
+			if !ok {
+				continue
+			}
+			if surrogate >= 0xd800 && surrogate <= 0xdbff {
+				lowSurrogate, ok := escapedUTF16(raw, index+8)
+				if !ok || raw[index+6] != '\\' || raw[index+7] != 'u' || lowSurrogate < 0xdc00 || lowSurrogate > 0xdfff {
+					return fmt.Errorf("unpaired high surrogate escape")
+				}
+				index += 11
+				continue
+			}
+			if surrogate >= 0xdc00 && surrogate <= 0xdfff {
+				return fmt.Errorf("unpaired low surrogate escape")
+			}
+			index += 5
+		}
+	}
+	return nil
+}
+
+func escapedUTF16(raw []byte, start int) (uint16, bool) {
+	if start+4 > len(raw) {
+		return 0, false
+	}
+	var value uint16
+	for _, digit := range raw[start : start+4] {
+		value <<= 4
+		switch {
+		case digit >= '0' && digit <= '9':
+			value |= uint16(digit - '0')
+		case digit >= 'a' && digit <= 'f':
+			value |= uint16(digit-'a') + 10
+		case digit >= 'A' && digit <= 'F':
+			value |= uint16(digit-'A') + 10
+		default:
+			return 0, false
+		}
+	}
+	return value, true
 }
 
 // Marshal returns the compact pact-json-v1 encoding of a JSON-compatible value.

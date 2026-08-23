@@ -88,6 +88,41 @@ func TestParseRejectsTrailingJSONAndInvalidUTF8(t *testing.T) {
 	}
 }
 
+func TestParseValidatesUnicodeSurrogateEscapes(t *testing.T) {
+	t.Parallel()
+
+	for name, input := range map[string]struct {
+		raw          string
+		want         string
+		errorContain string
+	}{
+		"unpaired high surrogate": {raw: `{"x":"\uD800"}`, errorContain: "unpaired high surrogate escape"},
+		"unpaired low surrogate":  {raw: `{"x":"\uDC00"}`, errorContain: "unpaired low surrogate escape"},
+		"surrogate pair":          {raw: `{"x":"\uD83D\uDE00"}`, want: `{"x":"😀"}`},
+		"escaped backslash":       {raw: `{"x":"\\uD800"}`, want: `{"x":"\\uD800"}`},
+	} {
+		t.Run(name, func(t *testing.T) {
+			value, err := Parse([]byte(input.raw))
+			if input.errorContain != "" {
+				if err == nil || !strings.Contains(err.Error(), input.errorContain) {
+					t.Errorf("Parse() error = %v, want substring %q", err, input.errorContain)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Parse() error = %v", err)
+			}
+			got, err := Marshal(value)
+			if err != nil {
+				t.Fatalf("Marshal() error = %v", err)
+			}
+			if string(got) != input.want {
+				t.Errorf("Marshal() = %q, want %q", got, input.want)
+			}
+		})
+	}
+}
+
 func TestMarshalNormalizesNestedStringsAndEmptyValues(t *testing.T) {
 	t.Parallel()
 
