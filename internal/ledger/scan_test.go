@@ -4,11 +4,16 @@ package ledger
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
+	"fmt"
 	"reflect"
 	"sort"
 	"strings"
 	"testing"
+
+	"pact/internal/identity"
+	"pact/internal/store"
 )
 
 func TestSourceFingerprintExactVectors(t *testing.T) {
@@ -24,6 +29,25 @@ func TestSourceFingerprintExactVectors(t *testing.T) {
 		if got := sourceFingerprint(test.ids); got != test.want {
 			t.Fatalf("sourceFingerprint(%q) = %q, want %q", test.ids, got, test.want)
 		}
+	}
+}
+
+func TestBoundedSortingStopsBeforeScanningCanceledCollections(t *testing.T) {
+	values := make(map[string]int, 4_096)
+	for index := range 4_096 {
+		values[fmt.Sprintf("%08d", index)] = index
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := sortedKeysContext(ctx, values); !errors.Is(err, context.Canceled) {
+		t.Fatalf("sortedKeysContext() error = %v, want context canceled", err)
+	}
+	ids := make([]string, 4_096)
+	for index := range ids {
+		ids[index] = fmt.Sprintf("sha256:%064x", index)
+	}
+	if _, err := sourceFingerprintContext(ctx, ids); !errors.Is(err, context.Canceled) {
+		t.Fatalf("sourceFingerprintContext() error = %v, want context canceled", err)
 	}
 }
 
@@ -234,17 +258,69 @@ func TestEffectiveScanLimitsCanReduceButNeverRaisePhaseTwoCaps(t *testing.T) {
 func TestScanResourceAccountingRejectsRawCommitCountsBeforeProjection(t *testing.T) {
 	limits := Phase2Limits
 	limits.ParentsPerCommit = 1
-	object := ObjectVerification{Type: "commit", Integrity: "valid", Structure: "valid", Authenticity: "valid", object: map[string]any{
-		"body": map[string]any{"parents": []any{"one", "two"}, "events": []any{}},
-	}}
+	object := map[string]any{
+		"format": commitFormat,
+		"body":   map[string]any{"parents": []any{"one", "two"}, "events": []any{}},
+	}
 	counts := scanResourceCounts{}
-	err := counts.addCanonicalObject("commit-id", object, limits)
+	_, err := counts.preflightParsedObject(context.Background(), "commit-id", object, limits)
 	var limit *LimitError
 	if !errors.As(err, &limit) || limit.Resource != "parents_per_commit" || limit.Maximum != 1 || limit.ObjectID != "commit-id" {
 		t.Fatalf("limit = %#v", limit)
 	}
-	if counts.events != 0 || counts.edges.total() != 0 {
+	if counts.events != 0 || counts.edges.total() != 0 || counts.rawEvents != 0 || counts.rawEdges.total() != 0 {
 		t.Fatalf("accounting changed after rejected raw object: %#v", counts)
+	}
+}
+
+func TestScanPreflightsRawCanonicalArraysBeforeStructuralValidation(t *testing.T) {
+	st, key := ledgerStoreAndKey(t)
+	events := make([]any, 1_025)
+	for index := range events {
+		events[index] = map[string]any{"local_id": "duplicate"}
+	}
+	commitID := putRawSignedObjectForScan(t, st, key, commitFormat, map[string]any{
+		"namespace": "org/example/widget", "parents": []any{}, "events": events,
+	})
+	_, err := Scan(context.Background(), st, ScanOptions{})
+	assertObjectLimit(t, err, "events_per_commit", 1_024, commitID)
+	_, err = ResolveCommit(context.Background(), st, commitID, Limits{})
+	assertObjectLimit(t, err, "events_per_commit", 1_024, commitID)
+
+	st, key = ledgerStoreAndKey(t)
+	heads := make([]any, 9)
+	for index := range heads {
+		heads[index] = index
+	}
+	checkpointID := putRawSignedObjectForScan(t, st, key, checkpointFormat, map[string]any{
+		"frontier": []any{map[string]any{"heads": heads}},
+	})
+	_, err = Scan(context.Background(), st, ScanOptions{Limits: Limits{GraphEdges: 8}})
+	assertObjectLimit(t, err, "graph_edges", 8, checkpointID)
+}
+
+func putRawSignedObjectForScan(t *testing.T, st *store.Store, key *identity.KeyFile, format string, body map[string]any) string {
+	t.Helper()
+	digest, signature, err := identity.SignBody(body, key.Private)
+	if err != nil {
+		t.Fatal(err)
+	}
+	object := map[string]any{
+		"format": format, "body": body, "body_digest": digest,
+		"signature": map[string]any{"algorithm": "ed25519", "key_id": key.KeyID, "public_key": base64.RawURLEncoding.EncodeToString(key.Public), "value": base64.RawURLEncoding.EncodeToString(signature)},
+	}
+	id, _, err := st.PutCanonical(object)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return id
+}
+
+func assertObjectLimit(t *testing.T, err error, resource string, maximum uint64, objectID string) {
+	t.Helper()
+	var limit *LimitError
+	if !errors.As(err, &limit) || limit.Resource != resource || limit.Maximum != maximum || limit.ObjectID != objectID {
+		t.Fatalf("error = %#v, want %s limit %d at %s", err, resource, maximum, objectID)
 	}
 }
 

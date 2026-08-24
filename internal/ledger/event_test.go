@@ -3,11 +3,32 @@
 package ledger
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
 	"testing"
 )
+
+func TestEventReferenceNormalizationHonorsMidLoopCancellation(t *testing.T) {
+	refs := make([]any, 256)
+	for index := range refs {
+		refs[index] = fmt.Sprintf("local:event-%03d", index)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	original := afterLedgerWorkPoll
+	polls := 0
+	afterLedgerWorkPoll = func() {
+		polls++
+		if polls == 2 {
+			cancel()
+		}
+	}
+	t.Cleanup(func() { afterLedgerWorkPoll = original })
+	if _, err := normalizeRefsContext(ctx, refs, true, "$.refs"); !errors.Is(err, context.Canceled) {
+		t.Fatalf("normalizeRefsContext() error = %v, want context canceled", err)
+	}
+}
 
 func TestNormalizeEventBatchAdmitsExactEventLimitAndRejectsFirstExcess(t *testing.T) {
 	for _, count := range []int{1_024, 1_025} {

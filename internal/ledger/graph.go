@@ -5,7 +5,6 @@ package ledger
 import (
 	"context"
 	"fmt"
-	"sort"
 	"strings"
 	"unicode/utf8"
 )
@@ -22,6 +21,7 @@ type graphNode struct {
 	kind     uint8
 	id       string
 	outgoing []graphEdge
+	incoming []graphEdge
 	indegree uint64
 	depth    uint64
 }
@@ -29,12 +29,19 @@ type graphNode struct {
 type graphEdge struct {
 	target string
 	weight uint64
+	kind   uint8
 }
 
 const (
 	startNode uint8 = iota
 	eventNode
 	finishNode
+)
+
+const (
+	gateEdge uint8 = iota
+	parentEdge
+	causedByEdge
 )
 
 func analyzeGraph(ctx context.Context, commits map[string]CommitRecord, events map[string]EventRecord, limits Limits) (graphAnalysis, error) {
@@ -59,31 +66,23 @@ func analyzeGraph(ctx context.Context, commits map[string]CommitRecord, events m
 	if err := propagateUnresolved(ctx, builder.nodes, builder.unresolved); err != nil {
 		return graphAnalysis{}, err
 	}
-	commitGraph, err := commitDependencyGraph(ctx, commits)
+	parentRoots, err := cycleRoots(ctx, builder.nodes, startNode)
 	if err != nil {
 		return graphAnalysis{}, err
 	}
-	cycles, err := deterministicCycles(ctx, commitGraph)
+	parentCycles, err := reportCycles(ctx, builder.nodes, parentRoots, parentEdge, "commit DAG cycle: ", &result, limits)
 	if err != nil {
 		return graphAnalysis{}, err
 	}
-	cycleReported := false
-	for _, cycle := range cycles {
-		appendGraphError(&result, limits, "commit DAG cycle: "+joinCycle(cycle))
-		cycleReported = true
-	}
-	eventGraph, err := eventDependencyGraph(ctx, events)
+	eventRoots, err := cycleRoots(ctx, builder.nodes, eventNode)
 	if err != nil {
 		return graphAnalysis{}, err
 	}
-	cycles, err = deterministicCycles(ctx, eventGraph)
+	eventCycles, err := reportCycles(ctx, builder.nodes, eventRoots, causedByEdge, "caused_by cycle: ", &result, limits)
 	if err != nil {
 		return graphAnalysis{}, err
 	}
-	for _, cycle := range cycles {
-		appendGraphError(&result, limits, "caused_by cycle: "+joinCycle(cycle))
-		cycleReported = true
-	}
+	cycleReported := parentCycles+eventCycles != 0
 	batch, err := kahnBatches(ctx, builder.nodes, builder.unresolved, limits, &result)
 	if err != nil {
 		return graphAnalysis{}, err
@@ -91,7 +90,15 @@ func analyzeGraph(ctx context.Context, commits map[string]CommitRecord, events m
 	if batch != uint64(len(builder.nodes)) && !cycleReported {
 		appendGraphError(&result, limits, "known causal graph contains a cycle")
 	}
-	for key, marked := range builder.unresolved {
+	unresolvedKeys, err := sortedKeysContext(ctx, builder.unresolved)
+	if err != nil {
+		return graphAnalysis{}, err
+	}
+	for index, key := range unresolvedKeys {
+		if err := pollContext(ctx, index); err != nil {
+			return graphAnalysis{}, err
+		}
+		marked := builder.unresolved[key]
 		if !marked {
 			continue
 		}
@@ -101,7 +108,6 @@ func analyzeGraph(ctx context.Context, commits map[string]CommitRecord, events m
 			delete(result.Batches, node.id)
 		}
 	}
-	sort.Strings(result.Unresolved)
 	result.Errors = uniqueSorted(result.Errors)
 	return result, nil
 }
@@ -116,7 +122,11 @@ type graphBuilder struct {
 func newGraphBuilder(ctx context.Context, commits map[string]CommitRecord, events map[string]EventRecord, limits Limits, result *graphAnalysis) (*graphBuilder, error) {
 	builder := &graphBuilder{nodes: make(map[string]*graphNode, 2*len(commits)+len(events)), unresolved: make(map[string]bool), limits: limits, result: result}
 	work := 0
-	for _, id := range sortedKeys(commits) {
+	commitIDs, err := sortedKeysContext(ctx, commits)
+	if err != nil {
+		return nil, err
+	}
+	for _, id := range commitIDs {
 		if err := pollContext(ctx, work); err != nil {
 			return nil, err
 		}
@@ -124,7 +134,11 @@ func newGraphBuilder(ctx context.Context, commits map[string]CommitRecord, event
 		builder.nodes[graphNodeKey(startNode, id)] = &graphNode{kind: startNode, id: id}
 		builder.nodes[graphNodeKey(finishNode, id)] = &graphNode{kind: finishNode, id: id}
 	}
-	for _, ref := range sortedKeys(events) {
+	eventRefs, err := sortedKeysContext(ctx, events)
+	if err != nil {
+		return nil, err
+	}
+	for _, ref := range eventRefs {
 		if err := pollContext(ctx, work); err != nil {
 			return nil, err
 		}
@@ -134,18 +148,23 @@ func newGraphBuilder(ctx context.Context, commits map[string]CommitRecord, event
 	return builder, nil
 }
 
-func (builder *graphBuilder) addEdge(source, target string, weight uint64) {
+func (builder *graphBuilder) addEdge(source, target string, weight uint64, kind uint8) {
 	from, fromFound := builder.nodes[source]
 	to, toFound := builder.nodes[target]
 	if !fromFound || !toFound {
 		return
 	}
-	from.outgoing = append(from.outgoing, graphEdge{target: target, weight: weight})
+	from.outgoing = append(from.outgoing, graphEdge{target: target, weight: weight, kind: kind})
+	to.incoming = append(to.incoming, graphEdge{target: source, weight: weight, kind: kind})
 	to.indegree++
 }
 
 func (builder *graphBuilder) addCommits(ctx context.Context, commits map[string]CommitRecord, events map[string]EventRecord) error {
-	for index, id := range sortedKeys(commits) {
+	ids, err := sortedKeysContext(ctx, commits)
+	if err != nil {
+		return err
+	}
+	for index, id := range ids {
 		if err := pollContext(ctx, index); err != nil {
 			return err
 		}
@@ -172,8 +191,8 @@ func (builder *graphBuilder) addCommitEvents(ctx context.Context, id string, com
 			continue
 		}
 		event := graphNodeKey(eventNode, ref)
-		builder.addEdge(start, event, 0)
-		builder.addEdge(event, finish, 0)
+		builder.addEdge(start, event, 0, gateEdge)
+		builder.addEdge(event, finish, 0, gateEdge)
 	}
 	return nil
 }
@@ -188,13 +207,17 @@ func (builder *graphBuilder) addCommitParents(ctx context.Context, id string, co
 			builder.unresolved[start] = true
 			continue
 		}
-		builder.addEdge(graphNodeKey(finishNode, parent), start, 1)
+		builder.addEdge(graphNodeKey(finishNode, parent), start, 1, parentEdge)
 	}
 	return nil
 }
 
 func (builder *graphBuilder) addEvents(ctx context.Context, commits map[string]CommitRecord, events map[string]EventRecord) error {
-	for index, ref := range sortedKeys(events) {
+	refs, err := sortedKeysContext(ctx, events)
+	if err != nil {
+		return err
+	}
+	for index, ref := range refs {
 		if err := pollContext(ctx, index); err != nil {
 			return err
 		}
@@ -221,19 +244,18 @@ func (builder *graphBuilder) addEventDependencies(ctx context.Context, ref strin
 			continue
 		}
 		if target.Namespace != event.Namespace {
-			appendGraphError(builder.result, builder.limits, fmt.Sprintf("%s: caused_by %s crosses namespace %q to %q", ref, dependency, target.Namespace, event.Namespace))
+			appendBoundedGraphError(builder.result, builder.limits, ref, ": caused_by ", dependency, " crosses namespace \"", target.Namespace, "\" to \"", event.Namespace, "\"")
 		}
-		builder.addEdge(graphNodeKey(eventNode, dependency), source, 1)
+		builder.addEdge(graphNodeKey(eventNode, dependency), source, 1, causedByEdge)
 	}
 	return nil
 }
 
 func propagateUnresolved(ctx context.Context, nodes map[string]*graphNode, unresolved map[string]bool) error {
-	queue := make([]string, 0, len(unresolved))
-	for key := range unresolved {
-		queue = append(queue, key)
+	queue, err := sortedKeysContext(ctx, unresolved)
+	if err != nil {
+		return err
 	}
-	sort.Strings(queue)
 	work := 0
 	for index := 0; index < len(queue); index++ {
 		if err := pollContext(ctx, index); err != nil {
@@ -275,7 +297,11 @@ func kahnBatches(ctx context.Context, nodes map[string]*graphNode, unresolved ma
 		if uint64(len(frontier)) > limits.FrontierNodes {
 			return 0, limitError("frontier_nodes", limits.FrontierNodes)
 		}
-		sort.Slice(frontier, func(i, j int) bool { return graphNodeLess(nodes[frontier[i]], nodes[frontier[j]]) })
+		var err error
+		frontier, err = sortOwnedStringsByContext(ctx, frontier, func(left, right string) bool { return graphNodeLess(nodes[left], nodes[right]) })
+		if err != nil {
+			return 0, err
+		}
 		next := make([]string, 0)
 		for frontierIndex, key := range frontier {
 			if err := pollContext(ctx, frontierIndex); err != nil {
@@ -317,81 +343,52 @@ func processGraphNode(ctx context.Context, key string, node *graphNode, nodes ma
 	return nil
 }
 
-func commitDependencyGraph(ctx context.Context, commits map[string]CommitRecord) (map[string][]string, error) {
-	result := make(map[string][]string, len(commits))
-	work := 0
-	for id, commit := range commits {
-		if err := pollContext(ctx, work); err != nil {
-			return nil, err
-		}
-		work++
-		for _, parent := range commit.Parents {
-			if err := pollContext(ctx, work); err != nil {
-				return nil, err
-			}
-			work++
-			if _, found := commits[parent]; found {
-				result[id] = append(result[id], parent)
-			}
-		}
-		if result[id] == nil {
-			result[id] = []string{}
-		}
-	}
-	return result, nil
-}
-
-func eventDependencyGraph(ctx context.Context, events map[string]EventRecord) (map[string][]string, error) {
-	result := make(map[string][]string, len(events))
-	work := 0
-	for ref, event := range events {
-		if err := pollContext(ctx, work); err != nil {
-			return nil, err
-		}
-		work++
-		for _, dependency := range event.CausedBy {
-			if err := pollContext(ctx, work); err != nil {
-				return nil, err
-			}
-			work++
-			if _, found := events[dependency]; found {
-				result[ref] = append(result[ref], dependency)
-			}
-		}
-		if result[ref] == nil {
-			result[ref] = []string{}
-		}
-	}
-	return result, nil
-}
-
 type cycleFrame struct {
 	node      string
 	neighbors []string
 	next      int
 }
 
-func deterministicCycles(ctx context.Context, graph map[string][]string) ([][]string, error) {
-	color := make(map[string]uint8, len(graph))
-	cycles := [][]string{}
-	work := 0
-	for _, root := range sortedKeys(graph) {
-		if err := pollContext(ctx, work); err != nil {
+func cycleRoots(ctx context.Context, nodes map[string]*graphNode, kind uint8) ([]string, error) {
+	keys, err := sortedKeysContext(ctx, nodes)
+	if err != nil {
+		return nil, err
+	}
+	roots := make([]string, 0)
+	for index, key := range keys {
+		if err := pollContext(ctx, index); err != nil {
 			return nil, err
+		}
+		if nodes[key].kind == kind {
+			roots = append(roots, key)
+		}
+	}
+	return roots, nil
+}
+
+func reportCycles(ctx context.Context, nodes map[string]*graphNode, roots []string, edgeKind uint8, prefix string, result *graphAnalysis, limits Limits) (uint64, error) {
+	color := make(map[string]uint8, len(roots))
+	var count uint64
+	work := 0
+	for _, root := range roots {
+		if err := pollContext(ctx, work); err != nil {
+			return 0, err
 		}
 		work++
 		if color[root] != 0 {
 			continue
 		}
-		neighbors := append([]string(nil), graph[root]...)
-		sort.Strings(neighbors)
+		neighbors, err := cycleNeighbors(ctx, nodes, root, edgeKind)
+		if err != nil {
+			return 0, err
+		}
 		stack := []cycleFrame{{node: root, neighbors: neighbors}}
 		path := []string{root}
 		positions := map[string]int{root: 0}
 		color[root] = 1
 		for len(stack) != 0 {
 			if err := pollContext(ctx, work); err != nil {
-				return nil, err
+				return 0, err
 			}
 			work++
 			frame := &stack[len(stack)-1]
@@ -406,24 +403,65 @@ func deterministicCycles(ctx context.Context, graph map[string][]string) ([][]st
 			frame.next++
 			switch color[next] {
 			case 0:
-				childNeighbors := append([]string(nil), graph[next]...)
-				sort.Strings(childNeighbors)
+				childNeighbors, err := cycleNeighbors(ctx, nodes, next, edgeKind)
+				if err != nil {
+					return 0, err
+				}
 				positions[next] = len(path)
 				path = append(path, next)
 				color[next] = 1
 				stack = append(stack, cycleFrame{node: next, neighbors: childNeighbors})
 			case 1:
 				start := positions[next]
-				cycle := append([]string(nil), path[start:]...)
-				cycles = append(cycles, append(cycle, next))
+				appendGraphCycle(result, limits, prefix, path[start:], next, nodes)
+				count++
 			}
 		}
 	}
-	return cycles, nil
+	return count, nil
 }
 
-func joinCycle(cycle []string) string {
-	return strings.Join(cycle, " -> ")
+func cycleNeighbors(ctx context.Context, nodes map[string]*graphNode, key string, edgeKind uint8) ([]string, error) {
+	neighbors := make([]string, 0)
+	for index, edge := range nodes[key].incoming {
+		if err := pollContext(ctx, index); err != nil {
+			return nil, err
+		}
+		if edge.kind != edgeKind {
+			continue
+		}
+		source := nodes[edge.target]
+		if edgeKind == parentEdge {
+			neighbors = append(neighbors, graphNodeKey(startNode, source.id))
+		} else {
+			neighbors = append(neighbors, edge.target)
+		}
+	}
+	return sortOwnedStringsByContext(ctx, neighbors, func(left, right string) bool { return nodes[left].id < nodes[right].id })
+}
+
+func appendGraphCycle(result *graphAnalysis, limits Limits, prefix string, path []string, closing string, nodes map[string]*graphNode) {
+	result.ErrorCount++
+	if uint64(len(result.Errors)) >= limits.DiagnosticSamples {
+		result.DiagnosticsTruncated = true
+		return
+	}
+	builder := newBoundedDiagnosticBuilder(limits.DiagnosticTextBytes)
+	builder.write(prefix)
+	for index, key := range path {
+		if index != 0 {
+			builder.write(" -> ")
+		}
+		builder.write(nodes[key].id)
+	}
+	if len(path) != 0 {
+		builder.write(" -> ")
+	}
+	builder.write(nodes[closing].id)
+	if builder.truncated {
+		result.DiagnosticsTruncated = true
+	}
+	result.Errors = append(result.Errors, builder.String())
 }
 
 func appendGraphError(result *graphAnalysis, limits Limits, message string) {
@@ -443,6 +481,55 @@ func appendGraphError(result *graphAnalysis, limits Limits, message string) {
 	}
 	result.Errors = append(result.Errors, message)
 }
+
+func appendBoundedGraphError(result *graphAnalysis, limits Limits, parts ...string) {
+	result.ErrorCount++
+	if uint64(len(result.Errors)) >= limits.DiagnosticSamples {
+		result.DiagnosticsTruncated = true
+		return
+	}
+	builder := newBoundedDiagnosticBuilder(limits.DiagnosticTextBytes)
+	for _, part := range parts {
+		builder.write(part)
+	}
+	if builder.truncated {
+		result.DiagnosticsTruncated = true
+	}
+	result.Errors = append(result.Errors, builder.String())
+}
+
+type boundedDiagnosticBuilder struct {
+	builder   strings.Builder
+	maximum   int
+	truncated bool
+}
+
+func newBoundedDiagnosticBuilder(maximum uint64) *boundedDiagnosticBuilder {
+	// #nosec G115 -- effective diagnostic limits never exceed 512 bytes.
+	limit := int(maximum)
+	builder := &boundedDiagnosticBuilder{maximum: limit}
+	builder.builder.Grow(limit)
+	return builder
+}
+
+func (builder *boundedDiagnosticBuilder) write(value string) {
+	if builder.truncated {
+		return
+	}
+	remaining := builder.maximum - builder.builder.Len()
+	if len(value) <= remaining {
+		builder.builder.WriteString(value)
+		return
+	}
+	builder.truncated = true
+	cut := remaining
+	for cut > 0 && !utf8.ValidString(value[:cut]) {
+		cut--
+	}
+	builder.builder.WriteString(value[:cut])
+}
+
+func (builder *boundedDiagnosticBuilder) String() string { return builder.builder.String() }
 
 func graphNodeKey(kind uint8, id string) string { return fmt.Sprintf("%d:%s", kind, id) }
 

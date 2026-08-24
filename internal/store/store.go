@@ -51,6 +51,7 @@ var (
 	closeLockFile             = func(lock *os.File) error { return lock.Close() }
 	afterGetBoundedStat       = func(string) error { return nil }
 	afterObjectDirectoryBatch = func() {}
+	afterObjectFileSortChunk  = func() {}
 )
 
 // ObjectCountLimitError reports the fixed maximum reached during object enumeration.
@@ -540,10 +541,49 @@ func (st *Store) ObjectFilesBoundedContext(ctx context.Context, maximum uint64) 
 		})
 	})
 	if err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return nil, err
+		}
 		return nil, fmt.Errorf("%w: %w", ErrIntegrity, err)
 	}
-	sort.Slice(result, func(i, j int) bool { return result[i].ID < result[j].ID })
-	return result, nil
+	return sortObjectFilesContext(ctx, result)
+}
+
+const objectFileSortChunkSize = 256
+
+func sortObjectFilesContext(ctx context.Context, files []ObjectFile) ([]ObjectFile, error) {
+	for start := 0; start < len(files); start += objectFileSortChunkSize {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		end := min(start+objectFileSortChunkSize, len(files))
+		sort.Slice(files[start:end], func(i, j int) bool { return files[start+i].ID < files[start+j].ID })
+		afterObjectFileSortChunk()
+	}
+	buffer := make([]ObjectFile, len(files))
+	for width := objectFileSortChunkSize; width < len(files); width *= 2 {
+		for start := 0; start < len(files); start += 2 * width {
+			middle := min(start+width, len(files))
+			end := min(start+2*width, len(files))
+			left, right := start, middle
+			for output := start; output < end; output++ {
+				if output%64 == 0 {
+					if err := ctx.Err(); err != nil {
+						return nil, err
+					}
+				}
+				if right == end || left < middle && files[left].ID <= files[right].ID {
+					buffer[output] = files[left]
+					left++
+				} else {
+					buffer[output] = files[right]
+					right++
+				}
+			}
+		}
+		files, buffer = buffer, files
+	}
+	return files, nil
 }
 
 func visitDirectoryEntriesContext(ctx context.Context, path, description string, operation func(os.DirEntry) error) error {

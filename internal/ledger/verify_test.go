@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -19,6 +20,26 @@ import (
 	"pact/internal/identity"
 	"pact/internal/store"
 )
+
+func TestCommitParentStructuralValidationHonorsMidLoopCancellation(t *testing.T) {
+	parents := make([]any, 256)
+	for index := range parents {
+		parents[index] = "sha256:" + fmt.Sprintf("%064x", index)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	original := afterLedgerWorkPoll
+	polls := 0
+	afterLedgerWorkPoll = func() {
+		polls++
+		if polls == 2 {
+			cancel()
+		}
+	}
+	t.Cleanup(func() { afterLedgerWorkPoll = original })
+	if err := validateCommitParentsContext(ctx, parents); !errors.Is(err, context.Canceled) {
+		t.Fatalf("validateCommitParentsContext() error = %v, want context canceled", err)
+	}
+}
 
 func TestVerifySeparatesAuthorizationFromAuthenticityAndShowExpandsEvent(t *testing.T) {
 	st, key := ledgerStoreAndKey(t)

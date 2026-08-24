@@ -225,6 +225,23 @@ func TestCausalGraphReportsEveryStableParentCycleWitness(t *testing.T) {
 	}
 }
 
+func TestCausalGraphCountsAllCyclesButRetainsOnlyBoundedWitnesses(t *testing.T) {
+	commits := make(map[string]CommitRecord, 300)
+	for index := range 150 {
+		left := fmt.Sprintf("%03d-a", index)
+		right := fmt.Sprintf("%03d-b", index)
+		commits[left] = CommitRecord{ID: left, Parents: []string{right}}
+		commits[right] = CommitRecord{ID: right, Parents: []string{left}}
+	}
+	result, err := analyzeGraph(context.Background(), commits, nil, Phase2Limits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.ErrorCount != 150 || len(result.Errors) != 100 || !result.DiagnosticsTruncated {
+		t.Fatalf("cycle diagnostics count = %d, retained = %d, truncated = %t", result.ErrorCount, len(result.Errors), result.DiagnosticsTruncated)
+	}
+}
+
 func causedByChain(depth int) (map[string]CommitRecord, map[string]EventRecord) {
 	refs := make([]string, depth+1)
 	events := make(map[string]EventRecord, depth+1)

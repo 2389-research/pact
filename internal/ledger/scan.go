@@ -14,7 +14,6 @@ import (
 	"math"
 	"os"
 	"sort"
-	"strings"
 	"unicode/utf8"
 
 	"pact/internal/store"
@@ -103,7 +102,10 @@ func Scan(ctx context.Context, st *store.Store, options ScanOptions) (ScanResult
 		return ScanResult{}, err
 	}
 	if collected.allValid {
-		result.SourceFingerprint = sourceFingerprint(collected.ids)
+		result.SourceFingerprint, err = sourceFingerprintContext(ctx, collected.ids)
+		if err != nil {
+			return ScanResult{}, err
+		}
 	}
 	if err := buildScanRecords(ctx, collected, &result); err != nil {
 		return ScanResult{}, err
@@ -124,24 +126,42 @@ func Scan(ctx context.Context, st *store.Store, options ScanOptions) (ScanResult
 	if err := applyAuthorization(ctx, st, &verification, collected.commits); err != nil {
 		return ScanResult{}, err
 	}
-	finishVerification(&verification, collected.commits)
+	if err := finishVerification(ctx, &verification, collected.commits); err != nil {
+		return ScanResult{}, err
+	}
+	if err := finalizeScanResult(ctx, collected, &result, &verification); err != nil {
+		return ScanResult{}, err
+	}
+	return result, nil
+}
+
+func finalizeScanResult(ctx context.Context, collected collectedObjects, result *ScanResult, verification *VerifyResult) error {
 	blockers, err := completenessBlockers(ctx, collected.objects, result.Commits, result.Checkpoints, result.Events)
 	if err != nil {
-		return ScanResult{}, err
+		return err
 	}
 	result.Completeness.Blockers = blockers
 	if len(result.Completeness.Blockers) != 0 {
 		result.Completeness.Status = "incomplete"
-		if err := applyRecordCompleteness(ctx, &result); err != nil {
-			return ScanResult{}, err
+		if err := applyRecordCompleteness(ctx, result); err != nil {
+			return err
 		}
 	}
-	result.Objects = cloneVerifications(verification.Objects)
-	result.Heads = cloneStringMap(verification.Heads)
-	verification.Completeness = cloneCompleteness(result.Completeness)
+	result.Objects, err = cloneVerificationsContext(ctx, verification.Objects)
+	if err != nil {
+		return err
+	}
+	result.Heads, err = cloneStringMapContext(ctx, verification.Heads)
+	if err != nil {
+		return err
+	}
+	verification.Completeness, err = cloneCompletenessContext(ctx, result.Completeness)
+	if err != nil {
+		return err
+	}
 	verification.Limits = LimitsStatus{Profile: LimitsProfile, Status: "within_limits"}
-	result.Verification = verification
-	return result, nil
+	result.Verification = *verification
+	return nil
 }
 
 func verifyScannedRelationships(ctx context.Context, verification *VerifyResult, strict bool, collected collectedObjects) error {
@@ -173,7 +193,7 @@ func collectCanonicalObjects(ctx context.Context, st *store.Store, files []store
 			return collectedObjects{}, err
 		}
 		remaining := limits.CanonicalBytes - result.Counts.CanonicalBytes
-		object, size, err := readScannedObject(st, file, limits, remaining)
+		object, parsedResources, size, err := readScannedObject(ctx, st, file, limits, remaining, &resources)
 		if err != nil {
 			return collectedObjects{}, err
 		}
@@ -185,8 +205,8 @@ func collectCanonicalObjects(ctx context.Context, st *store.Store, files []store
 			collected.allValid = false
 		}
 		collected.objects[file.ID] = object
-		if err := resources.addCanonicalObject(file.ID, object, limits); err != nil {
-			return collectedObjects{}, err
+		if object.Valid() {
+			resources.acceptValid(parsedResources)
 		}
 		if err := collectScannedObject(file.ID, object, verification, collected.commits, collected.checkpoints); err != nil {
 			return collectedObjects{}, err
@@ -199,33 +219,35 @@ func collectCanonicalObjects(ctx context.Context, st *store.Store, files []store
 	return collected, nil
 }
 
-func readScannedObject(st *store.Store, file store.ObjectFile, limits Limits, remaining uint64) (ObjectVerification, uint64, error) {
+func readScannedObject(ctx context.Context, st *store.Store, file store.ObjectFile, limits Limits, remaining uint64, resources *scanResourceCounts) (ObjectVerification, parsedObjectResources, uint64, error) {
 	readLimit := min(limits.ObjectBytes, remaining)
 	raw, err := st.GetBounded(file.ID, readLimit)
 	if err == nil {
-		return verifyCanonicalBytes(file, raw), uint64(len(raw)), nil
+		object, parsedResources, verifyErr := verifyCanonicalBytesWithPreflight(ctx, file, raw, resources, limits)
+		return object, parsedResources, uint64(len(raw)), verifyErr
 	}
 	if _, ok := errors.AsType[*store.ObjectByteLimitError](err); ok {
-		return ObjectVerification{}, 0, scanByteLimitError(limits, remaining)
+		return ObjectVerification{}, parsedObjectResources{}, 0, scanByteLimitError(limits, remaining)
 	}
 	if errors.Is(err, store.ErrObjectDigestMismatch) {
 		raw, err = readBoundedCanonicalPath(file.Path, readLimit)
 		if err == nil {
-			return verifyCanonicalBytes(file, raw), uint64(len(raw)), nil
+			object, parsedResources, verifyErr := verifyCanonicalBytesWithPreflight(ctx, file, raw, resources, limits)
+			return object, parsedResources, uint64(len(raw)), verifyErr
 		}
 	}
 	if !isPermissionError(err) {
-		return ObjectVerification{}, 0, err
+		return ObjectVerification{}, parsedObjectResources{}, 0, err
 	}
 	size, statErr := canonicalFileSize(file.Path)
 	if statErr != nil {
-		return ObjectVerification{}, 0, err
+		return ObjectVerification{}, parsedObjectResources{}, 0, err
 	}
 	if size > readLimit {
-		return ObjectVerification{}, 0, scanByteLimitError(limits, remaining)
+		return ObjectVerification{}, parsedObjectResources{}, 0, scanByteLimitError(limits, remaining)
 	}
 	object := ObjectVerification{ID: file.ID, Path: file.Path, Integrity: "invalid", Structure: "unverified", Authenticity: "unverified", Errors: []string{"cannot read object: " + err.Error()}}
-	return object, size, nil
+	return object, parsedObjectResources{}, size, nil
 }
 
 func scanByteLimitError(limits Limits, remaining uint64) error {
@@ -248,7 +270,11 @@ func canonicalFileSize(path string) (uint64, error) {
 }
 
 func buildScanRecords(ctx context.Context, collected collectedObjects, result *ScanResult) error {
-	for _, id := range sortedKeys(collected.commits) {
+	commitIDs, err := sortedKeysContext(ctx, collected.commits)
+	if err != nil {
+		return err
+	}
+	for _, id := range commitIDs {
 		commit := collected.commits[id]
 		if err := ctx.Err(); err != nil {
 			return err
@@ -260,7 +286,11 @@ func buildScanRecords(ctx context.Context, collected collectedObjects, result *S
 		result.Commits[id] = record
 		maps.Copy(result.Events, events)
 	}
-	for _, id := range sortedKeys(collected.checkpoints) {
+	checkpointIDs, err := sortedKeysContext(ctx, collected.checkpoints)
+	if err != nil {
+		return err
+	}
+	for _, id := range checkpointIDs {
 		checkpoint := collected.checkpoints[id]
 		record, recordErr := recordForCheckpoint(id, collected.objects[id], checkpoint)
 		if recordErr != nil {
@@ -357,14 +387,15 @@ func ResolveCommit(ctx context.Context, st *store.Store, id string, requested Li
 	if err := ctx.Err(); err != nil {
 		return CommitRecord{}, err
 	}
-	verification := verifyCanonicalBytes(store.ObjectFile{ID: id}, raw)
+	resources := scanResourceCounts{}
+	verification, parsedResources, err := verifyCanonicalBytesWithPreflight(ctx, store.ObjectFile{ID: id}, raw, &resources, limits)
+	if err != nil {
+		return CommitRecord{}, err
+	}
 	if !verification.Valid() || verification.Type != "commit" {
 		return CommitRecord{}, fmt.Errorf("%w: object is not a valid commit: %s", ErrIntegrity, id)
 	}
-	resources := scanResourceCounts{}
-	if err := resources.addCanonicalObject(id, verification, limits); err != nil {
-		return CommitRecord{}, err
-	}
+	resources.acceptValid(parsedResources)
 	commit, err := storedCommitFromObject(verification.object)
 	if err != nil {
 		return CommitRecord{}, fmt.Errorf("%w: validated commit shape: %w", ErrIntegrity, err)
@@ -393,13 +424,13 @@ func collectScannedObject(id string, object ObjectVerification, result *VerifyRe
 	switch {
 	case object.Integrity != "valid":
 		result.Counts.Integrity++
-		appendVerificationDiagnostic(result, &result.Integrity.Errors, id+": "+strings.Join(object.Errors, "; "))
+		appendJoinedVerificationDiagnostic(result, &result.Integrity.Errors, id+": ", object.Errors, "; ")
 	case object.Structure != "valid":
 		result.Counts.Structure++
-		appendVerificationDiagnostic(result, &result.Structure.Errors, id+": "+strings.Join(object.Errors, "; "))
+		appendJoinedVerificationDiagnostic(result, &result.Structure.Errors, id+": ", object.Errors, "; ")
 	case object.Authenticity != "valid":
 		result.Counts.Authenticity++
-		appendVerificationDiagnostic(result, &result.Authenticity.Errors, id+": "+strings.Join(object.Errors, "; "))
+		appendJoinedVerificationDiagnostic(result, &result.Authenticity.Errors, id+": ", object.Errors, "; ")
 	}
 	if !object.Valid() {
 		return nil
@@ -503,21 +534,31 @@ func recordForCheckpoint(id string, verification ObjectVerification, checkpoint 
 }
 
 func sourceFingerprint(ids []string) string {
+	fingerprint, _ := sourceFingerprintContext(context.Background(), ids)
+	return fingerprint
+}
+
+func sourceFingerprintContext(ctx context.Context, ids []string) (string, error) {
 	hash := sha256.New()
 	_, _ = hash.Write([]byte(sourceFingerprintDomain))
 	var count [8]byte
 	binary.BigEndian.PutUint64(count[:], uint64(len(ids)))
 	_, _ = hash.Write(count[:])
-	sorted := append([]string(nil), ids...)
-	sort.Strings(sorted)
-	for _, id := range sorted {
+	sorted, err := sortedStringsContext(ctx, ids)
+	if err != nil {
+		return "", err
+	}
+	for index, id := range sorted {
+		if err := pollContext(ctx, index); err != nil {
+			return "", err
+		}
 		var size [2]byte
 		// #nosec G115 -- ObjectFilesBounded validates fixed 71-byte SHA-256 IDs before this helper is called.
 		binary.BigEndian.PutUint16(size[:], uint16(len(id)))
 		_, _ = hash.Write(size[:])
 		_, _ = hash.Write([]byte(id))
 	}
-	return fmt.Sprintf("sha256:%x", hash.Sum(nil))
+	return fmt.Sprintf("sha256:%x", hash.Sum(nil)), nil
 }
 
 func resolvedEventRefs(commitID string, refs []string) []string {
@@ -566,7 +607,30 @@ func appendVerificationDiagnostic(result *VerifyResult, values *[]string, value 
 	*values = append(*values, value)
 }
 
+func appendJoinedVerificationDiagnostic(result *VerifyResult, values *[]string, prefix string, messages []string, separator string) {
+	limits := effectiveLimits(result.diagnosticLimits)
+	if uint64(len(*values)) >= limits.DiagnosticSamples {
+		result.DiagnosticsTruncated = true
+		return
+	}
+	builder := newBoundedDiagnosticBuilder(limits.DiagnosticTextBytes)
+	builder.write(prefix)
+	for index, message := range messages {
+		if index != 0 {
+			builder.write(separator)
+		}
+		builder.write(message)
+	}
+	if builder.truncated {
+		result.DiagnosticsTruncated = true
+	}
+	*values = append(*values, builder.String())
+}
+
 func boundedObjectVerification(result *VerifyResult, object ObjectVerification) ObjectVerification {
+	if object.diagnosticsTruncated {
+		result.DiagnosticsTruncated = true
+	}
 	errorsCopy := []string{}
 	for _, message := range object.Errors {
 		appendVerificationDiagnostic(result, &errorsCopy, message)
@@ -580,36 +644,109 @@ func boundedObjectVerification(result *VerifyResult, object ObjectVerification) 
 	return object
 }
 
-func cloneVerifications(source map[string]ObjectVerification) map[string]ObjectVerification {
+func cloneVerificationsContext(ctx context.Context, source map[string]ObjectVerification) (map[string]ObjectVerification, error) {
 	result := make(map[string]ObjectVerification, len(source))
+	work := 0
 	for id, object := range source {
+		if err := pollContext(ctx, work); err != nil {
+			return nil, err
+		}
+		work++
 		object.Errors = append([]string(nil), object.Errors...)
 		object.Warnings = append([]string(nil), object.Warnings...)
 		result[id] = object
 	}
-	return result
+	return result, nil
 }
 
-func cloneStringMap(source map[string][]string) map[string][]string {
+func cloneStringMapContext(ctx context.Context, source map[string][]string) (map[string][]string, error) {
 	result := make(map[string][]string, len(source))
+	work := 0
 	for key, values := range source {
+		if err := pollContext(ctx, work); err != nil {
+			return nil, err
+		}
+		work++
 		result[key] = append([]string(nil), values...)
 	}
-	return result
+	return result, nil
 }
 
-func cloneCompleteness(source Completeness) Completeness {
-	source.Blockers = append([]Blocker(nil), source.Blockers...)
-	return source
+func cloneCompletenessContext(ctx context.Context, source Completeness) (Completeness, error) {
+	blockers := make([]Blocker, len(source.Blockers))
+	for index, blocker := range source.Blockers {
+		if err := pollContext(ctx, index); err != nil {
+			return Completeness{}, err
+		}
+		blockers[index] = blocker
+	}
+	source.Blockers = blockers
+	return source, nil
 }
 
-func sortedKeys[Value any](values map[string]Value) []string {
+const contextSortChunkSize = 256
+
+func sortedKeysContext[Value any](ctx context.Context, values map[string]Value) ([]string, error) {
 	keys := make([]string, 0, len(values))
+	work := 0
 	for key := range values {
+		if err := pollContext(ctx, work); err != nil {
+			return nil, err
+		}
+		work++
 		keys = append(keys, key)
 	}
-	sort.Strings(keys)
-	return keys
+	return sortOwnedStringsContext(ctx, keys)
+}
+
+func sortedStringsContext(ctx context.Context, values []string) ([]string, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	copyValues := make([]string, len(values))
+	for index, value := range values {
+		if err := pollContext(ctx, index); err != nil {
+			return nil, err
+		}
+		copyValues[index] = value
+	}
+	return sortOwnedStringsContext(ctx, copyValues)
+}
+
+func sortOwnedStringsContext(ctx context.Context, values []string) ([]string, error) {
+	return sortOwnedStringsByContext(ctx, values, func(left, right string) bool { return left < right })
+}
+
+func sortOwnedStringsByContext(ctx context.Context, values []string, less func(string, string) bool) ([]string, error) {
+	for start := 0; start < len(values); start += contextSortChunkSize {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		end := min(start+contextSortChunkSize, len(values))
+		sort.Slice(values[start:end], func(left, right int) bool { return less(values[start+left], values[start+right]) })
+	}
+	buffer := make([]string, len(values))
+	for width := contextSortChunkSize; width < len(values); width *= 2 {
+		for start := 0; start < len(values); start += 2 * width {
+			middle := min(start+width, len(values))
+			end := min(start+2*width, len(values))
+			left, right := start, middle
+			for output := start; output < end; output++ {
+				if err := pollContext(ctx, output-start); err != nil {
+					return nil, err
+				}
+				if right == end || left < middle && !less(values[right], values[left]) {
+					buffer[output] = values[left]
+					left++
+				} else {
+					buffer[output] = values[right]
+					right++
+				}
+			}
+		}
+		values, buffer = buffer, values
+	}
+	return values, nil
 }
 
 func readBoundedCanonicalPath(path string, maximum uint64) ([]byte, error) {

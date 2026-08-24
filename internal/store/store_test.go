@@ -344,8 +344,23 @@ func TestObjectFilesBoundedContextHonorsCancellationDuringEnumeration(t *testing
 	afterObjectDirectoryBatch = func() { cancel() }
 	t.Cleanup(func() { afterObjectDirectoryBatch = original })
 	files, err := st.ObjectFilesBoundedContext(ctx, 100)
-	if !errors.Is(err, context.Canceled) || files != nil {
+	if err != context.Canceled || files != nil { //nolint:errorlint // The store contract requires the unchanged context sentinel.
 		t.Fatalf("ObjectFilesBoundedContext() = (%#v, %v), want cancellation", files, err)
+	}
+}
+
+func TestObjectPathOrderingHonorsMidSortCancellation(t *testing.T) {
+	files := make([]ObjectFile, 1_024)
+	for index := range files {
+		files[index].ID = fmt.Sprintf("sha256:%064x", len(files)-index)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	original := afterObjectFileSortChunk
+	afterObjectFileSortChunk = cancel
+	t.Cleanup(func() { afterObjectFileSortChunk = original })
+	result, err := sortObjectFilesContext(ctx, files)
+	if err != context.Canceled || result != nil { //nolint:errorlint // Sorting must return the unchanged context sentinel.
+		t.Fatalf("sortObjectFilesContext() = (%#v, %v), want context canceled", result, err)
 	}
 }
 

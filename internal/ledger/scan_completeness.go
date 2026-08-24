@@ -4,7 +4,6 @@ package ledger
 
 import (
 	"context"
-	"sort"
 	"strings"
 )
 
@@ -16,7 +15,10 @@ func applyRecordCompleteness(ctx context.Context, result *ScanResult) error {
 	if err != nil {
 		return err
 	}
-	partial := directPartialRecords(result)
+	partial, err := directPartialRecords(ctx, result)
+	if err != nil {
+		return err
+	}
 	if err := propagatePartialRecords(ctx, dependents, partial); err != nil {
 		return err
 	}
@@ -39,7 +41,11 @@ func completenessDependents(ctx context.Context, result *ScanResult) (map[string
 }
 
 func addCommitCompletenessDependents(ctx context.Context, result *ScanResult, dependents map[string][]string, work *int) error {
-	for _, id := range sortedKeys(result.Commits) {
+	ids, err := sortedKeysContext(ctx, result.Commits)
+	if err != nil {
+		return err
+	}
+	for _, id := range ids {
 		if err := pollCompletenessWork(ctx, work); err != nil {
 			return err
 		}
@@ -57,7 +63,11 @@ func addCommitCompletenessDependents(ctx context.Context, result *ScanResult, de
 }
 
 func addEventCompletenessDependents(ctx context.Context, result *ScanResult, dependents map[string][]string, work *int) error {
-	for _, ref := range sortedKeys(result.Events) {
+	refs, err := sortedKeysContext(ctx, result.Events)
+	if err != nil {
+		return err
+	}
+	for _, ref := range refs {
 		if err := pollCompletenessWork(ctx, work); err != nil {
 			return err
 		}
@@ -77,7 +87,11 @@ func addEventCompletenessDependents(ctx context.Context, result *ScanResult, dep
 }
 
 func addCheckpointCompletenessDependents(ctx context.Context, result *ScanResult, dependents map[string][]string, work *int) error {
-	for _, id := range sortedKeys(result.Checkpoints) {
+	ids, err := sortedKeysContext(ctx, result.Checkpoints)
+	if err != nil {
+		return err
+	}
+	for _, id := range ids {
 		if err := pollCompletenessWork(ctx, work); err != nil {
 			return err
 		}
@@ -106,9 +120,12 @@ func pollCompletenessWork(ctx context.Context, work *int) error {
 	return err
 }
 
-func directPartialRecords(result *ScanResult) map[string]bool {
+func directPartialRecords(ctx context.Context, result *ScanResult) (map[string]bool, error) {
 	partial := make(map[string]bool)
-	for _, blocker := range result.Completeness.Blockers {
+	for index, blocker := range result.Completeness.Blockers {
+		if err := pollContext(ctx, index); err != nil {
+			return nil, err
+		}
 		if _, found := result.Commits[blocker.SourceID]; found {
 			partial[commitCompletenessPrefix+blocker.SourceID] = true
 		}
@@ -119,15 +136,20 @@ func directPartialRecords(result *ScanResult) map[string]bool {
 			partial[checkpointCompletenessPrefix+blocker.SourceID] = true
 		}
 	}
-	return partial
+	return partial, nil
 }
 
 func propagatePartialRecords(ctx context.Context, dependents map[string][]string, partial map[string]bool) error {
-	queue := sortedKeys(partial)
+	queue, err := sortedKeysContext(ctx, partial)
+	if err != nil {
+		return err
+	}
 	work := 0
 	for index := 0; index < len(queue); index++ {
-		children := dependents[queue[index]]
-		sort.Strings(children)
+		children, err := sortedStringsContext(ctx, dependents[queue[index]])
+		if err != nil {
+			return err
+		}
 		for _, child := range children {
 			if err := pollContext(ctx, work); err != nil {
 				return err
@@ -143,7 +165,11 @@ func propagatePartialRecords(ctx context.Context, dependents map[string][]string
 }
 
 func publishPartialRecords(ctx context.Context, result *ScanResult, partial map[string]bool) error {
-	for index, key := range sortedKeys(partial) {
+	keys, err := sortedKeysContext(ctx, partial)
+	if err != nil {
+		return err
+	}
+	for index, key := range keys {
 		if err := pollContext(ctx, index); err != nil {
 			return err
 		}
@@ -175,11 +201,17 @@ func completenessBlockers(ctx context.Context, objects map[string]ObjectVerifica
 	if err := collectCheckpointBlockers(ctx, objects, checkpoints, add); err != nil {
 		return nil, err
 	}
-	result := make([]Blocker, 0, len(unique))
-	for _, blocker := range unique {
-		result = append(result, blocker)
+	keys, err := sortedKeysContext(ctx, unique)
+	if err != nil {
+		return nil, err
 	}
-	sort.Slice(result, func(i, j int) bool { return blockerSortKey(result[i]) < blockerSortKey(result[j]) })
+	result := make([]Blocker, 0, len(unique))
+	for index, key := range keys {
+		if err := pollContext(ctx, index); err != nil {
+			return nil, err
+		}
+		result = append(result, unique[key])
+	}
 	return result, nil
 }
 

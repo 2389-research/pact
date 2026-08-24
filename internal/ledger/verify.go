@@ -23,16 +23,17 @@ import (
 
 // ObjectVerification keeps byte integrity and signing authenticity distinct.
 type ObjectVerification struct {
-	ID           string   `json:"id"`
-	Path         string   `json:"path"`
-	Type         string   `json:"type"`
-	Namespace    string   `json:"namespace"`
-	Integrity    string   `json:"integrity"`
-	Structure    string   `json:"structure"`
-	Authenticity string   `json:"authenticity"`
-	Errors       []string `json:"errors"`
-	Warnings     []string `json:"warnings"`
-	object       map[string]any
+	ID                   string   `json:"id"`
+	Path                 string   `json:"path"`
+	Type                 string   `json:"type"`
+	Namespace            string   `json:"namespace"`
+	Integrity            string   `json:"integrity"`
+	Structure            string   `json:"structure"`
+	Authenticity         string   `json:"authenticity"`
+	Errors               []string `json:"errors"`
+	Warnings             []string `json:"warnings"`
+	object               map[string]any
+	diagnosticsTruncated bool
 }
 
 // Valid reports whether the object passes integrity, structure, and authenticity.
@@ -171,7 +172,11 @@ func newVerifyResult(st *store.Store, strict bool) VerifyResult {
 
 func verifyCommitParents(ctx context.Context, result *VerifyResult, strict bool, commits map[string]storedCommit, objects map[string]ObjectVerification) error {
 	work := 0
-	for _, id := range sortedKeys(commits) {
+	ids, err := sortedKeysContext(ctx, commits)
+	if err != nil {
+		return err
+	}
+	for _, id := range ids {
 		commit := commits[id]
 		if err := pollContext(ctx, work); err != nil {
 			return err
@@ -207,7 +212,11 @@ func verifyCommitParents(ctx context.Context, result *VerifyResult, strict bool,
 
 func verifyCheckpointReferences(ctx context.Context, result *VerifyResult, strict bool, commits map[string]storedCommit, checkpoints map[string]storedCheckpoint, objects map[string]ObjectVerification) error {
 	work := 0
-	for _, id := range sortedKeys(checkpoints) {
+	ids, err := sortedKeysContext(ctx, checkpoints)
+	if err != nil {
+		return err
+	}
+	for _, id := range ids {
 		if err := pollContext(ctx, work); err != nil {
 			return err
 		}
@@ -260,7 +269,11 @@ func verifyEventReferences(ctx context.Context, result *VerifyResult, strict boo
 	if err != nil {
 		return err
 	}
-	for _, id := range sortedKeys(commits) {
+	ids, err := sortedKeysContext(ctx, commits)
+	if err != nil {
+		return err
+	}
+	for _, id := range ids {
 		if err := pollContext(ctx, work); err != nil {
 			return err
 		}
@@ -275,7 +288,11 @@ func verifyEventReferences(ctx context.Context, result *VerifyResult, strict boo
 func collectKnownEventRefs(ctx context.Context, commits map[string]storedCommit) (map[string]bool, int, error) {
 	events := map[string]bool{}
 	work := 0
-	for _, id := range sortedKeys(commits) {
+	ids, err := sortedKeysContext(ctx, commits)
+	if err != nil {
+		return nil, 0, err
+	}
+	for _, id := range ids {
 		commit := commits[id]
 		if err := pollContext(ctx, work); err != nil {
 			return nil, 0, err
@@ -330,7 +347,11 @@ func applyAuthorization(ctx context.Context, st *store.Store, result *VerifyResu
 		return authorityContextStatus(ctx)
 	}
 	work := 0
-	for _, id := range sortedKeys(commits) {
+	ids, err := sortedKeysContext(ctx, commits)
+	if err != nil {
+		return err
+	}
+	for _, id := range ids {
 		commit := commits[id]
 		if err := pollContext(ctx, work); err != nil {
 			return err
@@ -352,8 +373,12 @@ func applyAuthorization(ctx context.Context, st *store.Store, result *VerifyResu
 
 func authorityContextStatus(ctx context.Context) error { return ctx.Err() }
 
-func finishVerification(result *VerifyResult, commits map[string]storedCommit) {
-	result.Heads = headsFor(commits, "")
+func finishVerification(ctx context.Context, result *VerifyResult, commits map[string]storedCommit) error {
+	heads, err := headsForContext(ctx, commits)
+	if err != nil {
+		return err
+	}
+	result.Heads = heads
 	sort.Strings(result.Errors)
 	sort.Strings(result.Warnings)
 	for _, layer := range []*LayerResult{&result.Integrity, &result.Structure, &result.Authenticity, &result.DAG, &result.References} {
@@ -361,6 +386,53 @@ func finishVerification(result *VerifyResult, commits map[string]storedCommit) {
 		sort.Strings(layer.Warnings)
 	}
 	result.OK = len(result.Errors) == 0
+	return nil
+}
+
+func headsForContext(ctx context.Context, commits map[string]storedCommit) (map[string][]string, error) {
+	available := map[string]map[string]bool{}
+	referenced := map[string]map[string]bool{}
+	ids, err := sortedKeysContext(ctx, commits)
+	if err != nil {
+		return nil, err
+	}
+	work := 0
+	for _, id := range ids {
+		if err := pollContext(ctx, work); err != nil {
+			return nil, err
+		}
+		work++
+		commit := commits[id]
+		if available[commit.namespace] == nil {
+			available[commit.namespace] = map[string]bool{}
+			referenced[commit.namespace] = map[string]bool{}
+		}
+		available[commit.namespace][id] = true
+		for _, parent := range commit.parents {
+			if err := pollContext(ctx, work); err != nil {
+				return nil, err
+			}
+			work++
+			referenced[commit.namespace][parent] = true
+		}
+	}
+	result := map[string][]string{}
+	namespaces, err := sortedKeysContext(ctx, available)
+	if err != nil {
+		return nil, err
+	}
+	for _, namespace := range namespaces {
+		candidateIDs, err := sortedKeysContext(ctx, available[namespace])
+		if err != nil {
+			return nil, err
+		}
+		for _, id := range candidateIDs {
+			if !referenced[namespace][id] {
+				result[namespace] = append(result[namespace], id)
+			}
+		}
+	}
+	return result, nil
 }
 
 // Show finds an immutable object or stable event reference without fetching external evidence.
@@ -450,6 +522,26 @@ func verificationForID(st *store.Store, id string) (ObjectVerification, error) {
 	return verifyCanonicalBytes(file, raw), nil
 }
 func verifyCanonicalBytes(file store.ObjectFile, raw []byte) ObjectVerification {
+	return finishCanonicalVerification(confirmCanonicalBytes(parseCanonicalBytes(file, raw), raw))
+}
+
+func verifyCanonicalBytesWithPreflight(ctx context.Context, file store.ObjectFile, raw []byte, resources *scanResourceCounts, limits Limits) (ObjectVerification, parsedObjectResources, error) {
+	result := parseCanonicalBytes(file, raw)
+	if result.object == nil {
+		return result, parsedObjectResources{}, nil
+	}
+	parsedResources, err := resources.preflightParsedObject(ctx, file.ID, result.object, limits)
+	if err != nil {
+		return ObjectVerification{}, parsedObjectResources{}, err
+	}
+	if err := pollRawStructureContext(ctx, result.object); err != nil {
+		return ObjectVerification{}, parsedObjectResources{}, err
+	}
+	result, err = finishCanonicalVerificationContext(ctx, confirmCanonicalBytes(result, raw))
+	return result, parsedResources, err
+}
+
+func parseCanonicalBytes(file store.ObjectFile, raw []byte) ObjectVerification {
 	result := ObjectVerification{ID: file.ID, Path: file.Path, Integrity: "invalid", Structure: "unverified", Authenticity: "unverified"}
 	if canonical.Digest(raw) != file.ID {
 		result.Errors = append(result.Errors, fmt.Sprintf("object digest mismatch: path says %s, bytes say %s", file.ID, canonical.Digest(raw)))
@@ -457,32 +549,103 @@ func verifyCanonicalBytes(file store.ObjectFile, raw []byte) ObjectVerification 
 	}
 	parsed, err := canonical.Parse(raw)
 	if err != nil {
+		var diagnostic *validationDiagnosticError
+		if errors.As(err, &diagnostic) && diagnostic.truncated {
+			result.diagnosticsTruncated = true
+		}
 		result.Errors = append(result.Errors, err.Error())
 		result.Structure = "invalid"
 		return result
 	}
-	encoded, err := canonical.Marshal(parsed)
-	if err != nil {
-		result.Errors = append(result.Errors, err.Error())
-		return result
-	}
-	if !bytes.Equal(encoded, raw) {
-		result.Errors = append(result.Errors, "object bytes are not canonical pact-json-v1")
-		return result
-	}
-	result.Integrity = "valid"
 	object, ok := parsed.(map[string]any)
 	if !ok {
+		encoded, marshalErr := canonical.Marshal(parsed)
+		if marshalErr != nil {
+			result.Errors = append(result.Errors, marshalErr.Error())
+			return result
+		}
+		if !bytes.Equal(encoded, raw) {
+			result.Errors = append(result.Errors, "object bytes are not canonical pact-json-v1")
+			return result
+		}
+		result.Integrity = "valid"
 		result.Errors = append(result.Errors, "canonical object must be a JSON object")
 		result.Structure = "invalid"
 		return result
 	}
 	result.object = object
-	objectType, namespace, err := validateSignedObject(object)
+	return result
+}
+
+func confirmCanonicalBytes(result ObjectVerification, raw []byte) ObjectVerification {
+	if result.object == nil {
+		return result
+	}
+	encoded, err := canonical.Marshal(result.object)
+	if err != nil {
+		result.Errors = append(result.Errors, err.Error())
+		result.object = nil
+		return result
+	}
+	if !bytes.Equal(encoded, raw) {
+		result.Errors = append(result.Errors, "object bytes are not canonical pact-json-v1")
+		result.object = nil
+		return result
+	}
+	result.Integrity = "valid"
+	return result
+}
+
+func pollRawStructureContext(ctx context.Context, value any) error {
+	stack := []any{value}
+	work := 0
+	for len(stack) != 0 {
+		if err := pollContext(ctx, work); err != nil {
+			return err
+		}
+		work++
+		current := stack[len(stack)-1]
+		stack = stack[:len(stack)-1]
+		switch item := current.(type) {
+		case []any:
+			for _, child := range item {
+				if err := pollContext(ctx, work); err != nil {
+					return err
+				}
+				work++
+				stack = append(stack, child)
+			}
+		case map[string]any:
+			for _, child := range item {
+				if err := pollContext(ctx, work); err != nil {
+					return err
+				}
+				work++
+				stack = append(stack, child)
+			}
+		}
+	}
+	return nil
+}
+
+func finishCanonicalVerification(result ObjectVerification) ObjectVerification {
+	result, _ = finishCanonicalVerificationContext(context.Background(), result)
+	return result
+}
+
+func finishCanonicalVerificationContext(ctx context.Context, result ObjectVerification) (ObjectVerification, error) {
+	if result.object == nil || result.Integrity != "valid" {
+		return result, nil
+	}
+	object := result.object
+	objectType, namespace, err := validateSignedObjectContext(ctx, object)
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return ObjectVerification{}, err
+	}
 	if err != nil {
 		result.Errors = append(result.Errors, err.Error())
 		result.Structure = "invalid"
-		return result
+		return result, nil
 	}
 	result.Type = objectType
 	result.Namespace = namespace
@@ -490,33 +653,40 @@ func verifyCanonicalBytes(file store.ObjectFile, raw []byte) ObjectVerification 
 	if err := verifySignature(object); err != nil {
 		result.Errors = append(result.Errors, err.Error())
 		result.Authenticity = "invalid"
-		return result
+		return result, nil
 	}
 	result.Authenticity = "valid"
-	return result
+	return result, ctx.Err()
 }
-func validateSignedObject(object map[string]any) (string, string, error) {
+func validateSignedObjectContext(ctx context.Context, object map[string]any) (string, string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", "", err
+	}
 	format, ok := object["format"].(string)
 	if !ok {
-		return "", "", fmt.Errorf("unsupported signed object format: %q", object["format"])
+		return "", "", errors.New("unsupported signed object format")
 	}
 	switch format {
 	case commitFormat:
-		namespace, err := validateCommitObject(object)
+		namespace, err := validateCommitObjectContext(ctx, object)
 		return "commit", namespace, err
 	case checkpointFormat:
-		scope, err := validateCheckpointObject(object)
+		scope, err := validateCheckpointObjectContext(ctx, object)
 		return "checkpoint", scope, err
 	default:
-		return "", "", fmt.Errorf("unsupported signed object format: %q", format)
+		return "", "", quotedValidationError("unsupported signed object format: ", format)
 	}
 }
 func validateCommitObject(object map[string]any) (string, error) {
+	return validateCommitObjectContext(context.Background(), object)
+}
+
+func validateCommitObjectContext(ctx context.Context, object map[string]any) (string, error) {
 	if err := exactKeys(object, []string{"format", "body", "body_digest", "signature"}, nil, "$"); err != nil {
 		return "", err
 	}
 	if object["format"] != commitFormat {
-		return "", fmt.Errorf("unsupported signed object format: %q", object["format"])
+		return "", errors.New("unsupported signed object format")
 	}
 	body, ok := object["body"].(map[string]any)
 	if !ok {
@@ -532,7 +702,7 @@ func validateCommitObject(object map[string]any) (string, error) {
 	if err := validateNamespace(namespace); err != nil {
 		return "", err
 	}
-	if err := validateCommitParents(body["parents"]); err != nil {
+	if err := validateCommitParentsContext(ctx, body["parents"]); err != nil {
 		return "", err
 	}
 	if err := validateSignedActor(body["actor"], "commit"); err != nil {
@@ -541,30 +711,32 @@ func validateCommitObject(object map[string]any) (string, error) {
 	if err := validateCommitAuthority(body["authority"]); err != nil {
 		return "", err
 	}
-	if err := validateCommitContent(body); err != nil {
+	if err := validateCommitContentContext(ctx, body); err != nil {
 		return "", err
 	}
 	return namespace, nil
 }
 
-func validateCommitParents(value any) error {
+func validateCommitParentsContext(ctx context.Context, value any) error {
 	parents, ok := value.([]any)
 	if !ok {
 		return fmt.Errorf("commit parents must be an array")
 	}
-	parentList := make([]string, len(parents))
+	previous := ""
 	for index, parent := range parents {
+		if err := pollContext(ctx, index); err != nil {
+			return err
+		}
 		text, ok := parent.(string)
 		if !ok || !digestPattern.MatchString(text) {
 			return fmt.Errorf("invalid parent ID")
 		}
-		parentList[index] = text
-	}
-	sorted := make([]string, len(parentList))
-	copy(sorted, parentList)
-	sort.Strings(sorted)
-	if !reflect.DeepEqual(parentList, sorted) || hasDuplicate(sorted) {
-		return fmt.Errorf("commit parents are not sorted unique canonical IDs")
+		if index != 0 {
+			if previous >= text {
+				return fmt.Errorf("commit parents are not sorted unique canonical IDs")
+			}
+		}
+		previous = text
 	}
 	return nil
 }
@@ -613,7 +785,7 @@ func validateCommitAuthority(value any) error {
 	return nil
 }
 
-func validateCommitContent(body map[string]any) error {
+func validateCommitContentContext(ctx context.Context, body map[string]any) error {
 	observed, ok := body["observed_at"].(string)
 	if !ok || observed == "" || utf8.RuneCountInString(observed) > 64 {
 		return fmt.Errorf("commit observed_at is invalid")
@@ -632,7 +804,10 @@ func validateCommitContent(body map[string]any) error {
 	if !ok {
 		return fmt.Errorf("commit events must be an array")
 	}
-	normalized, err := NormalizeEventBatch(map[string]any{"events": events, "metadata": metadata})
+	if err := pollRawStructureContext(ctx, events); err != nil {
+		return err
+	}
+	normalized, err := normalizeEventBatchContext(ctx, map[string]any{"events": events, "metadata": metadata})
 	if err != nil {
 		return err
 	}
@@ -642,11 +817,15 @@ func validateCommitContent(body map[string]any) error {
 	return nil
 }
 func validateCheckpointObject(object map[string]any) (string, error) {
+	return validateCheckpointObjectContext(context.Background(), object)
+}
+
+func validateCheckpointObjectContext(ctx context.Context, object map[string]any) (string, error) {
 	if err := exactKeys(object, []string{"format", "body", "body_digest", "signature"}, nil, "$"); err != nil {
 		return "", err
 	}
 	if object["format"] != checkpointFormat {
-		return "", fmt.Errorf("unsupported signed object format: %q", object["format"])
+		return "", errors.New("unsupported signed object format")
 	}
 	body, ok := object["body"].(map[string]any)
 	if !ok {
@@ -662,10 +841,10 @@ func validateCheckpointObject(object map[string]any) (string, error) {
 	if err := validateNamespace(scope); err != nil {
 		return "", err
 	}
-	if err := validateCheckpointFrontier(body["frontier"], scope); err != nil {
+	if err := validateCheckpointFrontierContext(ctx, body["frontier"], scope); err != nil {
 		return "", err
 	}
-	if err := validateCheckpointReferences(body); err != nil {
+	if err := validateCheckpointReferencesContext(ctx, body); err != nil {
 		return "", err
 	}
 	if err := validateSignedActor(body["actor"], "checkpoint"); err != nil {
@@ -677,54 +856,71 @@ func validateCheckpointObject(object map[string]any) (string, error) {
 	return scope, nil
 }
 
-func validateCheckpointFrontier(value any, scope string) error {
+func validateCheckpointFrontierContext(ctx context.Context, value any, scope string) error {
 	frontier, ok := value.([]any)
 	if !ok || len(frontier) == 0 {
 		return fmt.Errorf("checkpoint frontier must contain at least one namespace")
 	}
-	namespaces := make([]string, len(frontier))
+	previousNamespace := ""
+	work := 0
 	for index, raw := range frontier {
-		entry, ok := raw.(map[string]any)
-		if !ok {
-			return fmt.Errorf("checkpoint frontier[%d] must be an object", index)
-		}
-		if err := exactKeys(entry, []string{"namespace", "heads"}, nil, fmt.Sprintf("$.body.frontier[%d]", index)); err != nil {
+		if err := pollContext(ctx, work); err != nil {
 			return err
 		}
-		namespace, ok := entry["namespace"].(string)
-		if !ok {
-			return fmt.Errorf("checkpoint namespace is not canonical")
-		}
-		if err := validateNamespace(namespace); err != nil {
+		work++
+		namespace, err := validateCheckpointFrontierEntry(ctx, raw, index, scope, &work)
+		if err != nil {
 			return err
 		}
-		if !namespaceInScope(namespace, scope) {
-			return fmt.Errorf("checkpoint namespace %q is outside scope %q", namespace, scope)
+		if index != 0 && previousNamespace >= namespace {
+			return fmt.Errorf("checkpoint frontier is not sorted by namespace")
 		}
-		namespaces[index] = namespace
-		heads, ok := entry["heads"].([]any)
-		if !ok || len(heads) == 0 {
-			return fmt.Errorf("checkpoint namespace %s has no heads", namespace)
-		}
-		headIDs := make([]string, len(heads))
-		for headIndex, rawHead := range heads {
-			head, ok := rawHead.(string)
-			if !ok || !digestPattern.MatchString(head) {
-				return fmt.Errorf("invalid checkpoint head")
-			}
-			headIDs[headIndex] = head
-		}
-		if !sort.StringsAreSorted(headIDs) || hasDuplicate(headIDs) {
-			return fmt.Errorf("checkpoint heads for %s are not canonical", namespace)
-		}
-	}
-	if !sort.StringsAreSorted(namespaces) || hasDuplicate(namespaces) {
-		return fmt.Errorf("checkpoint frontier is not sorted by namespace")
+		previousNamespace = namespace
 	}
 	return nil
 }
 
-func validateCheckpointReferences(body map[string]any) error {
+func validateCheckpointFrontierEntry(ctx context.Context, raw any, index int, scope string, work *int) (string, error) {
+	entry, ok := raw.(map[string]any)
+	if !ok {
+		return "", fmt.Errorf("checkpoint frontier[%d] must be an object", index)
+	}
+	if err := exactKeys(entry, []string{"namespace", "heads"}, nil, fmt.Sprintf("$.body.frontier[%d]", index)); err != nil {
+		return "", err
+	}
+	namespace, ok := entry["namespace"].(string)
+	if !ok {
+		return "", fmt.Errorf("checkpoint namespace is not canonical")
+	}
+	if err := validateNamespace(namespace); err != nil {
+		return "", err
+	}
+	if !namespaceInScope(namespace, scope) {
+		return "", fmt.Errorf("checkpoint namespace %q is outside scope %q", namespace, scope)
+	}
+	heads, ok := entry["heads"].([]any)
+	if !ok || len(heads) == 0 {
+		return "", fmt.Errorf("checkpoint namespace %s has no heads", namespace)
+	}
+	previousHead := ""
+	for headIndex, rawHead := range heads {
+		if err := pollContext(ctx, *work); err != nil {
+			return "", err
+		}
+		(*work)++
+		head, ok := rawHead.(string)
+		if !ok || !digestPattern.MatchString(head) {
+			return "", fmt.Errorf("invalid checkpoint head")
+		}
+		if headIndex != 0 && previousHead >= head {
+			return "", fmt.Errorf("checkpoint heads for %s are not canonical", namespace)
+		}
+		previousHead = head
+	}
+	return namespace, nil
+}
+
+func validateCheckpointReferencesContext(ctx context.Context, body map[string]any) error {
 	policyRef, ok := body["policy_ref"].(string)
 	if !ok || !digestPattern.MatchString(policyRef) {
 		return fmt.Errorf("invalid policy reference")
@@ -733,16 +929,19 @@ func validateCheckpointReferences(body map[string]any) error {
 	if !ok {
 		return fmt.Errorf("checkpoint schema_refs must be an array")
 	}
-	schemaRefs := make([]string, len(schemaRaw))
+	previousSchema := ""
 	for index, raw := range schemaRaw {
+		if err := pollContext(ctx, index); err != nil {
+			return err
+		}
 		ref, ok := raw.(string)
 		if !ok || !digestPattern.MatchString(ref) {
 			return fmt.Errorf("invalid schema reference")
 		}
-		schemaRefs[index] = ref
-	}
-	if !sort.StringsAreSorted(schemaRefs) || hasDuplicate(schemaRefs) {
-		return fmt.Errorf("checkpoint schema_refs are not canonical")
+		if index != 0 && previousSchema >= ref {
+			return fmt.Errorf("checkpoint schema_refs are not canonical")
+		}
+		previousSchema = ref
 	}
 	epoch, ok := body["authority_epoch"].(string)
 	if !ok || epoch == "" || utf8.RuneCountInString(epoch) > 255 {
@@ -834,14 +1033,6 @@ func decodeBase64URL(value string) ([]byte, error) {
 }
 func isKeyID(value string) bool {
 	return len(value) == len("ed25519:")+len("sha256:")+64 && len(value) > 8 && value[:8] == "ed25519:" && digestPattern.MatchString(value[8:])
-}
-func hasDuplicate(values []string) bool {
-	for index := 1; index < len(values); index++ {
-		if values[index] == values[index-1] {
-			return true
-		}
-	}
-	return false
 }
 func resultDAGAt(result *VerifyResult, strict bool, message string) {
 	if strict {

@@ -2,6 +2,8 @@
 // ABOUTME: Clamps test overrides to Phase 2 hard caps and counts every edge category once.
 package ledger
 
+import "context"
+
 type edgeCategoryCounts struct {
 	parents, eventGates, causedBy, supersedes, checkpointHeads, previousCheckpoints uint64
 }
@@ -20,58 +22,128 @@ func (counts edgeCategoryCounts) validate(limits Limits, id string) error {
 type scanResourceCounts struct {
 	commits, checkpoints, events uint64
 	edges                        edgeCategoryCounts
+	rawEvents                    uint64
+	rawEdges                     edgeCategoryCounts
 }
 
-func (counts *scanResourceCounts) addCanonicalObject(id string, object ObjectVerification, limits Limits) error {
-	if !object.Valid() {
-		return nil
+type parsedObjectResources struct {
+	kind   string
+	events uint64
+	edges  edgeCategoryCounts
+}
+
+func (counts *scanResourceCounts) preflightParsedObject(ctx context.Context, id string, object map[string]any, limits Limits) (parsedObjectResources, error) {
+	if err := ctx.Err(); err != nil {
+		return parsedObjectResources{}, err
 	}
-	body, ok := object.object["body"].(map[string]any)
+	body, ok := object["body"].(map[string]any)
 	if !ok {
-		return nil
+		return parsedObjectResources{}, nil
 	}
-	next := *counts
-	switch object.Type {
+	resources := parsedObjectResources{}
+	var err error
+	switch object["format"] {
+	case commitFormat:
+		resources, err = preflightCommitResources(ctx, id, body, limits, counts.rawEvents)
+		if err != nil {
+			return parsedObjectResources{}, err
+		}
+	case checkpointFormat:
+		resources, err = preflightCheckpointResources(ctx, body)
+		if err != nil {
+			return parsedObjectResources{}, err
+		}
+	}
+	nextEdges := counts.rawEdges
+	nextEdges.add(resources.edges)
+	if err := nextEdges.validate(limits, id); err != nil {
+		return parsedObjectResources{}, err
+	}
+	counts.rawEvents += resources.events
+	counts.rawEdges = nextEdges
+	return resources, nil
+}
+
+func preflightCommitResources(ctx context.Context, id string, body map[string]any, limits Limits, priorEvents uint64) (parsedObjectResources, error) {
+	parents, _ := body["parents"].([]any)
+	events, _ := body["events"].([]any)
+	if uint64(len(parents)) > limits.ParentsPerCommit {
+		return parsedObjectResources{}, objectLimitError("parents_per_commit", limits.ParentsPerCommit, id)
+	}
+	if uint64(len(events)) > limits.EventsPerCommit {
+		return parsedObjectResources{}, objectLimitError("events_per_commit", limits.EventsPerCommit, id)
+	}
+	if uint64(len(events)) > limits.Events-priorEvents {
+		return parsedObjectResources{}, objectLimitError("events", limits.Events, id)
+	}
+	for index := range parents {
+		if err := pollContext(ctx, index); err != nil {
+			return parsedObjectResources{}, err
+		}
+	}
+	resources := parsedObjectResources{kind: "commit", events: uint64(len(events))}
+	resources.edges.parents = uint64(len(parents))
+	resources.edges.eventGates = 2 * uint64(len(events))
+	for index, raw := range events {
+		if err := pollContext(ctx, index); err != nil {
+			return parsedObjectResources{}, err
+		}
+		event, _ := raw.(map[string]any)
+		causedBy, _ := event["caused_by"].([]any)
+		supersedes, _ := event["supersedes"].([]any)
+		for refIndex := range len(causedBy) + len(supersedes) {
+			if err := pollContext(ctx, refIndex); err != nil {
+				return parsedObjectResources{}, err
+			}
+		}
+		resources.edges.causedBy += uint64(len(causedBy))
+		resources.edges.supersedes += uint64(len(supersedes))
+	}
+	return resources, nil
+}
+
+func preflightCheckpointResources(ctx context.Context, body map[string]any) (parsedObjectResources, error) {
+	resources := parsedObjectResources{kind: "checkpoint"}
+	frontier, _ := body["frontier"].([]any)
+	work := 0
+	for index, raw := range frontier {
+		if err := pollContext(ctx, index); err != nil {
+			return parsedObjectResources{}, err
+		}
+		entry, _ := raw.(map[string]any)
+		heads, _ := entry["heads"].([]any)
+		for range heads {
+			if err := pollContext(ctx, work); err != nil {
+				return parsedObjectResources{}, err
+			}
+			work++
+		}
+		resources.edges.checkpointHeads += uint64(len(heads))
+	}
+	if previous, _ := body["previous_checkpoint"].(string); previous != "" {
+		resources.edges.previousCheckpoints++
+	}
+	return resources, nil
+}
+
+func (counts *scanResourceCounts) acceptValid(resources parsedObjectResources) {
+	switch resources.kind {
 	case "commit":
-		parents, _ := body["parents"].([]any)
-		events, _ := body["events"].([]any)
-		if uint64(len(parents)) > limits.ParentsPerCommit {
-			return objectLimitError("parents_per_commit", limits.ParentsPerCommit, id)
-		}
-		if uint64(len(events)) > limits.EventsPerCommit {
-			return objectLimitError("events_per_commit", limits.EventsPerCommit, id)
-		}
-		if uint64(len(events)) > limits.Events-next.events {
-			return objectLimitError("events", limits.Events, id)
-		}
-		next.commits++
-		next.events += uint64(len(events))
-		next.edges.parents += uint64(len(parents))
-		next.edges.eventGates += 2 * uint64(len(events))
-		for _, raw := range events {
-			event, _ := raw.(map[string]any)
-			causedBy, _ := event["caused_by"].([]any)
-			supersedes, _ := event["supersedes"].([]any)
-			next.edges.causedBy += uint64(len(causedBy))
-			next.edges.supersedes += uint64(len(supersedes))
-		}
+		counts.commits++
 	case "checkpoint":
-		next.checkpoints++
-		frontier, _ := body["frontier"].([]any)
-		for _, raw := range frontier {
-			entry, _ := raw.(map[string]any)
-			heads, _ := entry["heads"].([]any)
-			next.edges.checkpointHeads += uint64(len(heads))
-		}
-		if previous, _ := body["previous_checkpoint"].(string); previous != "" {
-			next.edges.previousCheckpoints++
-		}
+		counts.checkpoints++
 	}
-	if err := next.edges.validate(limits, id); err != nil {
-		return err
-	}
-	*counts = next
-	return nil
+	counts.events += resources.events
+	counts.edges.add(resources.edges)
+}
+
+func (counts *edgeCategoryCounts) add(other edgeCategoryCounts) {
+	counts.parents += other.parents
+	counts.eventGates += other.eventGates
+	counts.causedBy += other.causedBy
+	counts.supersedes += other.supersedes
+	counts.checkpointHeads += other.checkpointHeads
+	counts.previousCheckpoints += other.previousCheckpoints
 }
 
 func objectLimitError(resource string, maximum uint64, id string) *LimitError {

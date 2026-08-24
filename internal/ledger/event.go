@@ -3,6 +3,7 @@
 package ledger
 
 import (
+	"context"
 	"fmt"
 	"net/url"
 	"regexp"
@@ -35,6 +36,8 @@ var secretFieldNames = map[string]struct{}{
 	"refresh_token": {}, "bearer_token": {}, "private_key": {}, "authorization": {}, "cookie": {}, "session_cookie": {},
 }
 
+const maximumDiagnosticSamples = 100
+
 // EventBatch is the normalized immutable event input used in a signed commit.
 type EventBatch struct {
 	Namespace     string
@@ -54,6 +57,13 @@ type Event struct {
 
 // NormalizeEventBatch validates exact batch fields and returns the stored form.
 func NormalizeEventBatch(value map[string]any) (EventBatch, error) {
+	return normalizeEventBatchContext(context.Background(), value)
+}
+
+func normalizeEventBatchContext(ctx context.Context, value map[string]any) (EventBatch, error) {
+	if err := ctx.Err(); err != nil {
+		return EventBatch{}, err
+	}
 	if err := exactKeys(value, []string{"events"}, []string{"namespace", "observed_at", "correlation_id", "metadata"}, "$"); err != nil {
 		return EventBatch{}, err
 	}
@@ -64,15 +74,20 @@ func NormalizeEventBatch(value map[string]any) (EventBatch, error) {
 	if uint64(len(eventsRaw)) > Phase2Limits.EventsPerCommit {
 		return EventBatch{}, limitError("events_per_commit", Phase2Limits.EventsPerCommit)
 	}
-	if hazards := scanSecretHazards(value, "$"); len(hazards) != 0 {
-		return EventBatch{}, fmt.Errorf("%w: refusing to sign immutable secret-like material: %s", ErrSecretSafety, strings.Join(hazards, "; "))
+	hazards, err := scanSecretHazardsContext(ctx, value, "$")
+	if err != nil {
+		return EventBatch{}, err
 	}
-	events, localIDs, err := normalizeBatchEvents(value["events"])
+	if len(hazards) != 0 {
+		message, _ := boundedDiagnosticJoin("refusing to sign immutable secret-like material: ", hazards, "; ", Phase2Limits.DiagnosticTextBytes)
+		return EventBatch{}, fmt.Errorf("%w: %s", ErrSecretSafety, message)
+	}
+	events, localIDs, err := normalizeBatchEventsContext(ctx, value["events"])
 	if err != nil {
 		return EventBatch{}, err
 	}
 	sort.Slice(events, func(i, j int) bool { return events[i].LocalID < events[j].LocalID })
-	if err := validateLocalCauses(events, localIDs); err != nil {
+	if err := validateLocalCausesContext(ctx, events, localIDs); err != nil {
 		return EventBatch{}, err
 	}
 	result := EventBatch{Events: events, Metadata: map[string]any{}}
@@ -82,7 +97,7 @@ func NormalizeEventBatch(value map[string]any) (EventBatch, error) {
 	return result, nil
 }
 
-func normalizeBatchEvents(value any) ([]Event, map[string]struct{}, error) {
+func normalizeBatchEventsContext(ctx context.Context, value any) ([]Event, map[string]struct{}, error) {
 	eventsRaw, ok := value.([]any)
 	if !ok || len(eventsRaw) == 0 {
 		return nil, nil, fmt.Errorf("event batch must contain at least one event")
@@ -90,11 +105,14 @@ func normalizeBatchEvents(value any) ([]Event, map[string]struct{}, error) {
 	localIDs := map[string]struct{}{}
 	events := make([]Event, 0, len(eventsRaw))
 	for index, raw := range eventsRaw {
+		if err := pollContext(ctx, index); err != nil {
+			return nil, nil, err
+		}
 		eventObject, ok := raw.(map[string]any)
 		if !ok {
 			return nil, nil, fmt.Errorf("$.events[%d]: event must be an object", index)
 		}
-		event, err := normalizeEvent(eventObject, fmt.Sprintf("$.events[%d]", index), localIDs)
+		event, err := normalizeEventContext(ctx, eventObject, fmt.Sprintf("$.events[%d]", index), localIDs)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -103,9 +121,14 @@ func normalizeBatchEvents(value any) ([]Event, map[string]struct{}, error) {
 	return events, localIDs, nil
 }
 
-func validateLocalCauses(events []Event, localIDs map[string]struct{}) error {
+func validateLocalCausesContext(ctx context.Context, events []Event, localIDs map[string]struct{}) error {
+	work := 0
 	for _, event := range events {
 		for _, ref := range event.CausedBy {
+			if err := pollContext(ctx, work); err != nil {
+				return err
+			}
+			work++
 			match := localRefPattern.FindStringSubmatch(ref)
 			if match == nil {
 				continue
@@ -160,7 +183,10 @@ func normalizeBatchFields(value map[string]any, result *EventBatch) error {
 	return nil
 }
 
-func normalizeEvent(value map[string]any, path string, localIDs map[string]struct{}) (Event, error) {
+func normalizeEventContext(ctx context.Context, value map[string]any, path string, localIDs map[string]struct{}) (Event, error) {
+	if err := ctx.Err(); err != nil {
+		return Event{}, err
+	}
 	required := []string{"local_id", "kind", "type", "subject", "schema_ref", "payload", "evidence", "caused_by", "supersedes", "tags"}
 	if err := exactKeys(value, required, nil, path); err != nil {
 		return Event{}, err
@@ -177,19 +203,19 @@ func normalizeEvent(value map[string]any, path string, localIDs map[string]struc
 	if err != nil {
 		return Event{}, fmt.Errorf("%s.payload: %w", path, err)
 	}
-	result.Evidence, err = normalizeEvidence(value["evidence"], path)
+	result.Evidence, err = normalizeEvidenceContext(ctx, value["evidence"], path)
 	if err != nil {
 		return Event{}, err
 	}
-	result.CausedBy, err = normalizeRefs(value["caused_by"], true, path+".caused_by")
+	result.CausedBy, err = normalizeRefsContext(ctx, value["caused_by"], true, path+".caused_by")
 	if err != nil {
 		return Event{}, err
 	}
-	result.Supersedes, err = normalizeRefs(value["supersedes"], false, path+".supersedes")
+	result.Supersedes, err = normalizeRefsContext(ctx, value["supersedes"], false, path+".supersedes")
 	if err != nil {
 		return Event{}, err
 	}
-	result.Tags, err = normalizeTags(value["tags"], path+".tags")
+	result.Tags, err = normalizeTagsContext(ctx, value["tags"], path+".tags")
 	return result, err
 }
 
@@ -237,30 +263,72 @@ func exactKeys(value map[string]any, required, optional []string, path string) e
 	if len(missing) != 0 {
 		return fmt.Errorf("%s: missing required fields: %s", path, strings.Join(missing, ", "))
 	}
-	extra := make([]string, 0)
+	extra := make([]string, 0, maximumDiagnosticSamples)
 	for key := range value {
 		if !allowed[key] {
-			extra = append(extra, key)
+			extra = insertBoundedSortedString(extra, key, maximumDiagnosticSamples)
 		}
 	}
-	sort.Strings(extra)
 	if len(extra) != 0 {
-		return fmt.Errorf("%s: unsupported fields: %s", path, strings.Join(extra, ", "))
+		message, truncated := boundedDiagnosticJoin(path+": unsupported fields: ", extra, ", ", Phase2Limits.DiagnosticTextBytes)
+		return &validationDiagnosticError{message: message, truncated: truncated}
 	}
 	return nil
 }
+
+func insertBoundedSortedString(values []string, value string, maximum int) []string {
+	index := sort.SearchStrings(values, value)
+	if index >= maximum || index < len(values) && values[index] == value {
+		return values
+	}
+	values = append(values, "")
+	copy(values[index+1:], values[index:])
+	values[index] = value
+	if len(values) > maximum {
+		values = values[:maximum]
+	}
+	return values
+}
+
+func boundedDiagnosticJoin(prefix string, values []string, separator string, maximum uint64) (string, bool) {
+	builder := newBoundedDiagnosticBuilder(maximum)
+	builder.write(prefix)
+	for index, value := range values {
+		if index != 0 {
+			builder.write(separator)
+		}
+		builder.write(value)
+	}
+	return builder.String(), builder.truncated
+}
+
+func quotedValidationError(prefix, value string) error {
+	builder := newBoundedDiagnosticBuilder(Phase2Limits.DiagnosticTextBytes)
+	builder.write(prefix)
+	builder.write(`"`)
+	builder.write(value)
+	builder.write(`"`)
+	return &validationDiagnosticError{message: builder.String(), truncated: builder.truncated}
+}
+
+type validationDiagnosticError struct {
+	message   string
+	truncated bool
+}
+
+func (err *validationDiagnosticError) Error() string { return err.message }
 func validateNamespace(value string) error {
 	if value == "" || len(value) > 512 || strings.HasPrefix(value, "/") || strings.HasSuffix(value, "/") || strings.Contains(value, "//") {
-		return fmt.Errorf("invalid namespace: %q", value)
+		return quotedValidationError("invalid namespace: ", value)
 	}
 	for index, character := range value {
 		if (index == 0 && !asciiAlphaNumeric(character)) || (!asciiAlphaNumeric(character) && character != '.' && character != '_' && character != '/' && character != '-') {
-			return fmt.Errorf("invalid namespace: %q", value)
+			return quotedValidationError("invalid namespace: ", value)
 		}
 	}
 	for segment := range strings.SplitSeq(value, "/") {
 		if segment == "." || segment == ".." {
-			return fmt.Errorf("invalid namespace: %q", value)
+			return quotedValidationError("invalid namespace: ", value)
 		}
 	}
 	return nil
@@ -271,53 +339,52 @@ func asciiAlphaNumeric(value rune) bool {
 func isEventKind(value string) bool {
 	return value == "observation" || value == "assertion" || value == "action" || value == "decision" || value == "control"
 }
-func normalizeRefs(value any, allowLocal bool, path string) ([]string, error) {
+func normalizeRefsContext(ctx context.Context, value any, allowLocal bool, path string) ([]string, error) {
 	raw, ok := value.([]any)
 	if !ok {
 		return nil, fmt.Errorf("%s: must be an array", path)
 	}
 	values := map[string]struct{}{}
-	for _, item := range raw {
+	for index, item := range raw {
+		if err := pollContext(ctx, index); err != nil {
+			return nil, err
+		}
 		ref, ok := item.(string)
 		if !ok || (!eventRefPattern.MatchString(ref) && (!allowLocal || !localRefPattern.MatchString(ref))) {
 			return nil, fmt.Errorf("%s: invalid event reference", path)
 		}
 		values[ref] = struct{}{}
 	}
-	result := make([]string, 0, len(values))
-	for item := range values {
-		result = append(result, item)
-	}
-	sort.Strings(result)
-	return result, nil
+	return sortedKeysContext(ctx, values)
 }
-func normalizeTags(value any, path string) ([]string, error) {
+func normalizeTagsContext(ctx context.Context, value any, path string) ([]string, error) {
 	raw, ok := value.([]any)
 	if !ok {
 		return nil, fmt.Errorf("%s: must be an array", path)
 	}
 	values := map[string]struct{}{}
-	for _, item := range raw {
+	for index, item := range raw {
+		if err := pollContext(ctx, index); err != nil {
+			return nil, err
+		}
 		tag, ok := item.(string)
 		if !ok || tag == "" || utf8.RuneCountInString(tag) > 128 {
 			return nil, fmt.Errorf("%s: invalid tag", path)
 		}
 		values[norm.NFC.String(tag)] = struct{}{}
 	}
-	result := make([]string, 0, len(values))
-	for item := range values {
-		result = append(result, item)
-	}
-	sort.Strings(result)
-	return result, nil
+	return sortedKeysContext(ctx, values)
 }
-func normalizeEvidence(value any, path string) ([]map[string]any, error) {
+func normalizeEvidenceContext(ctx context.Context, value any, path string) ([]map[string]any, error) {
 	raw, ok := value.([]any)
 	if !ok {
 		return nil, fmt.Errorf("%s.evidence: must be an array", path)
 	}
 	result := make([]map[string]any, 0, len(raw))
 	for index, item := range raw {
+		if err := pollContext(ctx, index); err != nil {
+			return nil, err
+		}
 		normalized, err := normalizeEvidenceEntry(item, fmt.Sprintf("%s.evidence[%d]", path, index))
 		if err != nil {
 			return nil, err
@@ -409,62 +476,94 @@ func stringsToAny(value []string) []any {
 	return result
 }
 func scanSecretHazards(value any, path string) []string {
-	hazards := map[string]struct{}{}
-	collectSecretHazards(value, path, hazards)
-	result := make([]string, 0, len(hazards))
-	for hazard := range hazards {
-		result = append(result, hazard)
-	}
-	sort.Strings(result)
-	return result
+	hazards, _ := scanSecretHazardsContext(context.Background(), value, path)
+	return hazards
 }
 
-func collectSecretHazards(current any, path string, hazards map[string]struct{}) {
+func scanSecretHazardsContext(ctx context.Context, value any, path string) ([]string, error) {
+	hazards := map[string]struct{}{}
+	work := 0
+	if err := collectSecretHazardsContext(ctx, value, path, hazards, &work); err != nil {
+		return nil, err
+	}
+	return sortedKeysContext(ctx, hazards)
+}
+
+func collectSecretHazardsContext(ctx context.Context, current any, path string, hazards map[string]struct{}, work *int) error {
+	if err := pollContext(ctx, *work); err != nil {
+		return err
+	}
+	(*work)++
+	if uint64(len(hazards)) >= Phase2Limits.DiagnosticSamples {
+		return nil
+	}
 	switch item := current.(type) {
 	case map[string]any:
 		for key, child := range item {
+			if err := pollContext(ctx, *work); err != nil {
+				return err
+			}
+			(*work)++
 			childPath := path + "." + key
 			if text, ok := child.(string); ok && isSecretField(key) && !looksRedactedOrIndirect(text) {
 				hazards[childPath+": secret-like field value"] = struct{}{}
 			}
-			collectSecretHazards(child, childPath, hazards)
+			if err := collectSecretHazardsContext(ctx, child, childPath, hazards, work); err != nil {
+				return err
+			}
 		}
 	case []any:
 		for index, child := range item {
-			collectSecretHazards(child, fmt.Sprintf("%s[%d]", path, index), hazards)
+			if err := collectSecretHazardsContext(ctx, child, fmt.Sprintf("%s[%d]", path, index), hazards, work); err != nil {
+				return err
+			}
 		}
 	case string:
-		collectStringHazards(item, path, hazards)
+		return collectStringHazardsContext(ctx, item, path, hazards, work)
 	}
+	return nil
 }
 
-func collectStringHazards(value, path string, hazards map[string]struct{}) {
+func collectStringHazardsContext(ctx context.Context, value, path string, hazards map[string]struct{}, work *int) error {
 	for _, candidate := range []struct {
 		label   string
 		pattern *regexp.Regexp
 	}{{"private key material", privateKeyPattern}, {"bearer credential", bearerPattern}, {"JWT-like credential", jwtPattern}, {"GitHub token-like credential", githubTokenPattern}, {"AWS access-key-like credential", awsKeyPattern}} {
+		if err := pollContext(ctx, *work); err != nil {
+			return err
+		}
+		(*work)++
 		if candidate.pattern.MatchString(value) {
 			hazards[path+": "+candidate.label] = struct{}{}
 		}
 	}
-	parsed, err := url.Parse(value)
-	if err != nil || parsed.Scheme == "" {
-		return
+	parsed, _ := url.Parse(value) // Malformed text is not treated as a credential-bearing URL.
+	if parsed == nil || parsed.Scheme == "" {
+		return nil
 	}
 	if parsed.User != nil {
 		hazards[path+": credential-bearing URL userinfo"] = struct{}{}
 	}
 	for key, values := range parsed.Query() {
+		if err := pollContext(ctx, *work); err != nil {
+			return err
+		}
+		(*work)++
 		if !isSecretField(key) {
 			continue
 		}
 		for _, queryValue := range values {
+			if err := pollContext(ctx, *work); err != nil {
+				return err
+			}
+			(*work)++
 			if !looksRedactedOrIndirect(queryValue) {
 				hazards[path+": secret-like URL query parameter "+fmt.Sprintf("%q", key)] = struct{}{}
 				break
 			}
 		}
 	}
+	return nil
 }
 
 func isSecretField(key string) bool {
