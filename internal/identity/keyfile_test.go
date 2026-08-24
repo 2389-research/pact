@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -120,7 +121,7 @@ func TestLoadKeyFileRejectsPrivatePublicMismatch(t *testing.T) {
 	if err := os.WriteFile(path, updated, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := LoadKeyFile(path, true); err == nil || !strings.Contains(err.Error(), "private/public") {
+	if _, err := LoadKeyFile(path, true); err == nil || !strings.Contains(err.Error(), "private/public") || !errors.Is(err, ErrIntegrity) {
 		t.Fatalf("LoadKeyFile() error = %v, want validation failure", err)
 	}
 }
@@ -146,8 +147,103 @@ func TestLoadKeyFileRejectsKeyIDMismatch(t *testing.T) {
 	if err := os.WriteFile(path, updated, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := LoadKeyFile(path, true); err == nil || !strings.Contains(err.Error(), "key ID") {
+	if _, err := LoadKeyFile(path, true); err == nil || !strings.Contains(err.Error(), "key ID") || !errors.Is(err, ErrIntegrity) {
 		t.Fatalf("LoadKeyFile() error = %v, want key ID validation failure", err)
+	}
+}
+
+func TestLoadSigningKeyEnforcesExternalRegularOwnerOnlyFile(t *testing.T) {
+	repo := t.TempDir()
+	st, err := store.Init(repo, "org/example/widget", time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	external := filepath.Join(t.TempDir(), "alice.key.json")
+	if _, err := GenerateKeyFile(external, "Alice", time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	inside := filepath.Join(repo, "alice.key.json")
+	raw, err := os.ReadFile(external)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(inside, raw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	outsideLinkToInside := filepath.Join(t.TempDir(), "inside-link.key.json")
+	if err := os.Symlink(inside, outsideLinkToInside); err != nil {
+		t.Fatal(err)
+	}
+	insideLinkToOutside := filepath.Join(repo, "outside-link.key.json")
+	if err := os.Symlink(external, insideLinkToOutside); err != nil {
+		t.Fatal(err)
+	}
+	directory := filepath.Join(t.TempDir(), "key-directory")
+	if err := os.Mkdir(directory, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	tooOpen := filepath.Join(t.TempDir(), "open.key.json")
+	if err := os.WriteFile(tooOpen, raw, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	for name, path := range map[string]string{
+		"direct inside":            inside,
+		"resolved target inside":   outsideLinkToInside,
+		"lexical path inside":      insideLinkToOutside,
+		"non-regular final target": directory,
+		"group-readable":           tooOpen,
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := LoadSigningKey(path, st.Root()); !errors.Is(err, ErrSecretSafety) {
+				t.Fatalf("LoadSigningKey(%q) error = %v, want secret-safety refusal", path, err)
+			}
+		})
+	}
+
+	outsideLink := filepath.Join(t.TempDir(), "outside-link.key.json")
+	if err := os.Symlink(external, outsideLink); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := LoadSigningKey(outsideLink, st.Root())
+	resolvedExternal, resolveErr := filepath.EvalSymlinks(external)
+	if resolveErr != nil {
+		t.Fatal(resolveErr)
+	}
+	if err != nil || loaded.Path != resolvedExternal {
+		t.Fatalf("LoadSigningKey(outside symlink) = (%#v, %v), want resolved external key", loaded, err)
+	}
+}
+
+func TestLoadPublicKeyAllowsReadablePublicOnlyFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "alice.public.json")
+	generatedPath := filepath.Join(t.TempDir(), "alice.key.json")
+	if _, err := GenerateKeyFile(generatedPath, "Alice", time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(generatedPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var value map[string]any
+	if err := json.Unmarshal(raw, &value); err != nil {
+		t.Fatal(err)
+	}
+	delete(value, "private_key")
+	publicOnly, err := json.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, publicOnly, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := LoadPublicKey(path)
+	resolvedPath, resolveErr := filepath.EvalSymlinks(path)
+	if resolveErr != nil {
+		t.Fatal(resolveErr)
+	}
+	if err != nil || len(loaded.Private) != 0 || loaded.Path != resolvedPath {
+		t.Fatalf("LoadPublicKey() = (%#v, %v)", loaded, err)
 	}
 }
 

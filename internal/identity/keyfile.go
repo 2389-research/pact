@@ -26,8 +26,15 @@ const keyFormat = "pact/key/v1"
 // ErrProjectKeyOutput marks a key path inside an initialized PACT project root.
 var ErrProjectKeyOutput = errors.New("key output is within initialized project root")
 
+// ErrIntegrity marks inconsistent identity bytes in an otherwise readable key file.
+var ErrIntegrity = errors.New("key integrity failure")
+
+// ErrSecretSafety marks a private signing key that violates filesystem safety rules.
+var ErrSecretSafety = errors.New("signing key safety refusal")
+
 // KeyFile is a verified external PACT identity file.
 type KeyFile struct {
+	Path      string
 	Actor     string
 	KeyID     string
 	Public    ed25519.PublicKey
@@ -81,6 +88,7 @@ func GenerateKeyFile(path, actor string, now time.Time) (*KeyFile, error) {
 		PrivateKey: base64.RawURLEncoding.EncodeToString(private.Seed()),
 		CreatedAt:  createdAt,
 	}
+	// #nosec G117 -- private_key is the required wire field; the file is created mode 0600 and rechecked before signing.
 	raw, err := json.MarshalIndent(encoded, "", "  ")
 	if err != nil {
 		return nil, fmt.Errorf("encode key file: %w", err)
@@ -88,7 +96,7 @@ func GenerateKeyFile(path, actor string, now time.Time) (*KeyFile, error) {
 	if err := writeNewFile(absPath, append(raw, '\n'), 0o600); err != nil {
 		return nil, err
 	}
-	return &KeyFile{Actor: actor, KeyID: keyID, Public: public, Private: private, CreatedAt: now.UTC()}, nil
+	return &KeyFile{Path: absPath, Actor: actor, KeyID: keyID, Public: public, Private: private, CreatedAt: now.UTC()}, nil
 }
 
 // LoadKeyFile reads and cross-checks public, private, and key-ID values.
@@ -97,52 +105,119 @@ func LoadKeyFile(path string, requirePrivate bool) (*KeyFile, error) {
 	if err != nil {
 		return nil, fmt.Errorf("resolve key file path: %w", err)
 	}
-	raw, err := os.ReadFile(absPath)
+	resolvedPath, err := filepath.EvalSymlinks(absPath)
+	if err != nil {
+		return nil, fmt.Errorf("resolve key file path %s: %w", absPath, err)
+	}
+	info, err := os.Stat(resolvedPath)
+	if err != nil {
+		return nil, fmt.Errorf("inspect key file %s: %w", resolvedPath, err)
+	}
+	if err := validateKeyFileMode(info, resolvedPath, requirePrivate); err != nil {
+		return nil, err
+	}
+	raw, err := os.ReadFile(resolvedPath)
 	if err != nil {
 		return nil, fmt.Errorf("read key file: %w", err)
 	}
 	var encoded encodedKeyFile
 	if err := decodeStrictJSON(raw, &encoded); err != nil {
-		return nil, fmt.Errorf("unsupported or malformed PACT key file: %s", absPath)
+		return nil, fmt.Errorf("unsupported or malformed PACT key file: %s", resolvedPath)
 	}
 	if encoded.Format != keyFormat || encoded.Algorithm != "ed25519" {
-		return nil, fmt.Errorf("unsupported or malformed PACT key file: %s", absPath)
+		return nil, fmt.Errorf("unsupported or malformed PACT key file: %s", resolvedPath)
 	}
 	actor := norm.NFC.String(strings.TrimSpace(encoded.Actor))
 	if actor == "" || len([]rune(actor)) > 255 {
-		return nil, fmt.Errorf("key file has invalid actor label: %s", absPath)
+		return nil, fmt.Errorf("key file has invalid actor label: %s", resolvedPath)
 	}
 	public, err := decodeBase64URL(encoded.PublicKey)
 	if err != nil || len(public) != ed25519.PublicKeySize {
-		return nil, fmt.Errorf("key file has invalid Ed25519 public key: %s", absPath)
+		return nil, fmt.Errorf("key file has invalid Ed25519 public key: %s", resolvedPath)
 	}
 	keyID, err := KeyID(ed25519.PublicKey(public))
 	if err != nil {
 		return nil, err
 	}
 	if encoded.KeyID != keyID {
-		return nil, fmt.Errorf("key ID does not match public key in %s", absPath)
+		return nil, fmt.Errorf("%w: key ID does not match public key in %s", ErrIntegrity, resolvedPath)
 	}
-	var private ed25519.PrivateKey
-	if encoded.PrivateKey == "" {
-		if requirePrivate {
-			return nil, fmt.Errorf("private key is required in %s", absPath)
-		}
-	} else {
-		seed, err := decodeBase64URL(encoded.PrivateKey)
-		if err != nil || len(seed) != ed25519.SeedSize {
-			return nil, fmt.Errorf("key file has invalid Ed25519 private key: %s", absPath)
-		}
-		private = ed25519.NewKeyFromSeed(seed)
-		if !private.Public().(ed25519.PublicKey).Equal(ed25519.PublicKey(public)) {
-			return nil, fmt.Errorf("private/public key mismatch in %s", absPath)
-		}
+	private, err := loadPrivateKey(encoded.PrivateKey, ed25519.PublicKey(public), resolvedPath, requirePrivate)
+	if err != nil {
+		return nil, err
 	}
 	createdAt, err := time.Parse(time.RFC3339, encoded.CreatedAt)
 	if err != nil {
-		return nil, fmt.Errorf("key file has invalid creation time: %s", absPath)
+		return nil, fmt.Errorf("key file has invalid creation time: %s", resolvedPath)
 	}
-	return &KeyFile{Actor: actor, KeyID: keyID, Public: ed25519.PublicKey(public), Private: private, CreatedAt: createdAt}, nil
+	return &KeyFile{Path: resolvedPath, Actor: actor, KeyID: keyID, Public: ed25519.PublicKey(public), Private: private, CreatedAt: createdAt}, nil
+}
+
+func validateKeyFileMode(info fs.FileInfo, path string, requirePrivate bool) error {
+	if !info.Mode().IsRegular() {
+		if requirePrivate {
+			return fmt.Errorf("%w: signing key must be a regular file: %s", ErrSecretSafety, path)
+		}
+		return fmt.Errorf("key file must be a regular file: %s", path)
+	}
+	if requirePrivate && info.Mode().Perm()&0o077 != 0 {
+		return fmt.Errorf("%w: signing key has group or other permission bits: %s", ErrSecretSafety, path)
+	}
+	return nil
+}
+
+func loadPrivateKey(encoded string, public ed25519.PublicKey, path string, required bool) (ed25519.PrivateKey, error) {
+	if encoded == "" {
+		if required {
+			return nil, fmt.Errorf("private key is required in %s", path)
+		}
+		return nil, nil
+	}
+	seed, err := decodeBase64URL(encoded)
+	if err != nil || len(seed) != ed25519.SeedSize {
+		return nil, fmt.Errorf("key file has invalid Ed25519 private key: %s", path)
+	}
+	private := ed25519.NewKeyFromSeed(seed)
+	derived, ok := private.Public().(ed25519.PublicKey)
+	if !ok || !derived.Equal(public) {
+		return nil, fmt.Errorf("%w: private/public key mismatch in %s", ErrIntegrity, path)
+	}
+	return private, nil
+}
+
+// LoadPublicKey reads a public identity without applying private-key containment or mode rules.
+func LoadPublicKey(path string) (*KeyFile, error) {
+	return LoadKeyFile(path, false)
+}
+
+// LoadSigningKey loads a private key only when its lexical and resolved paths stay outside projectRoot.
+func LoadSigningKey(path, projectRoot string) (*KeyFile, error) {
+	lexicalPath, err := filepath.Abs(path)
+	if err != nil {
+		return nil, fmt.Errorf("resolve key file path: %w", err)
+	}
+	resolvedRoot, err := filepath.EvalSymlinks(projectRoot)
+	if err != nil {
+		return nil, fmt.Errorf("resolve project root: %w", err)
+	}
+	resolvedPath, err := filepath.EvalSymlinks(lexicalPath)
+	if err != nil {
+		return nil, fmt.Errorf("resolve key file path %s: %w", lexicalPath, err)
+	}
+	resolvedParent, err := filepath.EvalSymlinks(filepath.Dir(lexicalPath))
+	if err != nil {
+		return nil, fmt.Errorf("resolve key file parent %s: %w", filepath.Dir(lexicalPath), err)
+	}
+	lexicalTarget := filepath.Join(resolvedParent, filepath.Base(lexicalPath))
+	if pathWithin(lexicalTarget, resolvedRoot) || pathWithin(resolvedPath, resolvedRoot) {
+		return nil, fmt.Errorf("%w: signing key is within project root: %s", ErrSecretSafety, lexicalPath)
+	}
+	return LoadKeyFile(resolvedPath, true)
+}
+
+func pathWithin(path, root string) bool {
+	relative, err := filepath.Rel(root, path)
+	return err == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator))
 }
 
 func initializedProjectAncestor(directory string) bool {
@@ -163,7 +238,7 @@ func decodeBase64URL(value string) ([]byte, error) {
 		return nil, errors.New("empty base64url")
 	}
 	for _, character := range value {
-		if !((character >= 'A' && character <= 'Z') || (character >= 'a' && character <= 'z') || (character >= '0' && character <= '9') || character == '-' || character == '_') {
+		if (character < 'A' || character > 'Z') && (character < 'a' || character > 'z') && (character < '0' || character > '9') && character != '-' && character != '_' {
 			return nil, errors.New("invalid base64url")
 		}
 	}
@@ -171,6 +246,7 @@ func decodeBase64URL(value string) ([]byte, error) {
 }
 
 func writeNewFile(path string, data []byte, mode fs.FileMode) (err error) {
+	// #nosec G301 -- key parents are ordinary user-selected directories; the key file itself is mode 0600.
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
@@ -212,6 +288,7 @@ func writeNewFile(path string, data []byte, mode fs.FileMode) (err error) {
 }
 
 func syncDirectory(path string) error {
+	// #nosec G304 -- path is the already resolved parent directory of the caller-validated key path.
 	directory, err := os.Open(path)
 	if err != nil {
 		return ignoreUnsupportedDirectorySync(err)

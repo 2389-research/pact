@@ -6,6 +6,7 @@ import (
 	"crypto/ed25519"
 	"encoding/base64"
 	"fmt"
+	"maps"
 	"sort"
 	"time"
 	"unicode/utf8"
@@ -60,72 +61,21 @@ func Commit(st *store.Store, key *identity.KeyFile, batch EventBatch, options Co
 	if len(invalid) != 0 {
 		return CommitResult{}, fmt.Errorf("%w: refusing to mutate a store with invalid canonical objects: %s", ErrIntegrity, invalid[0])
 	}
-	namespace := options.Namespace
-	if namespace == "" {
-		namespace = batch.Namespace
-	}
-	if namespace == "" {
-		namespace, err = defaultNamespace(st)
-		if err != nil {
-			return CommitResult{}, err
-		}
-	}
-	if err := validateNamespace(namespace); err != nil {
+	prepared, err := prepareCommit(st, batch, options, commits)
+	if err != nil {
 		return CommitResult{}, err
-	}
-	parents := append([]string(nil), options.Parents...)
-	if parents == nil {
-		parents = headsFor(commits, namespace)[namespace]
-	}
-	if err := normalizeParents(parents); err != nil {
-		return CommitResult{}, err
-	}
-	parents = uniqueSorted(parents)
-	for _, parent := range parents {
-		parentObject, found := commits[parent]
-		if !found {
-			return CommitResult{}, fmt.Errorf("parent commit is unavailable or invalid: %s", parent)
-		}
-		if parentObject.body["namespace"] != namespace {
-			return CommitResult{}, fmt.Errorf("parent %s belongs to namespace %q, not %q", parent, parentObject.body["namespace"], namespace)
-		}
-	}
-	observedAt := options.ObservedAt
-	if observedAt == "" {
-		observedAt = batch.ObservedAt
-	}
-	if observedAt == "" {
-		observedAt = time.Now().UTC().Format(time.RFC3339)
-	}
-	if utf8.RuneCountInString(observedAt) > 64 {
-		return CommitResult{}, fmt.Errorf("observed_at must be a short timestamp string")
-	}
-	correlationID := options.CorrelationID
-	if correlationID == "" {
-		correlationID = batch.CorrelationID
-	}
-	if utf8.RuneCountInString(correlationID) > 255 {
-		return CommitResult{}, fmt.Errorf("correlation ID is too long")
-	}
-	metadata := batch.Metadata
-	if metadata == nil {
-		metadata = map[string]any{}
-	}
-	if _, exists := metadata["producer"]; !exists {
-		metadata = cloneObject(metadata)
-		metadata["producer"] = "pact-reference-cli/0.1.0"
 	}
 	body := map[string]any{
-		"namespace": namespace, "parents": stringsToAny(parents),
+		"namespace": prepared.namespace, "parents": stringsToAny(prepared.parents),
 		"actor":       map[string]any{"key_id": key.KeyID, "label": key.Actor},
 		"authority":   map[string]any{"delegation_ref": nil, "epoch": nil, "lease_ref": nil},
-		"observed_at": observedAt, "metadata": metadata, "events": batchEvents(batch.Events),
+		"observed_at": prepared.observedAt, "metadata": prepared.metadata, "events": batchEvents(batch.Events),
 	}
-	if correlationID != "" {
-		body["correlation_id"] = correlationID
+	if prepared.correlationID != "" {
+		body["correlation_id"] = prepared.correlationID
 	}
 	if hazards := scanSecretHazards(body, "$"); len(hazards) != 0 {
-		return CommitResult{}, fmt.Errorf("refusing to sign immutable secret-like material: %v", hazards)
+		return CommitResult{}, fmt.Errorf("%w: refusing to sign immutable secret-like material: %v", ErrSecretSafety, hazards)
 	}
 	bodyDigest, signature, err := identity.SignBody(body, key.Private)
 	if err != nil {
@@ -154,7 +104,81 @@ func Commit(st *store.Store, key *identity.KeyFile, batch EventBatch, options Co
 		refs[index] = EventRef(objectID, event.LocalID)
 	}
 	authorization := authorizationForResult(st, verified)
-	return CommitResult{ObjectID: objectID, Created: created, Namespace: namespace, Parents: parents, EventRefs: refs, Integrity: "valid", Authenticity: "valid", Authorization: authorization.Status, AuthorizationReasons: authorization.Reasons, LeaseStatus: authorization.LeaseStatus, Path: verified.Path}, nil
+	return CommitResult{ObjectID: objectID, Created: created, Namespace: prepared.namespace, Parents: prepared.parents, EventRefs: refs, Integrity: "valid", Authenticity: "valid", Authorization: authorization.Status, AuthorizationReasons: authorization.Reasons, LeaseStatus: authorization.LeaseStatus, Path: verified.Path}, nil
+}
+
+type preparedCommit struct {
+	namespace, observedAt, correlationID string
+	parents                              []string
+	metadata                             map[string]any
+}
+
+func prepareCommit(st *store.Store, batch EventBatch, options CommitOptions, commits map[string]storedCommit) (preparedCommit, error) {
+	namespace := options.Namespace
+	if namespace == "" {
+		namespace = batch.Namespace
+	}
+	if namespace == "" {
+		var err error
+		namespace, err = defaultNamespace(st)
+		if err != nil {
+			return preparedCommit{}, err
+		}
+	}
+	if err := validateNamespace(namespace); err != nil {
+		return preparedCommit{}, err
+	}
+	parents, err := prepareParents(options.Parents, namespace, commits)
+	if err != nil {
+		return preparedCommit{}, err
+	}
+	observedAt := options.ObservedAt
+	if observedAt == "" {
+		observedAt = batch.ObservedAt
+	}
+	if observedAt == "" {
+		observedAt = time.Now().UTC().Format(time.RFC3339)
+	}
+	if utf8.RuneCountInString(observedAt) > 64 {
+		return preparedCommit{}, fmt.Errorf("observed_at must be a short timestamp string")
+	}
+	correlationID := options.CorrelationID
+	if correlationID == "" {
+		correlationID = batch.CorrelationID
+	}
+	if utf8.RuneCountInString(correlationID) > 255 {
+		return preparedCommit{}, fmt.Errorf("correlation ID is too long")
+	}
+	metadata := batch.Metadata
+	if metadata == nil {
+		metadata = map[string]any{}
+	}
+	if _, exists := metadata["producer"]; !exists {
+		metadata = cloneObject(metadata)
+		metadata["producer"] = "pact-reference-cli/0.1.0"
+	}
+	return preparedCommit{namespace: namespace, parents: parents, observedAt: observedAt, correlationID: correlationID, metadata: metadata}, nil
+}
+
+func prepareParents(requested []string, namespace string, commits map[string]storedCommit) ([]string, error) {
+	parents := append([]string(nil), requested...)
+	if parents == nil {
+		parents = headsFor(commits, namespace)[namespace]
+	}
+	if err := normalizeParents(parents); err != nil {
+		return nil, err
+	}
+	parents = uniqueSorted(parents)
+	for _, parent := range parents {
+		parentObject, found := commits[parent]
+		if !found {
+			return nil, fmt.Errorf("%w: parent commit is unavailable or invalid: %s", ErrMissingDependency, parent)
+		}
+		if parentObject.namespace != namespace {
+			return nil, fmt.Errorf("parent %s belongs to namespace %q, not %q", parent, parentObject.namespace, namespace)
+		}
+	}
+	return parents, nil
 }
 
 // Heads reports valid local commit heads, optionally limited to a namespace prefix.
@@ -191,9 +215,20 @@ func Heads(st *store.Store, namespacePrefix string) (map[string][]string, error)
 func EventRef(commitID, localID string) string { return "pact:event:" + commitID + "#" + localID }
 
 type storedCommit struct {
-	id     string
-	body   map[string]any
-	object map[string]any
+	namespace string
+	parents   []string
+	events    []storedEvent
+	signerID  string
+	publicKey string
+	actor     map[string]any
+	observed  string
+}
+
+type storedEvent struct {
+	localID    string
+	causedBy   []string
+	supersedes []string
+	object     map[string]any
 }
 
 func validCommits(st *store.Store) (map[string]storedCommit, []string, error) {
@@ -213,8 +248,11 @@ func validCommits(st *store.Store) (map[string]storedCommit, []string, error) {
 			continue
 		}
 		if verified.Type == "commit" {
-			body := verified.Object["body"].(map[string]any)
-			commits[file.ID] = storedCommit{id: file.ID, body: body, object: verified.Object}
+			commit, err := storedCommitFromObject(verified.Object)
+			if err != nil {
+				return nil, nil, fmt.Errorf("validated commit %s has inconsistent shape: %w", file.ID, err)
+			}
+			commits[file.ID] = commit
 		}
 	}
 	return commits, invalid, nil
@@ -223,7 +261,7 @@ func headsFor(commits map[string]storedCommit, namespace string) map[string][]st
 	available := map[string]map[string]bool{}
 	referenced := map[string]map[string]bool{}
 	for id, commit := range commits {
-		ns := commit.body["namespace"].(string)
+		ns := commit.namespace
 		if namespace != "" && ns != namespace {
 			continue
 		}
@@ -231,8 +269,8 @@ func headsFor(commits map[string]storedCommit, namespace string) map[string][]st
 			available[ns], referenced[ns] = map[string]bool{}, map[string]bool{}
 		}
 		available[ns][id] = true
-		for _, parent := range commit.body["parents"].([]any) {
-			referenced[ns][parent.(string)] = true
+		for _, parent := range commit.parents {
+			referenced[ns][parent] = true
 		}
 	}
 	result := map[string][]string{}
@@ -245,6 +283,82 @@ func headsFor(commits map[string]storedCommit, namespace string) map[string][]st
 		sort.Strings(result[ns])
 	}
 	return result
+}
+
+func storedCommitFromObject(object map[string]any) (storedCommit, error) {
+	body, ok := object["body"].(map[string]any)
+	if !ok {
+		return storedCommit{}, fmt.Errorf("body is not an object")
+	}
+	namespace, ok := body["namespace"].(string)
+	if !ok {
+		return storedCommit{}, fmt.Errorf("namespace is not a string")
+	}
+	parents, err := stringSlice(body["parents"])
+	if err != nil {
+		return storedCommit{}, fmt.Errorf("parents: %w", err)
+	}
+	rawEvents, ok := body["events"].([]any)
+	if !ok {
+		return storedCommit{}, fmt.Errorf("events are not an array")
+	}
+	events := make([]storedEvent, len(rawEvents))
+	for index, raw := range rawEvents {
+		event, ok := raw.(map[string]any)
+		if !ok {
+			return storedCommit{}, fmt.Errorf("event %d is not an object", index)
+		}
+		localID, ok := event["local_id"].(string)
+		if !ok {
+			return storedCommit{}, fmt.Errorf("event %d local_id is not a string", index)
+		}
+		causedBy, err := stringSlice(event["caused_by"])
+		if err != nil {
+			return storedCommit{}, fmt.Errorf("event %d caused_by: %w", index, err)
+		}
+		supersedes, err := stringSlice(event["supersedes"])
+		if err != nil {
+			return storedCommit{}, fmt.Errorf("event %d supersedes: %w", index, err)
+		}
+		events[index] = storedEvent{localID: localID, causedBy: causedBy, supersedes: supersedes, object: event}
+	}
+	actor, ok := body["actor"].(map[string]any)
+	if !ok {
+		return storedCommit{}, fmt.Errorf("actor is not an object")
+	}
+	signerID, ok := actor["key_id"].(string)
+	if !ok {
+		return storedCommit{}, fmt.Errorf("actor key_id is not a string")
+	}
+	signature, ok := object["signature"].(map[string]any)
+	if !ok {
+		return storedCommit{}, fmt.Errorf("signature is not an object")
+	}
+	publicKey, ok := signature["public_key"].(string)
+	if !ok {
+		return storedCommit{}, fmt.Errorf("signature public_key is not a string")
+	}
+	observed, ok := body["observed_at"].(string)
+	if !ok {
+		return storedCommit{}, fmt.Errorf("observed_at is not a string")
+	}
+	return storedCommit{namespace: namespace, parents: parents, events: events, signerID: signerID, publicKey: publicKey, actor: actor, observed: observed}, nil
+}
+
+func stringSlice(value any) ([]string, error) {
+	raw, ok := value.([]any)
+	if !ok {
+		return nil, fmt.Errorf("not an array")
+	}
+	result := make([]string, len(raw))
+	for index, item := range raw {
+		text, ok := item.(string)
+		if !ok {
+			return nil, fmt.Errorf("item %d is not a string", index)
+		}
+		result[index] = text
+	}
+	return result, nil
 }
 func normalizeParents(parents []string) error {
 	for _, parent := range parents {
@@ -277,7 +391,8 @@ func validateSigningKey(key *identity.KeyFile) error {
 	if err != nil || expected != key.KeyID {
 		return fmt.Errorf("commit key ID does not match public key")
 	}
-	if !key.Private.Public().(ed25519.PublicKey).Equal(key.Public) {
+	derived, ok := key.Private.Public().(ed25519.PublicKey)
+	if !ok || !derived.Equal(key.Public) {
 		return fmt.Errorf("commit private/public key mismatch")
 	}
 	return nil
@@ -310,8 +425,6 @@ func batchEvents(events []Event) []any {
 }
 func cloneObject(value map[string]any) map[string]any {
 	result := make(map[string]any, len(value))
-	for key, item := range value {
-		result[key] = item
-	}
+	maps.Copy(result, value)
 	return result
 }

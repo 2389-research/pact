@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strings"
 
 	"pact/internal/canonical"
 	"pact/internal/identity"
@@ -43,9 +42,9 @@ func runCommit(args []string, stderr io.Writer) (map[string]any, error) {
 	if err != nil {
 		return nil, &commandError{code: exitStore, message: err.Error()}
 	}
-	key, err := identity.LoadKeyFile(*keyPath, true)
+	key, err := identity.LoadSigningKey(*keyPath, st.Root())
 	if err != nil {
-		return nil, &commandError{code: exitUsage, message: err.Error()}
+		return nil, commandErrorFor(err, exitUsage)
 	}
 	raw, err := os.ReadFile(*eventsPath)
 	if err != nil {
@@ -89,7 +88,7 @@ func runHeads(args []string, stderr io.Writer) (map[string]any, error) {
 	if err != nil {
 		return nil, ledgerCommandError(err)
 	}
-	return map[string]any{"operation": "heads", "repo": *repo, "scope": *namespace, "heads": heads, "note": "heads describe this local replica; they are not a global completeness claim"}, nil
+	return map[string]any{"operation": "heads", "repo": st.Root(), "scope": *namespace, "heads": heads, "note": "heads describe this local replica; they are not a global completeness claim"}, nil
 }
 func runShow(args []string, stderr io.Writer) (map[string]any, error) {
 	flags := flag.NewFlagSet("show", flag.ContinueOnError)
@@ -107,8 +106,15 @@ func runShow(args []string, stderr io.Writer) (map[string]any, error) {
 	}
 	shown, err := ledger.Show(st, flags.Arg(0))
 	if err != nil {
+		var showError *ledger.ShowError
+		if errors.As(err, &showError) {
+			return nil, &commandError{code: exitIntegrity, message: err.Error(), details: showMap(showError.Result)}
+		}
 		return nil, ledgerCommandError(err)
 	}
+	return showMap(shown), nil
+}
+func showMap(shown ledger.ShowResult) map[string]any {
 	result := map[string]any{"operation": "show", "identifier": shown.Identifier, "kind": shown.Kind, "integrity": shown.Integrity, "authenticity": shown.Authenticity, "errors": shown.Errors}
 	if shown.Kind == "event" {
 		result["commit_id"] = shown.CommitID
@@ -119,7 +125,7 @@ func runShow(args []string, stderr io.Writer) (map[string]any, error) {
 	} else {
 		result["object"] = shown.Object
 	}
-	return result, nil
+	return result
 }
 func runVerify(args []string, stderr io.Writer) (map[string]any, error) {
 	flags := flag.NewFlagSet("verify", flag.ContinueOnError)
@@ -168,9 +174,9 @@ func runCheckpoint(args []string, stderr io.Writer) (map[string]any, error) {
 	if err != nil {
 		return nil, &commandError{code: exitStore, message: err.Error()}
 	}
-	key, err := identity.LoadKeyFile(*keyPath, true)
+	key, err := identity.LoadSigningKey(*keyPath, st.Root())
 	if err != nil {
-		return nil, &commandError{code: exitUsage, message: err.Error()}
+		return nil, commandErrorFor(err, exitUsage)
 	}
 	checkpoint, err := ledger.Checkpoint(st, key, ledger.CheckpointOptions{
 		Scope: *scope, PolicyRef: *policyRef, AuthorityEpoch: *authorityEpoch,
@@ -211,16 +217,7 @@ func ledgerCommandError(err error) error {
 	if errors.Is(err, ledger.ErrCheckpointAuthorization) {
 		return &commandError{code: exitAuthorization, message: err.Error()}
 	}
-	if strings.Contains(err.Error(), "secret-like") {
-		return &commandError{code: exitSecretSafety, message: err.Error()}
-	}
-	if strings.Contains(err.Error(), "unavailable") || strings.Contains(err.Error(), "not found") || strings.Contains(err.Error(), "no commit heads") {
-		return &commandError{code: 9, message: err.Error()}
-	}
-	if errors.Is(err, ledger.ErrIntegrity) {
-		return &commandError{code: exitIntegrity, message: err.Error()}
-	}
-	return &commandError{code: exitUsage, message: err.Error()}
+	return commandErrorFor(err, exitUsage)
 }
 
 type repeatFlag []string

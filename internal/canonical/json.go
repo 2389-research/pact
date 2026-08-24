@@ -252,35 +252,43 @@ func normalize(value any, path string) (any, error) {
 	case float32, float64:
 		return nil, fmt.Errorf("%s: floating-point values are forbidden; use a string or scaled integer", path)
 	case []any:
-		normalized := make([]any, len(value))
-		for index, item := range value {
-			item, err := normalize(item, fmt.Sprintf("%s[%d]", path, index))
-			if err != nil {
-				return nil, err
-			}
-			normalized[index] = item
-		}
-		return normalized, nil
+		return normalizeArray(value, path)
 	case map[string]any:
-		normalized := make(map[string]any, len(value))
-		for rawKey, rawValue := range value {
-			if !utf8.ValidString(rawKey) {
-				return nil, fmt.Errorf("%s: object key is not valid UTF-8", path)
-			}
-			key := norm.NFC.String(rawKey)
-			if _, exists := normalized[key]; exists {
-				return nil, fmt.Errorf("%s: duplicate key after Unicode normalization: %q", path, key)
-			}
-			item, err := normalize(rawValue, path+"."+key)
-			if err != nil {
-				return nil, err
-			}
-			normalized[key] = item
-		}
-		return normalized, nil
+		return normalizeMap(value, path)
 	default:
 		return nil, fmt.Errorf("%s: unsupported JSON value type %T", path, value)
 	}
+}
+
+func normalizeArray(value []any, path string) ([]any, error) {
+	normalized := make([]any, len(value))
+	for index, item := range value {
+		item, err := normalize(item, fmt.Sprintf("%s[%d]", path, index))
+		if err != nil {
+			return nil, err
+		}
+		normalized[index] = item
+	}
+	return normalized, nil
+}
+
+func normalizeMap(value map[string]any, path string) (map[string]any, error) {
+	normalized := make(map[string]any, len(value))
+	for rawKey, rawValue := range value {
+		if !utf8.ValidString(rawKey) {
+			return nil, fmt.Errorf("%s: object key is not valid UTF-8", path)
+		}
+		key := norm.NFC.String(rawKey)
+		if _, exists := normalized[key]; exists {
+			return nil, fmt.Errorf("%s: duplicate key after Unicode normalization: %q", path, key)
+		}
+		item, err := normalize(rawValue, path+"."+key)
+		if err != nil {
+			return nil, err
+		}
+		normalized[key] = item
+	}
+	return normalized, nil
 }
 
 func normalizeInteger(value int64, path string) (int64, error) {

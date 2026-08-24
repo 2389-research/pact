@@ -20,12 +20,13 @@ import (
 )
 
 const (
-	exitUsage           = 2
-	exitStore           = 3
-	exitIntegrity       = 4
-	exitAuthorization   = 5
-	exitSecretSafety    = 7
-	exitUnexpectedError = 10
+	exitUsage             = 2
+	exitStore             = 3
+	exitIntegrity         = 4
+	exitAuthorization     = 5
+	exitSecretSafety      = 7
+	exitMissingDependency = 9
+	exitUnexpectedError   = 10
 )
 
 type commandError struct {
@@ -43,27 +44,31 @@ func run(args []string, stdout, stderr io.Writer) int {
 	}
 	command := args[0]
 	commandArgs, asJSON := takeJSONFlag(args[1:])
+	flagOutput := stderr
+	if asJSON {
+		flagOutput = io.Discard
+	}
 	var result map[string]any
 	var err error
 	switch command {
 	case "init":
-		result, err = runInit(commandArgs, stderr)
+		result, err = runInit(commandArgs, flagOutput)
 	case "keygen":
-		result, err = runKeygen(commandArgs, stderr)
+		result, err = runKeygen(commandArgs, flagOutput)
 	case "trust-add":
-		result, err = runTrustAdd(commandArgs, stderr)
+		result, err = runTrustAdd(commandArgs, flagOutput)
 	case "hash":
-		result, err = runHash(commandArgs, stderr)
+		result, err = runHash(commandArgs, flagOutput)
 	case "commit":
-		result, err = runCommit(commandArgs, stderr)
+		result, err = runCommit(commandArgs, flagOutput)
 	case "heads":
-		result, err = runHeads(commandArgs, stderr)
+		result, err = runHeads(commandArgs, flagOutput)
 	case "show":
-		result, err = runShow(commandArgs, stderr)
+		result, err = runShow(commandArgs, flagOutput)
 	case "verify":
-		result, err = runVerify(commandArgs, stderr)
+		result, err = runVerify(commandArgs, flagOutput)
 	case "checkpoint":
-		result, err = runCheckpoint(commandArgs, stderr)
+		result, err = runCheckpoint(commandArgs, flagOutput)
 	default:
 		err = &commandError{code: exitUsage, message: fmt.Sprintf("unknown command: %s", command)}
 	}
@@ -128,16 +133,12 @@ func runKeygen(args []string, stderr io.Writer) (map[string]any, error) {
 		}
 		return nil, &commandError{code: code, message: err.Error()}
 	}
-	absPath, err := filepath.Abs(*output)
-	if err != nil {
-		return nil, &commandError{code: exitUnexpectedError, message: err.Error()}
-	}
 	return map[string]any{
 		"operation":  "keygen",
 		"actor":      key.Actor,
 		"key_id":     key.KeyID,
 		"public_key": base64.RawURLEncoding.EncodeToString(key.Public),
-		"path":       absPath,
+		"path":       key.Path,
 	}, nil
 }
 
@@ -156,17 +157,13 @@ func runTrustAdd(args []string, stderr io.Writer) (map[string]any, error) {
 	if err != nil {
 		return nil, &commandError{code: exitStore, message: err.Error()}
 	}
-	key, err := identity.LoadKeyFile(*keyPath, false)
+	key, err := identity.LoadPublicKey(*keyPath)
 	if err != nil {
-		return nil, &commandError{code: exitUsage, message: err.Error()}
+		return nil, commandErrorFor(err, exitUsage)
 	}
 	created, err := ledger.AddRoot(st, key, time.Now())
 	if err != nil {
-		code := exitUnexpectedError
-		if errors.Is(err, ledger.ErrIntegrity) {
-			code = exitIntegrity
-		}
-		return nil, &commandError{code: code, message: err.Error()}
+		return nil, commandErrorFor(err, exitUnexpectedError)
 	}
 	return map[string]any{
 		"operation":  "trust-add",
@@ -191,11 +188,32 @@ func runHash(args []string, stderr io.Writer) (map[string]any, error) {
 	if err != nil {
 		return nil, &commandError{code: exitUsage, message: err.Error()}
 	}
+	path, err = filepath.EvalSymlinks(path)
+	if err != nil {
+		return nil, &commandError{code: exitUsage, message: fmt.Sprintf("file not found: %s", path)}
+	}
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return nil, &commandError{code: exitUsage, message: fmt.Sprintf("file not found: %s", path)}
 	}
 	return map[string]any{"operation": "hash", "path": path, "digest": canonical.Digest(raw), "size": len(raw)}, nil
+}
+
+func commandErrorFor(err error, defaultCode int) *commandError {
+	code := defaultCode
+	switch {
+	case errors.Is(err, identity.ErrSecretSafety), errors.Is(err, identity.ErrProjectKeyOutput), errors.Is(err, ledger.ErrSecretSafety):
+		code = exitSecretSafety
+	case errors.Is(err, identity.ErrIntegrity), errors.Is(err, ledger.ErrIntegrity), errors.Is(err, store.ErrIntegrity):
+		code = exitIntegrity
+	case errors.Is(err, ledger.ErrCheckpointAuthorization):
+		code = exitAuthorization
+	case errors.Is(err, ledger.ErrStore), errors.Is(err, store.ErrNotInitialized):
+		code = exitStore
+	case errors.Is(err, ledger.ErrMissingDependency), errors.Is(err, store.ErrMissingDependency):
+		code = exitMissingDependency
+	}
+	return &commandError{code: code, message: err.Error()}
 }
 
 func takeJSONFlag(args []string) ([]string, bool) {
@@ -213,7 +231,9 @@ func takeJSONFlag(args []string) ([]string, bool) {
 
 func emitResult(writer io.Writer, asJSON bool, result map[string]any) {
 	if asJSON {
-		_ = json.NewEncoder(writer).Encode(result)
+		if err := json.NewEncoder(writer).Encode(result); err != nil {
+			return
+		}
 		return
 	}
 	fmt.Fprintf(writer, "PACT %s\n", result["operation"])
@@ -225,7 +245,9 @@ func emitError(writer io.Writer, asJSON bool, err *commandError) {
 		if err.details != nil {
 			result["details"] = err.details
 		}
-		_ = json.NewEncoder(writer).Encode(result)
+		if encodeErr := json.NewEncoder(writer).Encode(result); encodeErr != nil {
+			return
+		}
 		return
 	}
 	fprintf(writer, "PACT error: %s\n", err.message)

@@ -4,6 +4,7 @@ package ledger
 
 import (
 	"encoding/base64"
+	"errors"
 	"os"
 	"path/filepath"
 	"sort"
@@ -74,6 +75,94 @@ func TestVerifyReportsCanonicalPathDigestMismatch(t *testing.T) {
 	}
 	if result.OK || result.Objects[commit.ObjectID].Integrity != "invalid" || len(result.Integrity.Errors) != 1 || len(result.Structure.Errors) != 0 || len(result.Authenticity.Errors) != 0 || !strings.Contains(strings.Join(result.Errors, " "), "object digest mismatch") {
 		t.Fatalf("Verify() = %#v", result)
+	}
+}
+
+func TestShowReturnsTypedIntegrityDetailsForCorruptCanonicalBytes(t *testing.T) {
+	st, key := ledgerStoreAndKey(t)
+	commit := commitOne(t, st, key, "a", nil)
+	files, err := st.ObjectFiles()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(files[0].Path, []byte(`{"bad":true}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err = Show(st, commit.ObjectID)
+	var showError *ShowError
+	if !errors.Is(err, ErrIntegrity) || !errors.As(err, &showError) {
+		t.Fatalf("Show() error = %v, want typed integrity details", err)
+	}
+	if showError.Result.Identifier != commit.ObjectID || showError.Result.Integrity != "invalid" || !strings.Contains(strings.Join(showError.Result.Errors, " "), "digest mismatch") {
+		t.Fatalf("ShowError result = %#v", showError.Result)
+	}
+}
+
+func TestShowReturnsTypedIntegrityDetailsForUnparseableCanonicalBytes(t *testing.T) {
+	st, _ := ledgerStoreAndKey(t)
+	raw := []byte(`{"unterminated":`)
+	id := canonical.Digest(raw)
+	hexID := strings.TrimPrefix(id, "sha256:")
+	path := filepath.Join(st.Dir(), "objects", "sha256", hexID[:2], hexID[2:]+".json")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, raw, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := Show(st, id)
+	var showError *ShowError
+	if !errors.Is(err, ErrIntegrity) || !errors.As(err, &showError) || showError.Result.Integrity != "invalid" || len(showError.Result.Errors) == 0 {
+		t.Fatalf("Show() error = %#v, details = %#v", err, showError)
+	}
+}
+
+func TestShowReturnsTypedIntegrityDetailsForUnreadableCanonicalBytes(t *testing.T) {
+	st, key := ledgerStoreAndKey(t)
+	commit := commitOne(t, st, key, "a", nil)
+	files, err := st.ObjectFiles()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(files[0].Path, 0); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(files[0].Path, 0o644) })
+	_, err = Show(st, commit.ObjectID)
+	var showError *ShowError
+	if !errors.Is(err, ErrIntegrity) || !errors.As(err, &showError) || !strings.Contains(strings.Join(showError.Result.Errors, " "), "cannot read object") {
+		t.Fatalf("Show() error = %#v, details = %#v", err, showError)
+	}
+}
+
+func TestShowAllowsInspectionWhenOnlySignatureAuthenticityFails(t *testing.T) {
+	st, key := ledgerStoreAndKey(t)
+	commit := commitOne(t, st, key, "a", nil)
+	raw, err := st.Get(commit.ObjectID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := canonical.Parse(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	object := parsed.(map[string]any)
+	object["signature"].(map[string]any)["value"] = base64.RawURLEncoding.EncodeToString(make([]byte, 64))
+	id, _, err := st.PutCanonical(object)
+	if err != nil {
+		t.Fatal(err)
+	}
+	shown, err := Show(st, id)
+	if err != nil || shown.Object == nil || shown.Integrity != "valid" || shown.Authenticity != "invalid" {
+		t.Fatalf("Show() = (%#v, %v), want parsed object with invalid authenticity", shown, err)
+	}
+}
+
+func TestShowMissingObjectUsesTypedDependencyError(t *testing.T) {
+	st, _ := ledgerStoreAndKey(t)
+	_, err := Show(st, "sha256:"+strings.Repeat("a", 64))
+	if !errors.Is(err, ErrMissingDependency) {
+		t.Fatalf("Show() error = %v, want missing dependency", err)
 	}
 }
 
@@ -261,8 +350,8 @@ func TestVerifyReportsMissingAndCrossNamespaceParentsInDAGLayer(t *testing.T) {
 
 func TestCommitCyclesDetectsCycleFixture(t *testing.T) {
 	commits := map[string]storedCommit{
-		"a": {body: map[string]any{"parents": []any{"b"}}},
-		"b": {body: map[string]any{"parents": []any{"a"}}},
+		"a": {parents: []string{"b"}},
+		"b": {parents: []string{"a"}},
 	}
 	cycles := commitCycles(commits)
 	if len(cycles) != 1 || !equalStrings(cycles[0], []string{"a", "b", "a"}) {

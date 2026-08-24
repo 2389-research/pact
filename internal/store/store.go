@@ -31,10 +31,16 @@ var (
 	ErrAlreadyInitialized = errors.New("PACT store already exists")
 	// ErrInvalidNamespace marks namespace input rejected before initialization.
 	ErrInvalidNamespace = errors.New("invalid namespace")
+	// ErrIntegrity marks corrupt or unsafe canonical store state.
+	ErrIntegrity = errors.New("store integrity failure")
+	// ErrMissingDependency marks an immutable object that is not available locally.
+	ErrMissingDependency = errors.New("store dependency missing")
 
-	linkFile      = os.Link
-	afterLink     = func(string) error { return nil }
-	beforePublish = func(_, _ string) error { return nil }
+	linkFile          = os.Link
+	afterLink         = func(string) error { return nil }
+	beforePublish     = func(_, _ string) error { return nil }
+	syncDirectoryFile = syncDirectory
+	readCanonicalFile = os.ReadFile
 )
 
 // Store identifies one initialized PACT store.
@@ -63,7 +69,7 @@ func Init(repo, namespace string, now time.Time) (*Store, error) {
 		return nil, fmt.Errorf("lock store initialization: %w", err)
 	}
 	defer lock.Close()
-	defer syscall.Flock(int(lock.Fd()), syscall.LOCK_UN)
+	defer func() { _ = syscall.Flock(int(lock.Fd()), syscall.LOCK_UN) }()
 
 	destination := filepath.Join(absRepo, ".pact")
 	if err := checkStoreDestination(destination); err != nil {
@@ -145,6 +151,23 @@ func Open(repo string) (*Store, error) {
 // Dir returns the absolute .pact directory path.
 func (st *Store) Dir() string { return st.dir }
 
+// Root returns the resolved absolute project root used to open this store.
+func (st *Store) Root() string { return st.repo }
+
+// WithMutationLock serializes one store mutation across processes.
+func (st *Store) WithMutationLock(operation func() error) error {
+	if st == nil || operation == nil {
+		return fmt.Errorf("store and mutation operation are required")
+	}
+	lock, err := lockMutation(st.repo)
+	if err != nil {
+		return fmt.Errorf("lock store mutation: %w", err)
+	}
+	defer lock.Close()
+	defer func() { _ = syscall.Flock(int(lock.Fd()), syscall.LOCK_UN) }()
+	return operation()
+}
+
 // ReadLocal reads one named mutable local configuration file.
 func (st *Store) ReadLocal(name string) ([]byte, error) {
 	path, err := st.localPath(name)
@@ -157,6 +180,7 @@ func (st *Store) ReadLocal(name string) ([]byte, error) {
 	if err := rejectSymlink(path); err != nil {
 		return nil, err
 	}
+	// #nosec G304 -- localPath restricts path to a base filename under the checked store directory.
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read local file %s: %w", path, err)
@@ -189,6 +213,24 @@ func (st *Store) WriteLocalJSON(name string, value any, mode fs.FileMode) error 
 
 // PutCanonical encodes and admits one immutable canonical object.
 func (st *Store) PutCanonical(value any) (objectID string, created bool, err error) {
+	err = st.WithMutationLock(func() error {
+		var lockedErr error
+		objectID, created, lockedErr = st.putCanonicalLocked(value)
+		return lockedErr
+	})
+	return objectID, created, err
+}
+
+func (st *Store) putCanonicalLocked(value any) (objectID string, created bool, err error) {
+	linkedByCall := false
+	rollbackPath := ""
+	defer func() {
+		if err == nil || !linkedByCall {
+			return
+		}
+		created = false
+		err = errors.Join(err, rollbackCanonicalLink(rollbackPath))
+	}()
 	raw, err := canonical.Marshal(value)
 	if err != nil {
 		return "", false, fmt.Errorf("canonicalize object: %w", err)
@@ -198,70 +240,124 @@ func (st *Store) PutCanonical(value any) (objectID string, created bool, err err
 	if err != nil {
 		return "", false, err
 	}
+	rollbackPath = path
 	if err := st.ensureObjectDirectories(objectID, true); err != nil {
 		return "", false, err
 	}
 	if err := rejectSymlink(path); err != nil {
 		return "", false, err
 	}
-	if existing, readErr := os.ReadFile(path); readErr == nil {
-		if !bytes.Equal(existing, raw) {
-			return "", false, fmt.Errorf("content-address collision or corruption at %s", path)
-		}
-		return objectID, false, nil
-	} else if !errors.Is(readErr, fs.ErrNotExist) {
-		return "", false, fmt.Errorf("read canonical object: %w", readErr)
-	}
-	temporary, err := os.CreateTemp(filepath.Join(st.dir, "tmp"), "object.*.tmp")
+	found, err := checkExistingCanonical(path, raw)
 	if err != nil {
-		return "", false, fmt.Errorf("create object temporary file: %w", err)
+		return "", false, err
 	}
-	tempPath := temporary.Name()
+	if found {
+		return objectID, false, nil
+	}
+	tempPath, err := st.writeCanonicalTemp(raw)
+	if err != nil {
+		return "", false, err
+	}
 	defer func() {
 		if removeErr := os.Remove(tempPath); removeErr != nil && !errors.Is(removeErr, fs.ErrNotExist) && err == nil {
 			err = fmt.Errorf("remove object temporary file: %w", removeErr)
 		}
 	}()
-	if err := temporary.Chmod(0o644); err != nil {
-		temporary.Close()
-		return "", false, fmt.Errorf("set object temporary mode: %w", err)
+	linkedByCall, err = admitCanonicalLink(tempPath, path, raw)
+	if err != nil {
+		return "", false, err
 	}
-	if _, err := temporary.Write(raw); err != nil {
-		temporary.Close()
-		return "", false, fmt.Errorf("write object temporary file: %w", err)
-	}
-	if err := temporary.Sync(); err != nil {
-		temporary.Close()
-		return "", false, fmt.Errorf("sync object temporary file: %w", err)
-	}
-	if err := temporary.Close(); err != nil {
-		return "", false, fmt.Errorf("close object temporary file: %w", err)
-	}
-	if err := linkFile(tempPath, path); err != nil {
-		if !errors.Is(err, fs.ErrExist) {
-			return "", false, err
-		}
-		existing, readErr := os.ReadFile(path)
-		if readErr != nil || !bytes.Equal(existing, raw) {
-			return "", false, fmt.Errorf("content-address collision or concurrent corruption at %s", path)
-		}
-	} else {
+	if linkedByCall {
 		created = true
-		if err := syncDirectory(filepath.Dir(path)); err != nil {
+		if err := syncDirectoryFile(filepath.Dir(path)); err != nil {
 			return "", false, fmt.Errorf("sync object directory: %w", err)
 		}
 	}
 	if err := afterLink(path); err != nil {
 		return "", false, err
 	}
-	persisted, err := os.ReadFile(path)
+	persisted, err := readCanonicalFile(path)
 	if err != nil {
 		return "", false, fmt.Errorf("read persisted object: %w", err)
 	}
 	if !bytes.Equal(persisted, raw) || canonical.Digest(persisted) != objectID {
-		return "", false, fmt.Errorf("post-write verification failed for %s", objectID)
+		return "", false, fmt.Errorf("%w: post-write verification failed for %s", ErrIntegrity, objectID)
 	}
 	return objectID, created, nil
+}
+
+func checkExistingCanonical(path string, raw []byte) (bool, error) {
+	// #nosec G304 -- objectPath derives path from a validated content digest under the checked store.
+	existing, err := os.ReadFile(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("read canonical object: %w", err)
+	}
+	if !bytes.Equal(existing, raw) {
+		return false, fmt.Errorf("%w: content-address collision or corruption at %s", ErrIntegrity, path)
+	}
+	return true, nil
+}
+
+func (st *Store) writeCanonicalTemp(raw []byte) (path string, err error) {
+	temporary, err := os.CreateTemp(filepath.Join(st.dir, "tmp"), "object.*.tmp")
+	if err != nil {
+		return "", fmt.Errorf("create object temporary file: %w", err)
+	}
+	path = temporary.Name()
+	defer func() {
+		if err != nil {
+			_ = os.Remove(path)
+		}
+	}()
+	closeWith := func(operation string, operationErr error) (string, error) {
+		closeErr := temporary.Close()
+		if operationErr != nil {
+			return "", fmt.Errorf("%s object temporary file: %w", operation, operationErr)
+		}
+		if closeErr != nil {
+			return "", fmt.Errorf("close object temporary file: %w", closeErr)
+		}
+		return path, nil
+	}
+	if err := temporary.Chmod(0o644); err != nil {
+		return closeWith("set mode on", err)
+	}
+	if _, err := temporary.Write(raw); err != nil {
+		return closeWith("write", err)
+	}
+	if err := temporary.Sync(); err != nil {
+		return closeWith("sync", err)
+	}
+	return closeWith("close", nil)
+}
+
+func admitCanonicalLink(tempPath, path string, raw []byte) (bool, error) {
+	linkErr := linkFile(tempPath, path)
+	if linkErr == nil {
+		return true, nil
+	}
+	if !errors.Is(linkErr, fs.ErrExist) {
+		return false, linkErr
+	}
+	// #nosec G304 -- path comes from objectPath and stays under the checked store.
+	existing, readErr := os.ReadFile(path)
+	if readErr != nil || !bytes.Equal(existing, raw) {
+		return false, fmt.Errorf("%w: content-address collision or concurrent corruption at %s", ErrIntegrity, path)
+	}
+	return false, nil
+}
+
+func rollbackCanonicalLink(path string) error {
+	if removeErr := os.Remove(path); removeErr != nil && !errors.Is(removeErr, fs.ErrNotExist) {
+		return fmt.Errorf("roll back canonical link: %w", removeErr)
+	}
+	if syncErr := syncDirectoryFile(filepath.Dir(path)); syncErr != nil {
+		return fmt.Errorf("sync canonical rollback: %w", syncErr)
+	}
+	return nil
 }
 
 // Get returns exact canonical bytes after checking the requested digest.
@@ -276,15 +372,16 @@ func (st *Store) Get(objectID string) ([]byte, error) {
 	if err := rejectSymlink(path); err != nil {
 		return nil, err
 	}
+	// #nosec G304 -- objectPath derives path from a validated content digest under the checked store.
 	raw, err := os.ReadFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
-		return nil, fmt.Errorf("object not found: %s", objectID)
+		return nil, fmt.Errorf("%w: object not found: %s", ErrMissingDependency, objectID)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("read object: %w", err)
 	}
 	if canonical.Digest(raw) != objectID {
-		return nil, fmt.Errorf("object digest mismatch at %s", path)
+		return nil, fmt.Errorf("%w: object digest mismatch at %s", ErrIntegrity, path)
 	}
 	return raw, nil
 }
@@ -293,35 +390,35 @@ func (st *Store) Get(objectID string) ([]byte, error) {
 func (st *Store) ObjectFiles() ([]ObjectFile, error) {
 	root := filepath.Join(st.dir, "objects", "sha256")
 	if err := ensureExistingRealDirectory(st.dir); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %w", ErrIntegrity, err)
 	}
 	if err := ensureExistingRealDirectory(filepath.Join(st.dir, "objects")); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %w", ErrIntegrity, err)
 	}
 	if err := ensureExistingRealDirectory(root); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %w", ErrIntegrity, err)
 	}
 	entries, err := os.ReadDir(root)
 	if err != nil {
-		return nil, fmt.Errorf("read object directory: %w", err)
+		return nil, fmt.Errorf("%w: read object directory: %w", ErrIntegrity, err)
 	}
 	result := make([]ObjectFile, 0)
 	for _, entry := range entries {
 		directory := filepath.Join(root, entry.Name())
 		if err := rejectSymlink(directory); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("%w: %w", ErrIntegrity, err)
 		}
 		if !entry.IsDir() || len(entry.Name()) != 2 {
 			continue
 		}
 		files, err := os.ReadDir(directory)
 		if err != nil {
-			return nil, fmt.Errorf("read object shard: %w", err)
+			return nil, fmt.Errorf("%w: read object shard: %w", ErrIntegrity, err)
 		}
 		for _, file := range files {
 			path := filepath.Join(directory, file.Name())
 			if err := rejectSymlink(path); err != nil {
-				return nil, err
+				return nil, fmt.Errorf("%w: %w", ErrIntegrity, err)
 			}
 			if file.IsDir() || !strings.HasSuffix(file.Name(), ".json") {
 				continue
@@ -329,7 +426,7 @@ func (st *Store) ObjectFiles() ([]ObjectFile, error) {
 			hexDigest := entry.Name() + strings.TrimSuffix(file.Name(), ".json")
 			objectID := "sha256:" + hexDigest
 			if _, err := st.objectPath(objectID); err != nil {
-				return nil, fmt.Errorf("invalid canonical object path %s: %w", path, err)
+				return nil, fmt.Errorf("%w: invalid canonical object path %s: %w", ErrIntegrity, path, err)
 			}
 			result = append(result, ObjectFile{ID: objectID, Path: path})
 		}
@@ -372,7 +469,7 @@ func (st *Store) objectPath(objectID string) (string, error) {
 	}
 	hexDigest := strings.TrimPrefix(objectID, "sha256:")
 	for _, character := range hexDigest {
-		if !((character >= '0' && character <= '9') || (character >= 'a' && character <= 'f')) {
+		if (character < '0' || character > '9') && (character < 'a' || character > 'f') {
 			return "", fmt.Errorf("invalid object ID: %q", objectID)
 		}
 	}
@@ -391,7 +488,7 @@ func validateNamespace(namespace string) error {
 			return fmt.Errorf("%w: %q", ErrInvalidNamespace, namespace)
 		}
 	}
-	for _, segment := range strings.Split(namespace, "/") {
+	for segment := range strings.SplitSeq(namespace, "/") {
 		if segment == "." || segment == ".." {
 			return fmt.Errorf("%w: %q", ErrInvalidNamespace, namespace)
 		}
@@ -439,6 +536,7 @@ func atomicReplace(path string, data []byte, mode fs.FileMode) (err error) {
 }
 
 func syncDirectory(path string) error {
+	// #nosec G304 -- path is an internal store directory already checked against symlinks.
 	directory, err := os.Open(path)
 	if err != nil {
 		return ignoreUnsupportedDirectorySync(err)
@@ -455,9 +553,10 @@ func lockInit(repo string) (*os.File, error) {
 	if err != nil {
 		return nil, err
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+	if err := ensurePrivateLockDirectory(filepath.Dir(path)); err != nil {
 		return nil, err
 	}
+	// #nosec G304 -- path is derived from a resolved repo digest under a checked private directory.
 	lock, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return nil, err
@@ -467,6 +566,49 @@ func lockInit(repo string) (*os.File, error) {
 		return nil, err
 	}
 	return lock, nil
+}
+
+func lockMutation(repo string) (*os.File, error) {
+	path, err := mutationLockPath(repo)
+	if err != nil {
+		return nil, err
+	}
+	if err := ensurePrivateLockDirectory(filepath.Dir(path)); err != nil {
+		return nil, err
+	}
+	// #nosec G304 -- path is derived from a resolved repo digest under a checked private directory.
+	lock, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		return nil, err
+	}
+	if err := syscall.Flock(int(lock.Fd()), syscall.LOCK_EX); err != nil {
+		lock.Close()
+		return nil, err
+	}
+	return lock, nil
+}
+
+func mutationLockPath(repo string) (string, error) {
+	resolved, err := resolveRepository(repo)
+	if err != nil {
+		return "", err
+	}
+	digest := sha256.Sum256([]byte(resolved))
+	return filepath.Join(os.TempDir(), "pact-mutation-locks", fmt.Sprintf("%x.lock", digest)), nil
+}
+
+func ensurePrivateLockDirectory(path string) error {
+	if err := os.MkdirAll(path, 0o700); err != nil {
+		return err
+	}
+	info, err := os.Lstat(path)
+	if err != nil {
+		return err
+	}
+	if info.Mode()&fs.ModeSymlink != 0 || !info.IsDir() || info.Mode().Perm()&0o077 != 0 {
+		return fmt.Errorf("lock directory is not a private real directory: %s", path)
+	}
+	return nil
 }
 
 func initLockPath(repo string) (string, error) {
@@ -497,6 +639,7 @@ func resolveRepository(repo string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	// #nosec G301 -- repositories are ordinary user workspaces; sensitive files use stricter modes.
 	if err := os.MkdirAll(absRepo, 0o755); err != nil {
 		return "", err
 	}
@@ -514,6 +657,7 @@ func resolveRepository(repo string) (string, error) {
 func ensureRealDirectory(path string) error {
 	info, err := os.Lstat(path)
 	if errors.Is(err, fs.ErrNotExist) {
+		// #nosec G301 -- store directories contain public ledger objects and local non-secret metadata.
 		if err := os.Mkdir(path, 0o755); err != nil && !errors.Is(err, fs.ErrExist) {
 			return err
 		}

@@ -5,6 +5,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -31,8 +32,12 @@ func TestRunInitAndHashEmitContractJSON(t *testing.T) {
 	if err := os.WriteFile(file, []byte("evidence bytes"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	resolvedFile, err := filepath.EvalSymlinks(file)
+	if err != nil {
+		t.Fatal(err)
+	}
 	result = runJSON(t, []string{"hash", file, "--json"})
-	if result["operation"] != "hash" || result["digest"] != "sha256:9d11f9a71c12d6194481f5fa5086b0eff7df05a4a228f022f55bd890009a9d16" || result["size"] != float64(14) || result["path"] != file {
+	if result["operation"] != "hash" || result["digest"] != "sha256:9d11f9a71c12d6194481f5fa5086b0eff7df05a4a228f022f55bd890009a9d16" || result["size"] != float64(14) || result["path"] != resolvedFile {
 		t.Fatalf("hash JSON = %#v", result)
 	}
 }
@@ -162,6 +167,147 @@ func TestRunRejectsInvalidNamespace(t *testing.T) {
 	if code := run([]string{"init", "--repo", t.TempDir(), "--namespace", "not a namespace"}, &stdout, &stderr); code != 2 {
 		t.Fatalf("invalid namespace exit = %d, want 2; stderr=%q", code, stderr.String())
 	}
+}
+
+func TestRunJSONFlagParseErrorEmitsOneStructuredDiagnostic(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	if code := run([]string{"heads", "--repo", t.TempDir(), "--not-a-flag", "--json"}, &stdout, &stderr); code != exitUsage {
+		t.Fatalf("invalid flag exit = %d, want %d", code, exitUsage)
+	}
+	decoder := json.NewDecoder(&stderr)
+	var result map[string]any
+	if err := decoder.Decode(&result); err != nil {
+		t.Fatalf("decode structured error %q: %v", stderr.String(), err)
+	}
+	var extra any
+	if err := decoder.Decode(&extra); err == nil || err != io.EOF {
+		t.Fatalf("stderr has extra flag prose or JSON: %q, decode err=%v", stderr.String(), err)
+	}
+	if result["exit_code"] != float64(exitUsage) || strings.Contains(stderr.String(), "Usage of") || stdout.Len() != 0 {
+		t.Fatalf("invalid flag output: stdout=%q stderr=%q result=%#v", stdout.String(), stderr.String(), result)
+	}
+}
+
+func TestRunTrustAddAllowsPublicOnlyReadableKey(t *testing.T) {
+	repo := t.TempDir()
+	privatePath := filepath.Join(t.TempDir(), "alice.key.json")
+	publicPath := filepath.Join(t.TempDir(), "alice.public.json")
+	runJSON(t, []string{"init", "--repo", repo, "--namespace", "org/example/widget", "--json"})
+	runJSON(t, []string{"keygen", "--actor", "Alice", "--out", privatePath, "--json"})
+	raw, err := os.ReadFile(privatePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var key map[string]any
+	if err := json.Unmarshal(raw, &key); err != nil {
+		t.Fatal(err)
+	}
+	delete(key, "private_key")
+	raw, err = json.Marshal(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(publicPath, raw, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	result := runJSON(t, []string{"trust-add", "--repo", repo, "--key-file", publicPath, "--json"})
+	if result["created"] != true || result["key_id"] != key["key_id"] {
+		t.Fatalf("trust-add public key = %#v", result)
+	}
+}
+
+func TestRunUsesTypedExitClassificationAndPreservesShowDetails(t *testing.T) {
+	repo := t.TempDir()
+	keyPath := filepath.Join(t.TempDir(), "alice.key.json")
+	runJSON(t, []string{"init", "--repo", repo, "--namespace", "org/example/widget", "--json"})
+	runJSON(t, []string{"keygen", "--actor", "Alice", "--out", keyPath, "--json"})
+
+	raw, err := os.ReadFile(keyPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var key map[string]any
+	if err := json.Unmarshal(raw, &key); err != nil {
+		t.Fatal(err)
+	}
+	key["key_id"] = "ed25519:sha256:" + strings.Repeat("0", 64)
+	badID, err := json.Marshal(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	badIDPath := filepath.Join(t.TempDir(), "bad-id.key.json")
+	if err := os.WriteFile(badIDPath, badID, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	runErrorJSON(t, []string{"trust-add", "--repo", repo, "--key-file", badIDPath, "--json"}, exitIntegrity)
+
+	otherPath := filepath.Join(t.TempDir(), "other.key.json")
+	runJSON(t, []string{"keygen", "--actor", "Other", "--out", otherPath, "--json"})
+	otherRaw, err := os.ReadFile(otherPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var other map[string]any
+	if err := json.Unmarshal(otherRaw, &other); err != nil {
+		t.Fatal(err)
+	}
+	key["public_key"] = other["public_key"]
+	key["key_id"] = other["key_id"]
+	mismatchRaw, err := json.Marshal(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mismatchPath := filepath.Join(t.TempDir(), "mismatch.key.json")
+	if err := os.WriteFile(mismatchPath, mismatchRaw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	batchForMismatch := filepath.Join(t.TempDir(), "mismatch-events.json")
+	if err := os.WriteFile(batchForMismatch, []byte(`{"events":[{"local_id":"mismatch","kind":"observation","type":"widget.seen","subject":"widget-1","schema_ref":"pact:core/widget/v1","payload":{},"evidence":[],"caused_by":[],"supersedes":[],"tags":[]}]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runErrorJSON(t, []string{"commit", "--repo", repo, "--key-file", mismatchPath, "--events", batchForMismatch, "--json"}, exitIntegrity)
+
+	if err := os.WriteFile(filepath.Join(repo, ".pact", "trust.json"), []byte(`{"format":"wrong","roots":[]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runErrorJSON(t, []string{"trust-add", "--repo", repo, "--key-file", keyPath, "--json"}, exitStore)
+	if err := os.WriteFile(filepath.Join(repo, ".pact", "format.json"), []byte(`{"format":"wrong"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runErrorJSON(t, []string{"heads", "--repo", repo, "--json"}, exitStore)
+	if err := os.WriteFile(filepath.Join(repo, ".pact", "format.json"), []byte("{\n  \"format\": \"pact/store/v1\",\n  \"default_namespace\": \"org/example/widget\"\n}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	missing := "sha256:" + strings.Repeat("a", 64)
+	runErrorJSON(t, []string{"show", "--repo", repo, missing, "--json"}, exitMissingDependency)
+
+	if err := os.WriteFile(filepath.Join(repo, ".pact", "trust.json"), []byte("{\n  \"format\": \"pact/trust/v1\",\n  \"roots\": []\n}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	batchPath := filepath.Join(t.TempDir(), "events.json")
+	if err := os.WriteFile(batchPath, []byte(`{"events":[{"local_id":"e1","kind":"observation","type":"widget.seen","subject":"widget-1","schema_ref":"pact:core/widget/v1","payload":{},"evidence":[],"caused_by":[],"supersedes":[],"tags":[]}]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	commit := runJSON(t, []string{"commit", "--repo", repo, "--key-file", keyPath, "--events", batchPath, "--json"})
+	hexID := strings.TrimPrefix(commit["object_id"].(string), "sha256:")
+	objectPath := filepath.Join(repo, ".pact", "objects", "sha256", hexID[:2], hexID[2:]+".json")
+	if err := os.WriteFile(objectPath, []byte(`{"bad":true}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	result := runErrorJSON(t, []string{"show", "--repo", repo, commit["object_id"].(string), "--json"}, exitIntegrity)
+	details, ok := result["details"].(map[string]any)
+	if !ok || details["identifier"] != commit["object_id"] || details["integrity"] != "invalid" || details["errors"] == nil {
+		t.Fatalf("show integrity error = %#v", result)
+	}
+	objectsRoot := filepath.Join(repo, ".pact", "objects")
+	if err := os.RemoveAll(objectsRoot); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(t.TempDir(), objectsRoot); err != nil {
+		t.Fatal(err)
+	}
+	runErrorJSON(t, []string{"heads", "--repo", repo, "--json"}, exitIntegrity)
 }
 
 func TestRunCommitHeadsShowAndVerifyEmitJSON(t *testing.T) {

@@ -3,6 +3,7 @@
 package ledger
 
 import (
+	"errors"
 	"strings"
 	"testing"
 )
@@ -63,6 +64,39 @@ func TestNormalizeEventBatchReportsCredentialBearingURLWithoutValue(t *testing.T
 	}
 }
 
+func TestNormalizeEventBatchScansRawReferencesBeforeValidationWithoutLeakingValues(t *testing.T) {
+	for _, field := range []string{"caused_by", "supersedes"} {
+		for name, secret := range map[string]string{
+			"PEM":   "-----BEGIN PRIVATE KEY-----\nrejected-material\n-----END PRIVATE KEY-----",
+			"token": "ghp_abcdefghijklmnopqrstuvwxyz123456",
+		} {
+			t.Run(field+"/"+name, func(t *testing.T) {
+				event := eventInput("a", []any{}, []any{})
+				event[field] = []any{secret}
+				_, err := NormalizeEventBatch(map[string]any{"events": []any{event}})
+				if !errors.Is(err, ErrSecretSafety) {
+					t.Fatalf("NormalizeEventBatch() error = %v, want typed secret refusal", err)
+				}
+				if !strings.Contains(err.Error(), "$.events[0]."+field) || strings.Contains(err.Error(), secret) || strings.Contains(err.Error(), "rejected-material") {
+					t.Fatalf("unsafe secret diagnostic = %q", err)
+				}
+			})
+		}
+	}
+}
+
+func TestNormalizeEventBatchInvalidReferencesReportOnlyPathAndClass(t *testing.T) {
+	for _, field := range []string{"caused_by", "supersedes"} {
+		event := eventInput("a", []any{}, []any{})
+		rejected := "invalid-reference-value"
+		event[field] = []any{rejected}
+		_, err := NormalizeEventBatch(map[string]any{"events": []any{event}})
+		if err == nil || !strings.Contains(err.Error(), "$.events[0]."+field) || strings.Contains(err.Error(), rejected) {
+			t.Fatalf("%s error = %v, want value-free path diagnostic", field, err)
+		}
+	}
+}
+
 func TestNormalizeEventBatchSecretEnvironmentPlaceholdersMatchOracle(t *testing.T) {
 	for _, value := range []string{"_", "A", strings.Repeat("A", 129)} {
 		batch := map[string]any{"events": []any{eventInput("a", []any{}, []any{})}}
@@ -109,7 +143,7 @@ func TestNormalizeEventBatchExactKeyErrorsAreSortedAndStable(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			for iteration := 0; iteration < 100; iteration++ {
+			for iteration := range 100 {
 				_, err := NormalizeEventBatch(map[string]any{"events": []any{test.event()}})
 				if err == nil || err.Error() != test.want {
 					t.Fatalf("iteration %d error = %v, want %q", iteration, err, test.want)

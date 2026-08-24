@@ -91,13 +91,11 @@ func TestConcurrentInitHasOneWinner(t *testing.T) {
 	results := make(chan error, 2)
 	var group sync.WaitGroup
 	for range 2 {
-		group.Add(1)
-		go func() {
-			defer group.Done()
+		group.Go(func() {
 			<-start
 			_, err := Init(repo, "org/example/widget", time.Now())
 			results <- err
-		}()
+		})
 	}
 	close(start)
 	group.Wait()
@@ -299,6 +297,157 @@ func TestPutCanonicalVerifiesPersistedHash(t *testing.T) {
 	t.Cleanup(func() { afterLink = original })
 	if _, _, err := st.PutCanonical(map[string]any{"kind": "test"}); err == nil || !strings.Contains(err.Error(), "post-write") {
 		t.Fatalf("PutCanonical() error = %v, want post-write verification failure", err)
+	}
+	if _, err := os.Stat(objectFile(st, canonical.Digest([]byte(`{"kind":"test"}`)))); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("canonical object remains after failed digest check: err=%v", err)
+	}
+}
+
+func TestPutCanonicalRollsBackEveryPostLinkFailureAndSyncsRemoval(t *testing.T) {
+	value := map[string]any{"kind": "test"}
+	raw, err := canonical.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		name   string
+		inject func(*testing.T, string)
+	}{
+		{name: "shard sync", inject: func(t *testing.T, _ string) {
+			original := syncDirectoryFile
+			calls := 0
+			syncDirectoryFile = func(path string) error {
+				calls++
+				if calls == 1 {
+					return errors.New("injected shard sync failure")
+				}
+				return original(path)
+			}
+			t.Cleanup(func() { syncDirectoryFile = original })
+		}},
+		{name: "post-link hook", inject: func(t *testing.T, _ string) {
+			original := afterLink
+			afterLink = func(string) error { return errors.New("injected post-link hook failure") }
+			t.Cleanup(func() { afterLink = original })
+		}},
+		{name: "readback", inject: func(t *testing.T, destination string) {
+			original := readCanonicalFile
+			readCanonicalFile = func(path string) ([]byte, error) {
+				if path == destination {
+					return nil, errors.New("injected readback failure")
+				}
+				return original(path)
+			}
+			t.Cleanup(func() { readCanonicalFile = original })
+		}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			st := testStore(t)
+			path := objectFile(st, canonical.Digest(raw))
+			test.inject(t, path)
+			if _, _, err := st.PutCanonical(value); err == nil {
+				t.Fatal("PutCanonical() error = nil, want injected failure")
+			}
+			if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("canonical link remains after failure: err=%v", err)
+			}
+		})
+	}
+}
+
+func TestPutCanonicalSerializesRollbackAgainstIdenticalAdmission(t *testing.T) {
+	st := testStore(t)
+	value := map[string]any{"kind": "test"}
+	linked := make(chan struct{})
+	release := make(chan struct{})
+	original := afterLink
+	calls := 0
+	afterLink = func(string) error {
+		calls++
+		if calls == 1 {
+			close(linked)
+			<-release
+			return errors.New("injected first admission failure")
+		}
+		return nil
+	}
+	t.Cleanup(func() { afterLink = original })
+	type result struct {
+		created bool
+		err     error
+	}
+	results := make(chan result, 2)
+	go func() {
+		_, created, err := st.PutCanonical(value)
+		results <- result{created: created, err: err}
+	}()
+	<-linked
+	go func() {
+		_, created, err := st.PutCanonical(value)
+		results <- result{created: created, err: err}
+	}()
+	close(release)
+	admissions := []result{<-results, <-results}
+	failures, successes := 0, 0
+	for _, admission := range admissions {
+		if admission.err != nil {
+			failures++
+		} else if admission.created {
+			successes++
+		}
+	}
+	if failures != 1 || successes != 1 {
+		t.Fatalf("admissions = %#v, want one failure and one created success", admissions)
+	}
+	if _, err := st.Get(canonical.Digest([]byte(`{"kind":"test"}`))); err != nil {
+		t.Fatalf("successful concurrent object missing: %v", err)
+	}
+}
+
+func TestStoreMutationLockSerializesAndIgnoresStaleFile(t *testing.T) {
+	st := testStore(t)
+	lockPath, err := mutationLockPath(st.repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filepath.Dir(lockPath) == filepath.Clean(os.TempDir()) {
+		t.Fatalf("mutation lock is a predictable file directly under the shared temp directory: %s", lockPath)
+	}
+	if err := os.MkdirAll(filepath.Dir(lockPath), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(lockPath, []byte("stale"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	done := make(chan error, 2)
+	go func() {
+		done <- st.WithMutationLock(func() error {
+			close(entered)
+			<-release
+			return nil
+		})
+	}()
+	<-entered
+	secondEntered := make(chan struct{})
+	go func() {
+		done <- st.WithMutationLock(func() error {
+			close(secondEntered)
+			return nil
+		})
+	}()
+	select {
+	case <-secondEntered:
+		t.Fatal("second mutation entered before first released")
+	default:
+	}
+	close(release)
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+	if err := <-done; err != nil {
+		t.Fatal(err)
 	}
 }
 

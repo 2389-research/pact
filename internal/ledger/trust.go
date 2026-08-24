@@ -17,8 +17,16 @@ import (
 
 const trustFormat = "pact/trust/v1"
 
-// ErrIntegrity marks an invalid or conflicting trusted identity.
-var ErrIntegrity = errors.New("trust integrity failure")
+var (
+	// ErrIntegrity marks invalid canonical bytes, signatures, DAG state, or trusted identity bytes.
+	ErrIntegrity = errors.New("ledger integrity failure")
+	// ErrStore marks malformed or unavailable mutable ledger store configuration.
+	ErrStore = errors.New("ledger store failure")
+	// ErrSecretSafety marks immutable material refused because it may contain a secret.
+	ErrSecretSafety = errors.New("ledger secret safety refusal")
+	// ErrMissingDependency marks a requested or referenced object that is unavailable.
+	ErrMissingDependency = errors.New("ledger dependency missing")
+)
 
 // Root is one locally trusted public identity.
 type Root struct {
@@ -38,6 +46,16 @@ func AddRoot(st *store.Store, key *identity.KeyFile, now time.Time) (bool, error
 	if st == nil || key == nil {
 		return false, fmt.Errorf("store and key are required")
 	}
+	var created bool
+	err := st.WithMutationLock(func() error {
+		var err error
+		created, err = addRootLocked(st, key, now)
+		return err
+	})
+	return created, err
+}
+
+func addRootLocked(st *store.Store, key *identity.KeyFile, now time.Time) (bool, error) {
 	roots, err := loadRoots(st)
 	if err != nil {
 		return false, err
@@ -64,7 +82,7 @@ func AddRoot(st *store.Store, key *identity.KeyFile, now time.Time) (bool, error
 	})
 	sort.Slice(roots, func(i, j int) bool { return roots[i].KeyID < roots[j].KeyID })
 	if err := st.WriteLocalJSON("trust.json", trustFile{Format: trustFormat, Roots: roots}, 0o644); err != nil {
-		return false, err
+		return false, fmt.Errorf("%w: %w", ErrStore, err)
 	}
 	return true, nil
 }
@@ -99,30 +117,30 @@ func Roots(st *store.Store) (map[string]Root, error) {
 func loadRoots(st *store.Store) ([]Root, error) {
 	raw, err := st.ReadLocal("trust.json")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %w", ErrStore, err)
 	}
 	value, err := canonical.Parse(raw)
 	if err != nil {
-		return nil, fmt.Errorf("malformed local trust file")
+		return nil, fmt.Errorf("%w: malformed local trust file", ErrStore)
 	}
 	object, ok := value.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("malformed local trust file")
+		return nil, fmt.Errorf("%w: malformed local trust file", ErrStore)
 	}
 	rootsValue, exists := object["roots"]
 	if !exists {
-		return nil, fmt.Errorf("malformed local trust file")
+		return nil, fmt.Errorf("%w: malformed local trust file", ErrStore)
 	}
 	if _, ok := rootsValue.([]any); !ok {
-		return nil, fmt.Errorf("malformed local trust file")
+		return nil, fmt.Errorf("%w: malformed local trust file", ErrStore)
 	}
 	encoded, err := canonical.Marshal(value)
 	if err != nil {
-		return nil, fmt.Errorf("malformed local trust file")
+		return nil, fmt.Errorf("%w: malformed local trust file", ErrStore)
 	}
 	var config trustFile
 	if err := json.Unmarshal(encoded, &config); err != nil || config.Format != trustFormat {
-		return nil, fmt.Errorf("malformed local trust file")
+		return nil, fmt.Errorf("%w: malformed local trust file", ErrStore)
 	}
 	for _, root := range config.Roots {
 		if err := validateRoot(root); err != nil {

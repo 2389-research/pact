@@ -5,13 +5,16 @@ package e2e
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 )
 
@@ -107,6 +110,221 @@ func TestREADMEInstallCommandPlacesPactAtDocumentedDestination(t *testing.T) {
 	}
 }
 
+func TestCLIReviewSecurityAndResolvedPathContract(t *testing.T) {
+	root := projectRoot(t)
+	workspace := t.TempDir()
+	binary := filepath.Join(workspace, "pact")
+	buildBinary(t, root, binary)
+	repo := filepath.Join(workspace, "project")
+	mustMkdir(t, repo)
+	repoLink := filepath.Join(workspace, "project-link")
+	if err := os.Symlink(repo, repoLink); err != nil {
+		t.Fatal(err)
+	}
+	runJSON(t, binary, "init", "--repo", repoLink, "--namespace", "org/example/widget", "--json")
+
+	keyDirectory := filepath.Join(workspace, "keys")
+	mustMkdir(t, keyDirectory)
+	keyDirectoryLink := filepath.Join(workspace, "key-link")
+	if err := os.Symlink(keyDirectory, keyDirectoryLink); err != nil {
+		t.Fatal(err)
+	}
+	keyPath := filepath.Join(keyDirectory, "operator.key.json")
+	key := runJSON(t, binary, "keygen", "--actor", "Alice", "--out", filepath.Join(keyDirectoryLink, "operator.key.json"), "--json")
+	keyPath = resolvedPath(t, keyPath)
+	if key["path"] != keyPath {
+		t.Fatalf("keygen path = %#v, want resolved %q", key["path"], keyPath)
+	}
+
+	evidence := filepath.Join(workspace, "evidence.txt")
+	if err := os.WriteFile(evidence, []byte("evidence"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	evidenceLink := filepath.Join(workspace, "evidence-link.txt")
+	if err := os.Symlink(evidence, evidenceLink); err != nil {
+		t.Fatal(err)
+	}
+	hashed := runJSON(t, binary, "hash", evidenceLink, "--json")
+	resolvedEvidence := resolvedPath(t, evidence)
+	if hashed["path"] != resolvedEvidence {
+		t.Fatalf("hash path = %#v, want resolved %q", hashed["path"], resolvedEvidence)
+	}
+	heads := runJSON(t, binary, "heads", "--repo", repoLink, "--json")
+	resolvedRepo := resolvedPath(t, repo)
+	if heads["repo"] != resolvedRepo {
+		t.Fatalf("heads repo = %#v, want resolved %q", heads["repo"], resolvedRepo)
+	}
+
+	publicPath := filepath.Join(workspace, "operator.public.json")
+	writePublicKeyFile(t, keyPath, publicPath, 0o644)
+	runJSON(t, binary, "trust-add", "--repo", repo, "--key-file", publicPath, "--json")
+	batchPath := writeBatch(t, workspace, "security.json", "security", "widget.security")
+	keyRaw, err := os.ReadFile(keyPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	inside := filepath.Join(repo, "inside.key.json")
+	if err := os.WriteFile(inside, keyRaw, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	insideLinkOutside := filepath.Join(workspace, "inside-link.key.json")
+	if err := os.Symlink(inside, insideLinkOutside); err != nil {
+		t.Fatal(err)
+	}
+	outsideLinkInside := filepath.Join(repo, "outside-link.key.json")
+	if err := os.Symlink(keyPath, outsideLinkInside); err != nil {
+		t.Fatal(err)
+	}
+	tooOpen := filepath.Join(workspace, "too-open.key.json")
+	if err := os.WriteFile(tooOpen, keyRaw, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for name, signingPath := range map[string]string{
+		"direct project path":        inside,
+		"resolved project target":    insideLinkOutside,
+		"lexical project path":       outsideLinkInside,
+		"group-readable private key": tooOpen,
+	} {
+		t.Run(name, func(t *testing.T) {
+			failed := runErrorJSON(t, 7, binary, "commit", "--repo", repo, "--key-file", signingPath, "--events", batchPath, "--json")
+			if failed["exit_code"] != float64(7) || strings.Contains(fmt.Sprint(failed), string(keyRaw)) {
+				t.Fatalf("signing-key refusal = %#v", failed)
+			}
+		})
+	}
+
+	command := exec.Command(binary, "heads", "--repo", repo, "--invalid-flag", "--json")
+	var stdout, stderr bytes.Buffer
+	command.Stdout, command.Stderr = &stdout, &stderr
+	err = command.Run()
+	exitError := &exec.ExitError{}
+	ok := errors.As(err, &exitError)
+	if !ok || exitError.ExitCode() != 2 || stdout.Len() != 0 {
+		t.Fatalf("invalid flag = %v, stdout=%q stderr=%q", err, stdout.String(), stderr.String())
+	}
+	decoder := json.NewDecoder(&stderr)
+	var diagnostic map[string]any
+	if err := decoder.Decode(&diagnostic); err != nil {
+		t.Fatalf("decode invalid-flag JSON %q: %v", stderr.String(), err)
+	}
+	var extra any
+	if err := decoder.Decode(&extra); err != io.EOF || strings.Contains(stderr.String(), "Usage of") {
+		t.Fatalf("invalid-flag output includes prose or extra JSON: %q", stderr.String())
+	}
+}
+
+func TestCLIConcurrentTrustAddPreservesDistinctAndIdenticalRoots(t *testing.T) {
+	root := projectRoot(t)
+	workspace := t.TempDir()
+	binary := filepath.Join(workspace, "pact")
+	buildBinary(t, root, binary)
+	repo := filepath.Join(workspace, "project")
+	mustMkdir(t, repo)
+	runJSON(t, binary, "init", "--repo", repo, "--namespace", "org/example/widget", "--json")
+
+	distinct := make([]string, 16)
+	for index := range distinct {
+		distinct[index] = filepath.Join(workspace, fmt.Sprintf("distinct-%02d.key.json", index))
+		runJSON(t, binary, "keygen", "--actor", fmt.Sprintf("Actor %02d", index), "--out", distinct[index], "--json")
+	}
+	results := runConcurrentTrustAdds(t, binary, repo, distinct)
+	for index, result := range results {
+		if result["created"] != true {
+			t.Fatalf("distinct trust-add %d = %#v", index, result)
+		}
+	}
+	trustRaw, err := os.ReadFile(filepath.Join(repo, ".pact", "trust.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var trust map[string]any
+	if err := json.Unmarshal(trustRaw, &trust); err != nil {
+		t.Fatal(err)
+	}
+	if roots := trust["roots"].([]any); len(roots) != len(distinct) {
+		t.Fatalf("trusted distinct roots = %d, want %d", len(roots), len(distinct))
+	}
+
+	identical := filepath.Join(workspace, "identical.key.json")
+	runJSON(t, binary, "keygen", "--actor", "Identical", "--out", identical, "--json")
+	identicalPaths := make([]string, 12)
+	for index := range identicalPaths {
+		identicalPaths[index] = identical
+	}
+	results = runConcurrentTrustAdds(t, binary, repo, identicalPaths)
+	created := 0
+	for _, result := range results {
+		if result["created"] == true {
+			created++
+		}
+	}
+	if created != 1 {
+		t.Fatalf("identical concurrent created count = %d, want 1; results=%#v", created, results)
+	}
+}
+
+func buildBinary(t *testing.T, root, binary string) {
+	t.Helper()
+	build := exec.Command("go", "build", "-o", binary, "./cmd/pact")
+	build.Dir = root
+	if output, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build pact: %v\n%s", err, output)
+	}
+}
+
+func writePublicKeyFile(t *testing.T, privatePath, publicPath string, mode fs.FileMode) {
+	t.Helper()
+	raw, err := os.ReadFile(privatePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var key map[string]any
+	if err := json.Unmarshal(raw, &key); err != nil {
+		t.Fatal(err)
+	}
+	delete(key, "private_key")
+	raw, err = json.Marshal(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(publicPath, raw, mode); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func runConcurrentTrustAdds(t *testing.T, binary, repo string, paths []string) []map[string]any {
+	t.Helper()
+	start := make(chan struct{})
+	results := make([]map[string]any, len(paths))
+	errors := make([]error, len(paths))
+	var group sync.WaitGroup
+	for index, path := range paths {
+		group.Go(func() {
+			<-start
+			command := exec.Command(binary, "trust-add", "--repo", repo, "--key-file", path, "--json")
+			output, err := command.CombinedOutput()
+			if err != nil {
+				errors[index] = fmt.Errorf("trust-add %s: %w: %s", path, err, output)
+				return
+			}
+			var result map[string]any
+			if err := json.Unmarshal(output, &result); err != nil {
+				errors[index] = fmt.Errorf("decode trust-add output %q: %w", output, err)
+				return
+			}
+			results[index] = result
+		})
+	}
+	close(start)
+	group.Wait()
+	for _, err := range errors {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	return results
+}
+
 func projectRoot(t *testing.T) string {
 	t.Helper()
 	_, file, _, ok := runtime.Caller(0)
@@ -145,7 +363,8 @@ func runErrorJSON(t *testing.T, exitCode int, binary string, args ...string) map
 	command.Stdout = &stdout
 	command.Stderr = &stderr
 	err := command.Run()
-	exitError, ok := err.(*exec.ExitError)
+	exitError := &exec.ExitError{}
+	ok := errors.As(err, &exitError)
 	if !ok || exitError.ExitCode() != exitCode {
 		t.Fatalf("%s %s exit = %v, want %d\nstdout: %s\nstderr: %s", binary, strings.Join(args, " "), err, exitCode, stdout.String(), stderr.String())
 	}
@@ -209,4 +428,13 @@ func mustMkdir(t *testing.T, path string) {
 	if err := os.MkdirAll(path, 0o755); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func resolvedPath(t *testing.T, path string) string {
+	t.Helper()
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return resolved
 }
