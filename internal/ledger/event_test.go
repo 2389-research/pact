@@ -4,9 +4,32 @@ package ledger
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 )
+
+func TestNormalizeEventBatchAdmitsExactEventLimitAndRejectsFirstExcess(t *testing.T) {
+	for _, count := range []int{1_024, 1_025} {
+		t.Run(fmt.Sprintf("%d events", count), func(t *testing.T) {
+			events := make([]any, count)
+			for index := range events {
+				events[index] = eventInput(fmt.Sprintf("event-%04d", index), []any{}, []any{})
+			}
+			batch, err := NormalizeEventBatch(map[string]any{"events": events})
+			if count == 1_024 {
+				if err != nil || len(batch.Events) != count {
+					t.Fatalf("NormalizeEventBatch() = (%#v, %v), want %d events", batch, err, count)
+				}
+				return
+			}
+			assertLimitError(t, err, "events_per_commit", Phase2Limits.EventsPerCommit)
+			if containsAny(err.Error(), "$.events", "payload", "event-1024") {
+				t.Fatalf("event limit error leaks input detail: %q", err)
+			}
+		})
+	}
+}
 
 func TestNormalizeEventBatchCanonicalizesAndSorts(t *testing.T) {
 	batch, err := NormalizeEventBatch(map[string]any{

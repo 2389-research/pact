@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -275,6 +276,64 @@ func TestObjectFilesEnumeratesCanonicalObjectPaths(t *testing.T) {
 	}
 	if len(files) != 2 || files[0].ID >= files[1].ID || (files[0].ID != first && files[1].ID != first) || (files[0].ID != second && files[1].ID != second) {
 		t.Fatalf("ObjectFiles() = %#v, want sorted canonical objects %q and %q", files, first, second)
+	}
+}
+
+func TestWithReadLockBlocksCanonicalPublication(t *testing.T) {
+	st := testStore(t)
+	helper := startStoreLockHelper(t, st, "publish")
+	if err := st.WithReadLock(func() error {
+		waitForStoreLockHelper(t, helper.started)
+		assertStoreLockHelperBlocked(t, helper.acquired)
+		return nil
+	}); err != nil {
+		t.Fatalf("WithReadLock() error = %v", err)
+	}
+	if err := helper.command.Wait(); err != nil {
+		t.Fatalf("canonical publication helper = %v", err)
+	}
+}
+
+func TestMutationLockBlocksReadLock(t *testing.T) {
+	st := testStore(t)
+	helper := startStoreLockHelper(t, st, "read")
+	if err := st.WithMutationLock(func() error {
+		waitForStoreLockHelper(t, helper.started)
+		assertStoreLockHelperBlocked(t, helper.acquired)
+		return nil
+	}); err != nil {
+		t.Fatalf("WithMutationLock() error = %v", err)
+	}
+	if err := helper.command.Wait(); err != nil {
+		t.Fatalf("read lock helper = %v", err)
+	}
+}
+
+func TestObjectFilesBoundedStopsAtFirstExcess(t *testing.T) {
+	st := testStore(t)
+	for _, value := range []string{"first", "second"} {
+		if _, _, err := st.PutCanonical(map[string]any{"kind": value}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if files, err := st.ObjectFilesBounded(1); err == nil || files != nil {
+		t.Fatalf("ObjectFilesBounded() = (%#v, %v), want no partial result and limit error", files, err)
+	}
+}
+
+func TestGetBoundedRejectsOversizeBeforeRead(t *testing.T) {
+	st := testStore(t)
+	raw := []byte(`{"kind":"` + strings.Repeat("x", 1024) + `"}`)
+	objectID := canonical.Digest(raw)
+	path := objectFile(st, objectID)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, raw, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := st.GetBounded(objectID, uint64(len(raw)-1)); err == nil || got != nil {
+		t.Fatalf("GetBounded() = (%q, %v), want no bytes and limit error", got, err)
 	}
 }
 
@@ -555,6 +614,80 @@ func TestGetRejectsTamperedObject(t *testing.T) {
 	}
 	if _, err := st.Get(objectID); err == nil || !strings.Contains(err.Error(), "digest mismatch") {
 		t.Fatalf("Get() error = %v, want digest mismatch", err)
+	}
+}
+
+func TestStoreLockHelperProcess(t *testing.T) {
+	if os.Getenv("PACT_STORE_LOCK_HELPER") == "" {
+		return
+	}
+	st, err := Open(os.Getenv("PACT_STORE_LOCK_REPO"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(os.Getenv("PACT_STORE_LOCK_STARTED"), []byte("started"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	acquired := func() error {
+		return os.WriteFile(os.Getenv("PACT_STORE_LOCK_ACQUIRED"), []byte("acquired"), 0o600)
+	}
+	switch os.Getenv("PACT_STORE_LOCK_HELPER") {
+	case "publish":
+		_, _, err = st.PutCanonical(map[string]any{"kind": "helper"})
+		if err == nil {
+			err = acquired()
+		}
+	case "read":
+		err = st.WithReadLock(acquired)
+	default:
+		t.Fatalf("unknown store lock helper mode %q", os.Getenv("PACT_STORE_LOCK_HELPER"))
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+type storeLockHelper struct {
+	command  *exec.Cmd
+	started  string
+	acquired string
+}
+
+func startStoreLockHelper(t *testing.T, st *Store, mode string) storeLockHelper {
+	t.Helper()
+	directory := t.TempDir()
+	helper := storeLockHelper{
+		command:  exec.Command(os.Args[0], "-test.run=^TestStoreLockHelperProcess$"),
+		started:  filepath.Join(directory, "started"),
+		acquired: filepath.Join(directory, "acquired"),
+	}
+	helper.command.Env = append(os.Environ(), "PACT_STORE_LOCK_HELPER="+mode, "PACT_STORE_LOCK_REPO="+st.Root(), "PACT_STORE_LOCK_STARTED="+helper.started, "PACT_STORE_LOCK_ACQUIRED="+helper.acquired)
+	if err := helper.command.Start(); err != nil {
+		t.Fatal(err)
+	}
+	return helper
+}
+
+func waitForStoreLockHelper(t *testing.T, path string) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		if _, err := os.Stat(path); err == nil {
+			return
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	t.Fatalf("store lock helper did not start: %s", path)
+}
+
+func assertStoreLockHelperBlocked(t *testing.T, path string) {
+	t.Helper()
+	deadline := time.Now().Add(100 * time.Millisecond)
+	for time.Now().Before(deadline) {
+		if _, err := os.Stat(path); err == nil {
+			t.Fatalf("store lock helper acquired lock before release: %s", path)
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
 }
 

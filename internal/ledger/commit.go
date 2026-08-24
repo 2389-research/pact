@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"maps"
 	"sort"
+	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -77,6 +78,9 @@ func Commit(st *store.Store, key *identity.KeyFile, batch EventBatch, options Co
 	if hazards := scanSecretHazards(body, "$"); len(hazards) != 0 {
 		return CommitResult{}, fmt.Errorf("%w: refusing to sign immutable secret-like material: %v", ErrSecretSafety, hazards)
 	}
+	if err := checkCommitObjectBytes(body, key); err != nil {
+		return CommitResult{}, err
+	}
 	bodyDigest, signature, err := identity.SignBody(body, key.Private)
 	if err != nil {
 		return CommitResult{}, err
@@ -105,6 +109,29 @@ func Commit(st *store.Store, key *identity.KeyFile, batch EventBatch, options Co
 	}
 	authorization := authorizationForResult(st, verified)
 	return CommitResult{ObjectID: objectID, Created: created, Namespace: prepared.namespace, Parents: prepared.parents, EventRefs: refs, Integrity: "valid", Authenticity: "valid", Authorization: authorization.Status, AuthorizationReasons: authorization.Reasons, LeaseStatus: authorization.LeaseStatus, Path: verified.Path}, nil
+}
+
+func checkCommitObjectBytes(body map[string]any, key *identity.KeyFile) error {
+	bodyRaw, err := canonical.Marshal(body)
+	if err != nil {
+		return fmt.Errorf("canonicalize commit body: %w", err)
+	}
+	prospective := map[string]any{
+		"format": commitFormat, "body": body, "body_digest": canonical.Digest(bodyRaw),
+		"signature": map[string]any{
+			"algorithm": "ed25519", "key_id": key.KeyID,
+			"public_key": base64.RawURLEncoding.EncodeToString(key.Public),
+			"value":      strings.Repeat("A", base64.RawURLEncoding.EncodedLen(ed25519.SignatureSize)),
+		},
+	}
+	raw, err := canonical.Marshal(prospective)
+	if err != nil {
+		return fmt.Errorf("canonicalize prospective commit: %w", err)
+	}
+	if uint64(len(raw)) > Phase2Limits.ObjectBytes {
+		return limitError("object_bytes", Phase2Limits.ObjectBytes)
+	}
+	return nil
 }
 
 type preparedCommit struct {
@@ -169,6 +196,9 @@ func prepareParents(requested []string, namespace string, commits map[string]sto
 		return nil, err
 	}
 	parents = uniqueSorted(parents)
+	if uint64(len(parents)) > Phase2Limits.ParentsPerCommit {
+		return nil, limitError("parents_per_commit", Phase2Limits.ParentsPerCommit)
+	}
 	for _, parent := range parents {
 		parentObject, found := commits[parent]
 		if !found {

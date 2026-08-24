@@ -4,6 +4,7 @@ package ledger
 
 import (
 	"errors"
+	"fmt"
 	"sort"
 	"strings"
 	"testing"
@@ -13,6 +14,44 @@ import (
 	"pact/internal/identity"
 	"pact/internal/store"
 )
+
+func TestPrepareParentsAdmitsExactLimitAndRejectsFirstExcess(t *testing.T) {
+	for _, count := range []int{64, 65} {
+		t.Run(fmt.Sprintf("%d parents", count), func(t *testing.T) {
+			parents := make([]string, count)
+			commits := make(map[string]storedCommit, count)
+			for index := range parents {
+				parents[index] = fmt.Sprintf("sha256:%064x", index)
+				commits[parents[index]] = storedCommit{namespace: "org/example/widget"}
+			}
+			prepared, err := prepareParents(parents, "org/example/widget", commits)
+			if count == 64 {
+				if err != nil || !equalStrings(prepared, parents) {
+					t.Fatalf("prepareParents() = (%q, %v), want admitted parents", prepared, err)
+				}
+				return
+			}
+			assertLimitError(t, err, "parents_per_commit", Phase2Limits.ParentsPerCommit)
+		})
+	}
+}
+
+func TestCommitRejectsOversizeCanonicalObjectBeforePublication(t *testing.T) {
+	st, key := ledgerStoreAndKey(t)
+	batch, err := NormalizeEventBatch(map[string]any{"events": []any{eventInput("a", []any{}, []any{})}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	batch.Events[0].Payload["body"] = strings.Repeat("x", int(Phase2Limits.ObjectBytes))
+	if _, err := Commit(st, key, batch, CommitOptions{ObservedAt: "2026-08-23T12:00:00Z"}); err == nil {
+		t.Fatal("Commit() error = nil, want object byte limit")
+	} else {
+		assertLimitError(t, err, "object_bytes", Phase2Limits.ObjectBytes)
+	}
+	if files, err := st.ObjectFiles(); err != nil || len(files) != 0 {
+		t.Fatalf("objects after over-limit commit = %#v, %v", files, err)
+	}
+}
 
 func TestCommitSignsNormalizedBatchAndExpandsLocalRefsInResult(t *testing.T) {
 	st, key := ledgerStoreAndKey(t)

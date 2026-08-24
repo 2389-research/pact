@@ -54,11 +54,18 @@ type Event struct {
 
 // NormalizeEventBatch validates exact batch fields and returns the stored form.
 func NormalizeEventBatch(value map[string]any) (EventBatch, error) {
-	if hazards := scanSecretHazards(value, "$"); len(hazards) != 0 {
-		return EventBatch{}, fmt.Errorf("%w: refusing to sign immutable secret-like material: %s", ErrSecretSafety, strings.Join(hazards, "; "))
-	}
 	if err := exactKeys(value, []string{"events"}, []string{"namespace", "observed_at", "correlation_id", "metadata"}, "$"); err != nil {
 		return EventBatch{}, err
+	}
+	eventsRaw, ok := value["events"].([]any)
+	if !ok || len(eventsRaw) == 0 {
+		return EventBatch{}, fmt.Errorf("event batch must contain at least one event")
+	}
+	if uint64(len(eventsRaw)) > Phase2Limits.EventsPerCommit {
+		return EventBatch{}, limitError("events_per_commit", Phase2Limits.EventsPerCommit)
+	}
+	if hazards := scanSecretHazards(value, "$"); len(hazards) != 0 {
+		return EventBatch{}, fmt.Errorf("%w: refusing to sign immutable secret-like material: %s", ErrSecretSafety, strings.Join(hazards, "; "))
 	}
 	events, localIDs, err := normalizeBatchEvents(value["events"])
 	if err != nil {

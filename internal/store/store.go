@@ -156,13 +156,22 @@ func (st *Store) Dir() string { return st.dir }
 func (st *Store) Root() string { return st.repo }
 
 // WithMutationLock serializes one store mutation across processes.
-func (st *Store) WithMutationLock(operation func() error) (err error) {
+func (st *Store) WithMutationLock(operation func() error) error {
+	return st.withLock(syscall.LOCK_EX, operation)
+}
+
+// WithReadLock holds a shared store lock across one read operation.
+func (st *Store) WithReadLock(operation func() error) error {
+	return st.withLock(syscall.LOCK_SH, operation)
+}
+
+func (st *Store) withLock(mode int, operation func() error) (err error) {
 	if st == nil || operation == nil {
-		return fmt.Errorf("store and mutation operation are required")
+		return fmt.Errorf("store and lock operation are required")
 	}
-	lock, err := lockMutation(st.repo)
+	lock, err := lockStore(st.repo, mode)
 	if err != nil {
-		return fmt.Errorf("lock store mutation: %w", err)
+		return fmt.Errorf("lock store: %w", err)
 	}
 	defer releaseLock(lock, &err)
 	return operation()
@@ -271,6 +280,7 @@ func (st *Store) putCanonicalLocked(value any) (objectID string, created bool, e
 		return "", false, err
 	}
 	defer func() {
+		// #nosec G703 -- tempPath is created in the checked store temp directory.
 		if removeErr := os.Remove(tempPath); removeErr != nil && !errors.Is(removeErr, fs.ErrNotExist) && err == nil {
 			err = fmt.Errorf("remove object temporary file: %w", removeErr)
 		}
@@ -299,7 +309,7 @@ func (st *Store) putCanonicalLocked(value any) (objectID string, created bool, e
 }
 
 func checkExistingCanonical(path string, raw []byte) (bool, error) {
-	// #nosec G304 -- objectPath derives path from a validated content digest under the checked store.
+	// #nosec G304,G703 -- objectPath derives path from a validated content digest under the checked store.
 	existing, err := os.ReadFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return false, nil
@@ -321,6 +331,7 @@ func (st *Store) writeCanonicalTemp(raw []byte) (path string, err error) {
 	path = temporary.Name()
 	defer func() {
 		if err != nil {
+			// #nosec G703 -- path was returned by CreateTemp under the checked store.
 			_ = os.Remove(path)
 		}
 	}()
@@ -354,7 +365,7 @@ func admitCanonicalLink(tempPath, path string, raw []byte) (bool, error) {
 	if !errors.Is(linkErr, fs.ErrExist) {
 		return false, linkErr
 	}
-	// #nosec G304 -- path comes from objectPath and stays under the checked store.
+	// #nosec G304,G703 -- path comes from objectPath and stays under the checked store.
 	existing, readErr := os.ReadFile(path)
 	if readErr != nil || !bytes.Equal(existing, raw) {
 		return false, fmt.Errorf("%w: content-address collision or concurrent corruption at %s", ErrIntegrity, path)
@@ -363,6 +374,7 @@ func admitCanonicalLink(tempPath, path string, raw []byte) (bool, error) {
 }
 
 func rollbackCanonicalLink(path string) error {
+	// #nosec G703 -- path comes from objectPath and stays under the checked store.
 	if removeErr := os.Remove(path); removeErr != nil && !errors.Is(removeErr, fs.ErrNotExist) {
 		return fmt.Errorf("roll back canonical link: %w", removeErr)
 	}
@@ -374,6 +386,11 @@ func rollbackCanonicalLink(path string) error {
 
 // Get returns exact canonical bytes after checking the requested digest.
 func (st *Store) Get(objectID string) ([]byte, error) {
+	return st.GetBounded(objectID, ^uint64(0))
+}
+
+// GetBounded returns exact canonical bytes without reading more than maximum bytes.
+func (st *Store) GetBounded(objectID string, maximum uint64) ([]byte, error) {
 	path, err := st.objectPath(objectID)
 	if err != nil {
 		return nil, err
@@ -384,6 +401,16 @@ func (st *Store) Get(objectID string) ([]byte, error) {
 	if err := rejectSymlink(path); err != nil {
 		return nil, err
 	}
+	info, err := os.Stat(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, fmt.Errorf("%w: object not found: %s", ErrMissingDependency, objectID)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("stat object: %w", err)
+	}
+	if info.Mode().IsRegular() && fileSizeExceedsLimit(info.Size(), maximum) {
+		return nil, fmt.Errorf("canonical object exceeds byte limit %d", maximum)
+	}
 	// #nosec G304 -- objectPath derives path from a validated content digest under the checked store.
 	raw, err := os.ReadFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -392,14 +419,30 @@ func (st *Store) Get(objectID string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read object: %w", err)
 	}
+	if uint64(len(raw)) > maximum {
+		return nil, fmt.Errorf("canonical object exceeds byte limit %d", maximum)
+	}
 	if canonical.Digest(raw) != objectID {
 		return nil, fmt.Errorf("%w: object digest mismatch at %s", ErrIntegrity, path)
 	}
 	return raw, nil
 }
 
+func fileSizeExceedsLimit(size int64, maximum uint64) bool {
+	const maxInt64 = int64(^uint64(0) >> 1)
+	if size <= 0 || maximum >= uint64(maxInt64) {
+		return false
+	}
+	return size > int64(maximum)
+}
+
 // ObjectFiles returns every canonical immutable object path in stable ID order.
 func (st *Store) ObjectFiles() ([]ObjectFile, error) {
+	return st.ObjectFilesBounded(^uint64(0))
+}
+
+// ObjectFilesBounded returns at most maximum canonical immutable object paths in stable ID order.
+func (st *Store) ObjectFilesBounded(maximum uint64) ([]ObjectFile, error) {
 	root := filepath.Join(st.dir, "objects", "sha256")
 	if err := ensureExistingRealDirectory(st.dir); err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrIntegrity, err)
@@ -439,6 +482,9 @@ func (st *Store) ObjectFiles() ([]ObjectFile, error) {
 			objectID := "sha256:" + hexDigest
 			if _, err := st.objectPath(objectID); err != nil {
 				return nil, fmt.Errorf("%w: invalid canonical object path %s: %w", ErrIntegrity, path, err)
+			}
+			if uint64(len(result)) == maximum {
+				return nil, fmt.Errorf("canonical object count exceeds limit %d", maximum)
 			}
 			result = append(result, ObjectFile{ID: objectID, Path: path})
 		}
@@ -548,7 +594,7 @@ func atomicReplace(path string, data []byte, mode fs.FileMode) (err error) {
 }
 
 func syncDirectory(path string) error {
-	// #nosec G304 -- path is an internal store directory already checked against symlinks.
+	// #nosec G304,G703 -- path is an internal store directory already checked against symlinks.
 	directory, err := os.Open(path)
 	if err != nil {
 		return ignoreUnsupportedDirectorySync(err)
@@ -568,7 +614,7 @@ func lockInit(repo string) (*os.File, error) {
 	if err := ensurePrivateLockDirectory(filepath.Dir(path)); err != nil {
 		return nil, err
 	}
-	// #nosec G304 -- path is derived from a resolved repo digest under a checked private directory.
+	// #nosec G304,G703 -- path is derived from a resolved repo digest under a checked private directory.
 	lock, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return nil, err
@@ -580,7 +626,7 @@ func lockInit(repo string) (*os.File, error) {
 	return lock, nil
 }
 
-func lockMutation(repo string) (*os.File, error) {
+func lockStore(repo string, mode int) (*os.File, error) {
 	path, err := mutationLockPath(repo)
 	if err != nil {
 		return nil, err
@@ -588,12 +634,12 @@ func lockMutation(repo string) (*os.File, error) {
 	if err := ensurePrivateLockDirectory(filepath.Dir(path)); err != nil {
 		return nil, err
 	}
-	// #nosec G304 -- path is derived from a resolved repo digest under a checked private directory.
+	// #nosec G304,G703 -- path is derived from a resolved repo digest under a checked private directory.
 	lock, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		return nil, err
 	}
-	if err := syscall.Flock(int(lock.Fd()), syscall.LOCK_EX); err != nil {
+	if err := syscall.Flock(int(lock.Fd()), mode); err != nil {
 		lock.Close()
 		return nil, err
 	}
@@ -610,9 +656,11 @@ func mutationLockPath(repo string) (string, error) {
 }
 
 func ensurePrivateLockDirectory(path string) error {
+	// #nosec G703 -- callers derive path from a resolved repository digest under the private temp directory.
 	if err := os.MkdirAll(path, 0o700); err != nil {
 		return err
 	}
+	// #nosec G703 -- callers derive path from a resolved repository digest under the private temp directory.
 	info, err := os.Lstat(path)
 	if err != nil {
 		return err
@@ -633,6 +681,7 @@ func initLockPath(repo string) (string, error) {
 }
 
 func checkStoreDestination(path string) error {
+	// #nosec G703 -- Init derives path as the fixed .pact entry below a resolved repository.
 	info, err := os.Lstat(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil
@@ -651,7 +700,7 @@ func resolveRepository(repo string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	// #nosec G301 -- repositories are ordinary user workspaces; sensitive files use stricter modes.
+	// #nosec G301,G703 -- repositories are ordinary user workspaces; sensitive files use stricter modes.
 	if err := os.MkdirAll(absRepo, 0o755); err != nil {
 		return "", err
 	}
@@ -667,12 +716,14 @@ func resolveRepository(repo string) (string, error) {
 }
 
 func ensureRealDirectory(path string) error {
+	// #nosec G703 -- callers derive path beneath the checked store directory.
 	info, err := os.Lstat(path)
 	if errors.Is(err, fs.ErrNotExist) {
-		// #nosec G301 -- store directories contain public ledger objects and local non-secret metadata.
+		// #nosec G301,G703 -- callers derive path beneath the checked store directory.
 		if err := os.Mkdir(path, 0o755); err != nil && !errors.Is(err, fs.ErrExist) {
 			return err
 		}
+		// #nosec G703 -- callers derive path beneath the checked store directory.
 		info, err = os.Lstat(path)
 	}
 	if err != nil {
@@ -688,6 +739,7 @@ func ensureRealDirectory(path string) error {
 }
 
 func ensureExistingRealDirectory(path string) error {
+	// #nosec G703 -- callers derive path beneath the checked store directory.
 	info, err := os.Lstat(path)
 	if err != nil {
 		return err
@@ -702,6 +754,7 @@ func ensureExistingRealDirectory(path string) error {
 }
 
 func rejectSymlink(path string) error {
+	// #nosec G703 -- callers derive path beneath the checked store directory.
 	info, err := os.Lstat(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil
