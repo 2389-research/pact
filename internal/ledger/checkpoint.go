@@ -110,6 +110,9 @@ func Checkpoint(st *store.Store, key *identity.KeyFile, options CheckpointOption
 	if hazards := scanSecretHazards(body, "$"); len(hazards) != 0 {
 		return CheckpointResult{}, fmt.Errorf("%w: refusing to sign immutable secret-like material: %v", ErrSecretSafety, hazards)
 	}
+	if err := checkSignedObjectBytes(checkpointFormat, body, key.KeyID, publicKey); err != nil {
+		return CheckpointResult{}, err
+	}
 	bodyDigest, signature, err := identity.SignBody(body, key.Private)
 	if err != nil {
 		return CheckpointResult{}, err

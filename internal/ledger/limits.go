@@ -2,7 +2,14 @@
 // ABOUTME: Keeps admission failures machine-readable without exposing input data.
 package ledger
 
-import "fmt"
+import (
+	"crypto/ed25519"
+	"encoding/base64"
+	"fmt"
+	"strings"
+
+	"pact/internal/canonical"
+)
 
 // LimitsProfile identifies the fixed Phase 2 resource profile.
 const LimitsProfile = "pact/resource-limits/phase2-v1"
@@ -43,4 +50,26 @@ func (err *LimitError) Error() string {
 
 func limitError(resource string, maximum uint64) *LimitError {
 	return &LimitError{Resource: resource, Maximum: maximum, ObservedAtLeast: maximum + 1}
+}
+
+func checkSignedObjectBytes(format string, body map[string]any, keyID, publicKey string) error {
+	bodyRaw, err := canonical.Marshal(body)
+	if err != nil {
+		return fmt.Errorf("canonicalize signed object body: %w", err)
+	}
+	prospective := map[string]any{
+		"format": format, "body": body, "body_digest": canonical.Digest(bodyRaw),
+		"signature": map[string]any{
+			"algorithm": "ed25519", "key_id": keyID, "public_key": publicKey,
+			"value": strings.Repeat("A", base64.RawURLEncoding.EncodedLen(ed25519.SignatureSize)),
+		},
+	}
+	raw, err := canonical.Marshal(prospective)
+	if err != nil {
+		return fmt.Errorf("canonicalize prospective signed object: %w", err)
+	}
+	if uint64(len(raw)) > Phase2Limits.ObjectBytes {
+		return limitError("object_bytes", Phase2Limits.ObjectBytes)
+	}
+	return nil
 }

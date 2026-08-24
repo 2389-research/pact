@@ -143,6 +143,40 @@ func TestCheckpointRequiresTrustedRootBeforePersistence(t *testing.T) {
 	}
 }
 
+func TestCheckpointAdmitsExactObjectLimit(t *testing.T) {
+	purpose := checkpointPurposeForObjectBytes(t, Phase2Limits.ObjectBytes)
+	st, key := checkpointLimitFixture(t)
+	before := objectCount(t, st)
+	result, err := Checkpoint(st, key, checkpointOptionsWithPurpose(purpose))
+	if err != nil {
+		t.Fatalf("Checkpoint() error = %v", err)
+	}
+	if got := objectCount(t, st); got != before+1 {
+		t.Fatalf("object count = %d, want %d", got, before+1)
+	}
+	raw, err := st.Get(result.ObjectID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := uint64(len(raw)); got != Phase2Limits.ObjectBytes {
+		t.Fatalf("checkpoint bytes = %d, want %d", got, Phase2Limits.ObjectBytes)
+	}
+}
+
+func TestCheckpointRejectsFirstObjectByteOverLimitBeforePersistence(t *testing.T) {
+	purpose := checkpointPurposeForObjectBytes(t, Phase2Limits.ObjectBytes+1)
+	st, key := checkpointLimitFixture(t)
+	before := objectCount(t, st)
+	if _, err := Checkpoint(st, key, checkpointOptionsWithPurpose(purpose)); err == nil {
+		t.Fatal("Checkpoint() error = nil, want object byte limit")
+	} else {
+		assertLimitError(t, err, "object_bytes", Phase2Limits.ObjectBytes)
+	}
+	if got := objectCount(t, st); got != before {
+		t.Fatalf("object count after over-limit checkpoint = %d, want %d", got, before)
+	}
+}
+
 func TestCheckpointRejectsEmptyScopeBadPreviousAndMalformedRefsBeforePersistence(t *testing.T) {
 	st, key := ledgerStoreAndKey(t)
 	if _, err := AddRoot(st, key, time.Now()); err != nil {
@@ -275,6 +309,40 @@ func TestVerifyCheckpointTreatsFrontierAsHistoricalCut(t *testing.T) {
 
 func validCheckpointOptions() CheckpointOptions {
 	return CheckpointOptions{Scope: "scope", PolicyRef: testPolicyRef, AuthorityEpoch: "epoch-1", ObservedAt: "2026-08-23T12:00:00Z"}
+}
+
+func checkpointOptionsWithPurpose(purpose string) CheckpointOptions {
+	options := validCheckpointOptions()
+	options.Purpose = purpose
+	return options
+}
+
+func checkpointLimitFixture(t *testing.T) (*store.Store, *identity.KeyFile) {
+	t.Helper()
+	st, key := ledgerStoreAndKey(t)
+	if _, err := AddRoot(st, key, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	commitInNamespace(t, st, key, "scope", "event")
+	return st, key
+}
+
+func checkpointPurposeForObjectBytes(t *testing.T, maximum uint64) string {
+	t.Helper()
+	st, key := checkpointLimitFixture(t)
+	result, err := Checkpoint(st, key, checkpointOptionsWithPurpose("x"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := st.Get(result.ObjectID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := uint64(len(raw))
+	if base > maximum {
+		t.Fatalf("one-byte checkpoint = %d, exceeds requested size %d", base, maximum)
+	}
+	return strings.Repeat("x", int(maximum-base+1))
 }
 
 func commitInNamespace(t *testing.T, st *store.Store, key *identity.KeyFile, namespace, localID string) CommitResult {
