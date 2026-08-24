@@ -25,6 +25,7 @@ var (
 	beforeLedgerMergeBufferAllocation = func() {}
 	afterLedgerMergeBufferAllocation  = func() {}
 	beforeResolveCommitProjection     = func() {}
+	beforeDigestMismatchFallbackRead  = func() {}
 )
 
 // Blocker identifies one absent immutable dependency in the local object set.
@@ -234,7 +235,8 @@ func readScannedObject(ctx context.Context, st *store.Store, file store.ObjectFi
 		return ObjectVerification{}, parsedObjectResources{}, 0, scanByteLimitError(limits, remaining)
 	}
 	if errors.Is(err, store.ErrObjectDigestMismatch) {
-		raw, err = readBoundedCanonicalPath(file.Path, readLimit)
+		beforeDigestMismatchFallbackRead()
+		raw, err = readBoundedCanonicalPathContext(ctx, file.Path, readLimit)
 		if err == nil {
 			object, parsedResources, verifyErr := verifyCanonicalBytesWithPreflight(ctx, file, raw, resources, limits)
 			return object, parsedResources, uint64(len(raw)), verifyErr
@@ -853,7 +855,7 @@ func sortOwnedStringsByContext(ctx context.Context, values []string, less func(s
 	return values, nil
 }
 
-func readBoundedCanonicalPath(path string, maximum uint64) ([]byte, error) {
+func readBoundedCanonicalPathContext(ctx context.Context, path string, maximum uint64) ([]byte, error) {
 	// #nosec G304 -- callers pass only canonical paths returned by the store's checked object enumeration or fixed digest layout.
 	file, err := os.Open(path)
 	if err != nil {
@@ -864,7 +866,15 @@ func readBoundedCanonicalPath(path string, maximum uint64) ([]byte, error) {
 	if maximum < uint64(math.MaxInt64) {
 		limit = int64(maximum) + 1
 	}
-	return io.ReadAll(io.LimitReader(file, limit))
+	reader := &ledgerContextReader{ctx: ctx, reader: io.LimitReader(file, limit)}
+	raw, err := io.ReadAll(reader)
+	if errors.Is(err, context.Canceled) {
+		return nil, context.Canceled
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return nil, context.DeadlineExceeded
+	}
+	return raw, err
 }
 
 func isPermissionError(err error) bool { return errors.Is(err, fs.ErrPermission) }

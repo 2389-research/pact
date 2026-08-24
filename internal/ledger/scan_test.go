@@ -3,6 +3,7 @@
 package ledger
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -191,6 +192,67 @@ func TestResolveCommitProjectionHonorsMidLoopCancellation(t *testing.T) {
 	t.Cleanup(func() { beforeResolveCommitProjection = original })
 	if _, err := ResolveCommit(ctx, st, commit.ObjectID, Limits{}); !errors.Is(err, context.Canceled) {
 		t.Fatalf("ResolveCommit() error = %v, want context canceled during projection", err)
+	}
+}
+
+func TestResolveCommitPropagatesCancellationDuringCanonicalParse(t *testing.T) {
+	st, key := ledgerStoreAndKey(t)
+	batch := mustBatch(t, "event")
+	batch.Events[0].Payload["padding"] = strings.Repeat("x", 4_096)
+	commit, err := Commit(st, key, batch, CommitOptions{ObservedAt: "2026-08-23T12:00:00Z"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := st.Get(commit.ObjectID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	readProbe := &cancelAfterErrChecks{Context: context.Background(), cancelAt: 1 << 30}
+	if _, err := st.GetBoundedContext(readProbe, commit.ObjectID, Phase2Limits.ObjectBytes); err != nil {
+		t.Fatal(err)
+	}
+	digestProbe := &cancelAfterErrChecks{Context: context.Background(), cancelAt: 1 << 30}
+	if _, err := canonical.DigestContext(digestProbe, raw); err != nil {
+		t.Fatal(err)
+	}
+	// ResolveCommit polls once around the store read. The next two polls enter
+	// ParseContext and cancel in its first UTF-8 validation chunk.
+	ctx := &cancelAfterErrChecks{
+		Context:  context.Background(),
+		cancelAt: 1 + readProbe.checks + 1 + digestProbe.checks + 2,
+	}
+	if _, err := ResolveCommit(ctx, st, commit.ObjectID, Limits{}); !errors.Is(err, context.Canceled) {
+		t.Fatalf("ResolveCommit() error = %v after %d checks, want context canceled during canonical parse", err, ctx.checks)
+	}
+}
+
+func TestDigestMismatchFallbackReadHonorsMidReadCancellation(t *testing.T) {
+	st, key := ledgerStoreAndKey(t)
+	commit := commitOne(t, st, key, "event", nil)
+	files, err := st.ObjectFiles()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(files) != 1 || files[0].ID != commit.ObjectID {
+		t.Fatalf("object files = %#v, want commit %s", files, commit.ObjectID)
+	}
+	raw := bytes.Repeat([]byte{'x'}, int(Phase2Limits.ObjectBytes-1))
+	if err := os.WriteFile(files[0].Path, raw, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	ctx := &cancelAfterErrChecks{Context: context.Background(), cancelAt: 1 << 30}
+	original := beforeDigestMismatchFallbackRead
+	beforeDigestMismatchFallbackRead = func() {
+		ctx.checks = 0
+		ctx.cancelAt = 2
+	}
+	t.Cleanup(func() { beforeDigestMismatchFallbackRead = original })
+	_, _, _, err = readScannedObject(ctx, st, files[0], Phase2Limits, Phase2Limits.CanonicalBytes, &scanResourceCounts{})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("readScannedObject() error = %v, want context canceled during digest-mismatch fallback read", err)
+	}
+	if ctx.checks != 2 {
+		t.Fatalf("fallback read context checks = %d, want cancellation on the second bounded read", ctx.checks)
 	}
 }
 

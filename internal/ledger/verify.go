@@ -527,7 +527,7 @@ func verificationForID(st *store.Store, id string) (ObjectVerification, error) {
 		return ObjectVerification{}, err
 	}
 	// GetBounded intentionally refuses corrupt bytes; show still returns bounded structured integrity details.
-	raw, readErr := readBoundedCanonicalPath(file.Path, Phase2Limits.ObjectBytes)
+	raw, readErr := readBoundedCanonicalPathContext(context.Background(), file.Path, Phase2Limits.ObjectBytes)
 	if readErr != nil {
 		return ObjectVerification{}, fmt.Errorf("read object: %w", readErr)
 	}
@@ -577,6 +577,12 @@ func parseCanonicalBytesContext(ctx context.Context, file store.ObjectFile, raw 
 	}
 	parsed, err := canonical.ParseContext(ctx, raw)
 	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			return ObjectVerification{}, context.Canceled
+		}
+		if errors.Is(err, context.DeadlineExceeded) {
+			return ObjectVerification{}, context.DeadlineExceeded
+		}
 		var diagnostic interface{ DiagnosticTruncated() bool }
 		if errors.As(err, &diagnostic) && diagnostic.DiagnosticTruncated() {
 			result.diagnosticsTruncated = true
