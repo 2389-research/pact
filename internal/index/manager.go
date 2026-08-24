@@ -79,7 +79,10 @@ func (m *Manager) Status(ctx context.Context) (result Status, err error) {
 		result.Counts = sourceCounts(scan.Counts)
 		result.Limits = LimitsInfo{Profile: ledger.LimitsProfile, Status: "within_limits"}
 		path := filepath.Join(m.store.Root(), ".pact", "index", liveIndexName)
-		result.Index = validateIndex(ctx, path, scan)
+		result.Index, scanErr = validateIndex(ctx, path, scan)
+		if scanErr != nil {
+			return fmt.Errorf("validate index: %w", scanErr)
+		}
 		return nil
 	})
 	return result, err

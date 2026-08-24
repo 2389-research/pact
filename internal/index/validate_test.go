@@ -5,6 +5,7 @@ package index
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,7 +17,7 @@ import (
 )
 
 func TestValidateRejectsConnectionWithoutFixedReaderPragmas(t *testing.T) {
-	_, path, _ := managerFixture(t)
+	_, path, snapshot := managerFixture(t)
 	db, err := sql.Open("sqlite", path)
 	if err != nil {
 		t.Fatal(err)
@@ -26,7 +27,7 @@ func TestValidateRejectsConnectionWithoutFixedReaderPragmas(t *testing.T) {
 			t.Errorf("close fixture database: %v", err)
 		}
 	}()
-	if _, state := inspectDatabase(context.Background(), db); state != "corrupt" {
+	if _, state, _ := inspectDatabase(context.Background(), db, snapshot); state != "corrupt" {
 		t.Fatalf("state = %q, want corrupt without fixed query-only reader settings", state)
 	}
 }
@@ -132,6 +133,37 @@ func TestStatusClassifiesRecognizedDatabaseStates(t *testing.T) {
 	}
 }
 
+func TestStatusClassificationPrecedence(t *testing.T) {
+	t.Run("corrupt beats incompatible", func(t *testing.T) {
+		st, path, _ := managerFixture(t)
+		mutateSQLiteFixture(t, path, "PRAGMA application_id=7")
+		mutateSQLiteFixture(t, path, "UPDATE index_meta SET value='sha256:broken' WHERE key='logical_digest'")
+		status, err := New(st).Status(context.Background())
+		if err != nil || status.Index.State != "corrupt" {
+			t.Fatalf("status = %#v, error = %v; want corrupt", status, err)
+		}
+	})
+
+	t.Run("divergent rows beat stale", func(t *testing.T) {
+		st, path, snapshot := managerFixture(t)
+		snapshot.Objects[0].ActorLabel = "divergent"
+		setFixtureMetadata(snapshot.IndexMeta, "source_fingerprint", "sha256:"+strings.Repeat("6", 64))
+		digest, err := LogicalDigest(snapshot)
+		if err != nil {
+			t.Fatal(err)
+		}
+		setFixtureMetadata(snapshot.IndexMeta, "logical_digest", digest)
+		if err := os.Remove(path); err != nil {
+			t.Fatal(err)
+		}
+		writeSnapshotFixture(t, path, snapshot)
+		status, err := New(st).Status(context.Background())
+		if err != nil || status.Index.State != "partial-build" {
+			t.Fatalf("status = %#v, error = %v; want partial-build", status, err)
+		}
+	})
+}
+
 func TestStatusValidationDamageMatrix(t *testing.T) {
 	tests := []struct {
 		name, want string
@@ -145,9 +177,11 @@ func TestStatusValidationDamageMatrix(t *testing.T) {
 		}},
 		{name: "metadata format unsupported", want: "incompatible", mutate: func(t *testing.T, path string) {
 			mutateSQLiteFixture(t, path, "UPDATE index_meta SET value='pact/sqlite-index/v2' WHERE key='format'")
+			refreshFixtureLogicalDigest(t, path)
 		}},
 		{name: "metadata schema digest unsupported", want: "incompatible", mutate: func(t *testing.T, path string) {
 			mutateSQLiteFixture(t, path, "UPDATE index_meta SET value=? WHERE key='schema_digest'", "sha256:"+strings.Repeat("a", 64))
+			refreshFixtureLogicalDigest(t, path)
 		}},
 		{name: "required index missing", want: "incompatible", mutate: func(t *testing.T, path string) {
 			mutateSQLiteFixture(t, path, "DROP INDEX events_type_idx")
@@ -187,6 +221,153 @@ func TestStatusValidationDamageMatrix(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestStatusMissingIndexDirectoryIsMissing(t *testing.T) {
+	st, err := store.Init(t.TempDir(), "fixture/status", time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(filepath.Join(st.Dir(), "index")); err != nil {
+		t.Fatal(err)
+	}
+	status, err := New(st).Status(context.Background())
+	if err != nil || status.Index.State != "missing" {
+		t.Fatalf("status = %#v, error = %v", status, err)
+	}
+}
+
+func TestStatusRejectsLiveSidecars(t *testing.T) {
+	st, path, _ := managerFixture(t)
+	if err := os.WriteFile(path+"-wal", []byte("leftover"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	status, err := New(st).Status(context.Background())
+	if err != nil || status.Index.State != "corrupt" {
+		t.Fatalf("status = %#v, error = %v", status, err)
+	}
+}
+
+func TestValidationPropagatesCancellationDuringRepresentativeIteration(t *testing.T) {
+	st, _, _ := managerFixture(t)
+	resetValidationSeams(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	afterRepresentativeIndexRow = cancel
+	_, err := New(st).Status(ctx)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Status() error = %v, want context canceled", err)
+	}
+}
+
+func TestValidationPropagatesCancellationDuringStreamedRowValidation(t *testing.T) {
+	st, _, _ := managerFixture(t)
+	resetValidationSeams(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	afterValidatedIndexRow = cancel
+	_, err := New(st).Status(ctx)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Status() error = %v, want context canceled", err)
+	}
+}
+
+func TestStatusClassifiesRealQuickCheckDamageCorrupt(t *testing.T) {
+	st, path, _ := managerFixture(t)
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rootPage, pageSize int64
+	if err := db.QueryRow("SELECT rootpage FROM sqlite_schema WHERE name='objects'").Scan(&rootPage); err != nil {
+		db.Close()
+		t.Fatal(err)
+	}
+	if err := db.QueryRow("PRAGMA page_size").Scan(&pageSize); err != nil {
+		db.Close()
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	file, err := os.OpenFile(path, os.O_WRONLY, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, writeErr := file.WriteAt(make([]byte, 128), (rootPage-1)*pageSize)
+	closeErr := file.Close()
+	if writeErr != nil || closeErr != nil {
+		t.Fatalf("damage fixture: write=%v close=%v", writeErr, closeErr)
+	}
+	damaged, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var quick string
+	quickErr := damaged.QueryRow("PRAGMA quick_check").Scan(&quick)
+	if closeErr := damaged.Close(); closeErr != nil {
+		t.Fatal(closeErr)
+	}
+	if quickErr == nil && quick == "ok" {
+		t.Fatal("fixture damage did not fail SQLite quick_check")
+	}
+	status, err := New(st).Status(context.Background())
+	if err != nil || status.Index.State != "corrupt" {
+		t.Fatalf("status = %#v, error = %v", status, err)
+	}
+}
+
+func TestReaderCloseFailureClassifiesCorrupt(t *testing.T) {
+	st, _, _ := managerFixture(t)
+	resetValidationSeams(t)
+	fault := errors.New("reader close failed")
+	closeIndexReader = func(db *sql.DB) error { return errors.Join(db.Close(), fault) }
+	status, err := New(st).Status(context.Background())
+	if err != nil || status.Index.State != "corrupt" {
+		t.Fatalf("status = %#v, error = %v", status, err)
+	}
+}
+
+func TestValidationPreflightRejectsHostileLengthsAndCountsWithoutAllocation(t *testing.T) {
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	var equivalentLength int64
+	if err := db.QueryRow("SELECT length(zeroblob(?))", int64(900*1024*1024)).Scan(&equivalentLength); err != nil {
+		t.Fatal(err)
+	}
+	if err := validateTextLength(equivalentLength); err == nil {
+		t.Fatal("900 MiB SQL length passed the canonical-object-derived text bound")
+	}
+	if _, err := db.Exec("CREATE TABLE hostile_rows(value TEXT); INSERT INTO hostile_rows VALUES('a'),('b'),('c')"); err != nil {
+		t.Fatal(err)
+	}
+	table := streamTable{name: "hostile_rows", textLengthQuery: "SELECT coalesce(max(length(value)),0) FROM hostile_rows", maximumRows: 2}
+	if _, err := preflightTable(context.Background(), db, table); err == nil {
+		t.Fatal("excess SQL row count passed its fixed bound")
+	}
+}
+
+func TestStatusHandlesSparse900MiBDatabaseWithoutMaterializingIt(t *testing.T) {
+	st, path, _ := managerFixture(t)
+	if err := os.Truncate(path, int64(900*1024*1024)); err != nil {
+		t.Fatal(err)
+	}
+	status, err := New(st).Status(context.Background())
+	if err != nil || status.Index.State != "current" {
+		t.Fatalf("status = %#v, error = %v", status, err)
+	}
+}
+
+func resetValidationSeams(t *testing.T) {
+	t.Helper()
+	oldClose, oldAfterRepresentative, oldAfterValidated := closeIndexReader, afterRepresentativeIndexRow, afterValidatedIndexRow
+	t.Cleanup(func() {
+		closeIndexReader, afterRepresentativeIndexRow, afterValidatedIndexRow = oldClose, oldAfterRepresentative, oldAfterValidated
+	})
+	closeIndexReader = func(db *sql.DB) error { return db.Close() }
+	afterRepresentativeIndexRow = func() {}
+	afterValidatedIndexRow = func() {}
 }
 
 func TestStatusClassifiesUnsafeAndOversizeFilesAsCorrupt(t *testing.T) {
@@ -300,10 +481,20 @@ func setFixtureMetadata(rows []IndexMetaRow, key, value string) {
 
 func refreshFixtureLogicalDigest(t *testing.T, path string) {
 	t.Helper()
-	snapshot := readSnapshotFixture(t, path)
-	digest, err := LogicalDigest(snapshot)
+	db, err := openIndexReader(path)
 	if err != nil {
 		t.Fatal(err)
+	}
+	digest, _, _, readErr := readSnapshotDB(context.Background(), db, Snapshot{})
+	closeErr := db.Close()
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	if closeErr != nil {
+		t.Fatal(closeErr)
+	}
+	if digest == "" {
+		t.Fatal("streamed fixture digest is empty")
 	}
 	mutateSQLiteFixture(t, path, "UPDATE index_meta SET value=? WHERE key='logical_digest'", digest)
 }

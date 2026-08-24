@@ -126,20 +126,3 @@ func mutateSQLiteFixture(t *testing.T, path, statement string, arguments ...any)
 		t.Fatal(err)
 	}
 }
-
-func readSnapshotFixture(t *testing.T, path string) Snapshot {
-	t.Helper()
-	db, err := openIndexReader(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	snapshot, readErr := readSnapshotDB(context.Background(), db)
-	closeErr := db.Close()
-	if readErr != nil {
-		t.Fatal(readErr)
-	}
-	if closeErr != nil {
-		t.Fatal(closeErr)
-	}
-	return snapshot
-}

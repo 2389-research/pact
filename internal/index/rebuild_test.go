@@ -298,6 +298,80 @@ func TestRebuildRefusesSidecarBeforePublication(t *testing.T) {
 	}
 }
 
+func TestRebuildRefusesLiveSidecarBeforeRename(t *testing.T) {
+	fixture := signedPartialScanFixture(t)
+	manager := New(fixture.store)
+	if _, err := manager.Rebuild(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	live := filepath.Join(fixture.store.Dir(), "index", liveIndexName)
+	oldBytes := mustReadFile(t, live)
+	if err := os.WriteFile(live+"-shm", []byte("leftover"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := manager.Rebuild(context.Background()); err == nil {
+		t.Fatal("Rebuild() succeeded over a live sidecar")
+	}
+	if got := mustReadFile(t, live); !bytes.Equal(got, oldBytes) {
+		t.Fatal("live sidecar refusal changed old live bytes")
+	}
+}
+
+func TestRebuildPropagatesCancellationDuringPreparedExec(t *testing.T) {
+	fixture := signedPartialScanFixture(t)
+	resetIndexFailureSeams(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	execPreparedIndexRow = func(ctx context.Context, statement *sql.Stmt, arguments ...any) (sql.Result, error) {
+		cancel()
+		return statement.ExecContext(ctx, arguments...)
+	}
+	if _, err := New(fixture.store).Rebuild(ctx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("Rebuild() error = %v, want context canceled", err)
+	}
+}
+
+func TestRebuildPreparedExecFailurePreservesCauseAndOldBytes(t *testing.T) {
+	fixture := signedPartialScanFixture(t)
+	manager := New(fixture.store)
+	if _, err := manager.Rebuild(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	live := filepath.Join(fixture.store.Dir(), "index", liveIndexName)
+	oldBytes := mustReadFile(t, live)
+	resetIndexFailureSeams(t)
+	fault := errors.New("prepared execution failed")
+	execPreparedIndexRow = func(context.Context, *sql.Stmt, ...any) (sql.Result, error) { return nil, fault }
+	if _, err := manager.Rebuild(context.Background()); !errors.Is(err, fault) {
+		t.Fatalf("Rebuild() error = %v, want prepared execution cause", err)
+	}
+	if got := mustReadFile(t, live); !bytes.Equal(got, oldBytes) {
+		t.Fatal("prepared execution failure changed old live bytes")
+	}
+}
+
+func TestRebuildCancellationAfterSyncPreventsRename(t *testing.T) {
+	fixture := signedPartialScanFixture(t)
+	manager := New(fixture.store)
+	if _, err := manager.Rebuild(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	live := filepath.Join(fixture.store.Dir(), "index", liveIndexName)
+	oldBytes := mustReadFile(t, live)
+	resetIndexFailureSeams(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	syncIndexFile = func(path string) error {
+		err := syncRegularIndexFile(path)
+		cancel()
+		return err
+	}
+	if _, err := manager.Rebuild(ctx); !errors.Is(err, context.Canceled) {
+		t.Fatalf("Rebuild() error = %v, want context canceled", err)
+	}
+	if got := mustReadFile(t, live); !bytes.Equal(got, oldBytes) {
+		t.Fatal("post-sync cancellation changed old live bytes")
+	}
+}
+
 func TestRebuildReportsPostPublicationFaults(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -360,8 +434,8 @@ func TestConcurrentCanonicalPublicationWaitsForFullRebuildLock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if status.Index.State != "stale" {
-		t.Fatalf("post-commit state = %q, want stale", status.Index.State)
+	if status.Index.State != "partial-build" {
+		t.Fatalf("post-commit state = %q, want partial-build", status.Index.State)
 	}
 }
 
@@ -380,11 +454,13 @@ func resetIndexFailureSeams(t *testing.T) {
 	oldSyncFile, oldRename, oldSyncDirectory := syncIndexFile, renameIndexFile, syncIndexDirectory
 	oldBeforeBuilt, oldBeforePublished := beforeBuiltValidation, beforePublishedValidation
 	oldBeforeWrite := beforeIndexWrite
+	oldExec := execPreparedIndexRow
 	t.Cleanup(func() {
 		commitIndexTransaction, closeIndexWriter = oldCommit, oldClose
 		syncIndexFile, renameIndexFile, syncIndexDirectory = oldSyncFile, oldRename, oldSyncDirectory
 		beforeBuiltValidation, beforePublishedValidation = oldBeforeBuilt, oldBeforePublished
 		beforeIndexWrite = oldBeforeWrite
+		execPreparedIndexRow = oldExec
 	})
 	commitIndexTransaction = func(tx *sql.Tx) error { return tx.Commit() }
 	closeIndexWriter = func(db *sql.DB) error { return db.Close() }
@@ -394,4 +470,7 @@ func resetIndexFailureSeams(t *testing.T) {
 	beforeBuiltValidation = func(string) error { return nil }
 	beforePublishedValidation = func(string) error { return nil }
 	beforeIndexWrite = func() error { return nil }
+	execPreparedIndexRow = func(ctx context.Context, statement *sql.Stmt, arguments ...any) (sql.Result, error) {
+		return statement.ExecContext(ctx, arguments...)
+	}
 }

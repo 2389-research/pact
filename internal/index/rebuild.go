@@ -29,6 +29,9 @@ var (
 	beforeBuiltValidation     = func(string) error { return nil }
 	beforePublishedValidation = func(string) error { return nil }
 	beforeIndexWrite          = func() error { return nil }
+	execPreparedIndexRow      = func(ctx context.Context, prepared *sql.Stmt, values ...any) (sql.Result, error) {
+		return prepared.ExecContext(ctx, values...)
+	}
 )
 
 // Rebuild creates and validates a disposable index, then atomically publishes it.
@@ -47,7 +50,7 @@ func (m *Manager) Rebuild(ctx context.Context) (result RebuildResult, err error)
 	return result, err
 }
 
-func (m *Manager) rebuildLocked(ctx context.Context) (result RebuildResult, err error) { //nolint:gocyclo,funlen // The linear branches are the ordered durability protocol.
+func (m *Manager) rebuildLocked(ctx context.Context) (result RebuildResult, err error) { //nolint:gocyclo,gocognit,funlen // The linear branches are the ordered durability protocol.
 	indexDirectory := filepath.Join(m.store.Root(), ".pact", "index")
 	livePath := filepath.Join(indexDirectory, liveIndexName)
 	if err := validateIndexPaths(m.store.Dir(), indexDirectory, livePath); err != nil {
@@ -103,16 +106,29 @@ func (m *Manager) rebuildLocked(ctx context.Context) (result RebuildResult, err 
 	if err := refuseSidecars(tempPath); err != nil {
 		return result, err
 	}
-	if info := validateIndex(ctx, tempPath, scan); info.State != "current" {
+	info, err := validateIndex(ctx, tempPath, scan)
+	if err != nil {
+		return result, fmt.Errorf("validate built index: %w", err)
+	}
+	if info.State != "current" {
 		return result, fmt.Errorf("validate built index: index_%s", strings.ReplaceAll(info.State, "-", "_"))
 	}
 	if err := syncIndexFile(tempPath); err != nil {
 		return result, fmt.Errorf("sync built index: %w", err)
 	}
+	if err := ctx.Err(); err != nil {
+		return result, err
+	}
 	if err := validateBuildFile(tempPath); err != nil {
 		return result, err
 	}
 	if err := refuseSidecars(tempPath); err != nil {
+		return result, err
+	}
+	if err := refuseSidecars(livePath); err != nil {
+		return result, err
+	}
+	if err := ctx.Err(); err != nil {
 		return result, err
 	}
 	if err := renameIndexFile(tempPath, livePath); err != nil {
@@ -125,7 +141,10 @@ func (m *Manager) rebuildLocked(ctx context.Context) (result RebuildResult, err 
 	if err := beforePublishedValidation(livePath); err != nil {
 		return result, fmt.Errorf("prepare published-index validation: %w", err)
 	}
-	info := validateIndex(ctx, livePath, scan)
+	info, err = validateIndex(ctx, livePath, scan)
+	if err != nil {
+		return result, fmt.Errorf("validate published index: %w", err)
+	}
 	if info.State != "current" {
 		return result, fmt.Errorf("validate published index: index_%s", strings.ReplaceAll(info.State, "-", "_"))
 	}
@@ -334,12 +353,12 @@ func insertSnapshot(ctx context.Context, transaction *sql.Tx, snapshot Snapshot)
 func insertRows(ctx context.Context, transaction *sql.Tx, statement string, count int, values func(int) []any) (err error) {
 	prepared, err := transaction.PrepareContext(ctx, statement)
 	if err != nil {
-		return fmt.Errorf("prepare index row insertion")
+		return fmt.Errorf("prepare index row insertion: %w", err)
 	}
 	defer func() { err = errors.Join(err, prepared.Close()) }()
 	for index := range count {
-		if _, err := prepared.ExecContext(ctx, values(index)...); err != nil {
-			return fmt.Errorf("insert index row")
+		if _, err := execPreparedIndexRow(ctx, prepared, values(index)...); err != nil {
+			return fmt.Errorf("insert index row: %w", err)
 		}
 	}
 	return nil
