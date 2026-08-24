@@ -48,7 +48,10 @@ type AuthorizationResult struct {
 }
 
 // VerifyCounts provides separate outcome counts for each verification layer.
-type VerifyCounts struct{ Objects, Commits, Events, Authorized, Unauthorized, Indeterminate, Integrity, Structure, Authenticity, DAG, References int }
+type VerifyCounts struct {
+	Objects, Commits, Checkpoints, Events, Authorized, Unauthorized, Indeterminate int
+	Integrity, Structure, Authenticity, DAG, References                            int
+}
 type LayerResult struct {
 	Errors   []string `json:"errors"`
 	Warnings []string `json:"warnings"`
@@ -100,6 +103,7 @@ func Verify(st *store.Store, strict bool) (VerifyResult, error) {
 	}
 	result := VerifyResult{Strict: strict, Repo: filepath.Dir(st.Dir()), Store: st.Dir(), IndexStatus: "missing", Heads: map[string][]string{}, Authorization: map[string]AuthorizationResult{}, Objects: map[string]ObjectVerification{}}
 	commits := map[string]storedCommit{}
+	checkpoints := map[string]ObjectVerification{}
 	for _, file := range files {
 		verification, err := verifyStoredObject(st, file)
 		if err != nil {
@@ -123,11 +127,17 @@ func Verify(st *store.Store, strict bool) (VerifyResult, error) {
 		for _, message := range verification.Warnings {
 			result.Warnings = append(result.Warnings, file.ID+": "+message)
 		}
-		if verification.Valid() && verification.Type == "commit" {
-			body := verification.Object["body"].(map[string]any)
-			commits[file.ID] = storedCommit{id: file.ID, body: body, object: verification.Object}
-			result.Counts.Commits++
-			result.Counts.Events += len(body["events"].([]any))
+		if verification.Valid() {
+			switch verification.Type {
+			case "commit":
+				body := verification.Object["body"].(map[string]any)
+				commits[file.ID] = storedCommit{id: file.ID, body: body, object: verification.Object}
+				result.Counts.Commits++
+				result.Counts.Events += len(body["events"].([]any))
+			case "checkpoint":
+				checkpoints[file.ID] = verification
+				result.Counts.Checkpoints++
+			}
 		}
 	}
 	for id, commit := range commits {
@@ -144,6 +154,29 @@ func Verify(st *store.Store, strict bool) (VerifyResult, error) {
 				result.Errors = append(result.Errors, message)
 				result.DAG.Errors = append(result.DAG.Errors, message)
 				result.Counts.DAG++
+			}
+		}
+	}
+	for id, checkpoint := range checkpoints {
+		body := checkpoint.Object["body"].(map[string]any)
+		for _, rawEntry := range body["frontier"].([]any) {
+			entry := rawEntry.(map[string]any)
+			namespace := entry["namespace"].(string)
+			for _, rawHead := range entry["heads"].([]any) {
+				headID := rawHead.(string)
+				head, found := commits[headID]
+				if !found {
+					resultReferenceError(&result, fmt.Sprintf("%s: missing checkpoint head %s", id, headID))
+					continue
+				}
+				if head.body["namespace"].(string) != namespace {
+					resultReferenceError(&result, fmt.Sprintf("%s: head %s namespace mismatch (%q != %q)", id, headID, head.body["namespace"].(string), namespace))
+				}
+			}
+		}
+		if previous := body["previous_checkpoint"]; previous != nil {
+			if _, found := checkpoints[previous.(string)]; !found {
+				resultReferenceError(&result, fmt.Sprintf("%s: previous checkpoint is unavailable: %s", id, previous.(string)))
 			}
 		}
 	}
@@ -287,13 +320,13 @@ func verifyStoredObject(_ *store.Store, file store.ObjectFile) (ObjectVerificati
 		return result, nil
 	}
 	result.Object = object
-	namespace, err := validateCommitObject(object)
+	objectType, namespace, err := validateSignedObject(object)
 	if err != nil {
 		result.Errors = append(result.Errors, err.Error())
 		result.Structure = "invalid"
 		return result, nil
 	}
-	result.Type = "commit"
+	result.Type = objectType
 	result.Namespace = namespace
 	result.Structure = "valid"
 	if err := verifySignature(object); err != nil {
@@ -303,6 +336,22 @@ func verifyStoredObject(_ *store.Store, file store.ObjectFile) (ObjectVerificati
 	}
 	result.Authenticity = "valid"
 	return result, nil
+}
+func validateSignedObject(object map[string]any) (string, string, error) {
+	format, ok := object["format"].(string)
+	if !ok {
+		return "", "", fmt.Errorf("unsupported signed object format: %q", object["format"])
+	}
+	switch format {
+	case commitFormat:
+		namespace, err := validateCommitObject(object)
+		return "commit", namespace, err
+	case checkpointFormat:
+		scope, err := validateCheckpointObject(object)
+		return "checkpoint", scope, err
+	default:
+		return "", "", fmt.Errorf("unsupported signed object format: %q", format)
+	}
 }
 func validateCommitObject(object map[string]any) (string, error) {
 	if err := exactKeys(object, []string{"format", "body", "body_digest", "signature"}, nil, "$"); err != nil {
@@ -406,6 +455,120 @@ func validateCommitObject(object map[string]any) (string, error) {
 	}
 	return namespace, nil
 }
+func validateCheckpointObject(object map[string]any) (string, error) {
+	if err := exactKeys(object, []string{"format", "body", "body_digest", "signature"}, nil, "$"); err != nil {
+		return "", err
+	}
+	if object["format"] != checkpointFormat {
+		return "", fmt.Errorf("unsupported signed object format: %q", object["format"])
+	}
+	body, ok := object["body"].(map[string]any)
+	if !ok {
+		return "", fmt.Errorf("checkpoint body must be an object")
+	}
+	if err := exactKeys(body, []string{"scope", "frontier", "policy_ref", "schema_refs", "authority_epoch", "previous_checkpoint", "actor", "observed_at", "metadata"}, nil, "$.body"); err != nil {
+		return "", err
+	}
+	scope, ok := body["scope"].(string)
+	if !ok {
+		return "", fmt.Errorf("checkpoint scope is not canonical")
+	}
+	if err := validateNamespace(scope); err != nil {
+		return "", err
+	}
+	frontier, ok := body["frontier"].([]any)
+	if !ok || len(frontier) == 0 {
+		return "", fmt.Errorf("checkpoint frontier must contain at least one namespace")
+	}
+	namespaces := make([]string, len(frontier))
+	for index, raw := range frontier {
+		entry, ok := raw.(map[string]any)
+		if !ok {
+			return "", fmt.Errorf("checkpoint frontier[%d] must be an object", index)
+		}
+		if err := exactKeys(entry, []string{"namespace", "heads"}, nil, fmt.Sprintf("$.body.frontier[%d]", index)); err != nil {
+			return "", err
+		}
+		namespace, ok := entry["namespace"].(string)
+		if !ok {
+			return "", fmt.Errorf("checkpoint namespace is not canonical")
+		}
+		if err := validateNamespace(namespace); err != nil {
+			return "", err
+		}
+		namespaces[index] = namespace
+		heads, ok := entry["heads"].([]any)
+		if !ok || len(heads) == 0 {
+			return "", fmt.Errorf("checkpoint namespace %s has no heads", namespace)
+		}
+		headIDs := make([]string, len(heads))
+		for headIndex, rawHead := range heads {
+			head, ok := rawHead.(string)
+			if !ok || !digestPattern.MatchString(head) {
+				return "", fmt.Errorf("invalid checkpoint head")
+			}
+			headIDs[headIndex] = head
+		}
+		if !sort.StringsAreSorted(headIDs) || hasDuplicate(headIDs) {
+			return "", fmt.Errorf("checkpoint heads for %s are not canonical", namespace)
+		}
+	}
+	if !sort.StringsAreSorted(namespaces) || hasDuplicate(namespaces) {
+		return "", fmt.Errorf("checkpoint frontier is not sorted by namespace")
+	}
+	policyRef, ok := body["policy_ref"].(string)
+	if !ok || !digestPattern.MatchString(policyRef) {
+		return "", fmt.Errorf("invalid policy reference")
+	}
+	schemaRaw, ok := body["schema_refs"].([]any)
+	if !ok {
+		return "", fmt.Errorf("checkpoint schema_refs must be an array")
+	}
+	schemaRefs := make([]string, len(schemaRaw))
+	for index, raw := range schemaRaw {
+		ref, ok := raw.(string)
+		if !ok || !digestPattern.MatchString(ref) {
+			return "", fmt.Errorf("invalid schema reference")
+		}
+		schemaRefs[index] = ref
+	}
+	if !sort.StringsAreSorted(schemaRefs) || hasDuplicate(schemaRefs) {
+		return "", fmt.Errorf("checkpoint schema_refs are not canonical")
+	}
+	epoch, ok := body["authority_epoch"].(string)
+	if !ok || epoch == "" || utf8.RuneCountInString(epoch) > 255 {
+		return "", fmt.Errorf("checkpoint authority_epoch is invalid")
+	}
+	if previous := body["previous_checkpoint"]; previous != nil {
+		text, ok := previous.(string)
+		if !ok || !digestPattern.MatchString(text) {
+			return "", fmt.Errorf("invalid previous checkpoint")
+		}
+	}
+	actor, ok := body["actor"].(map[string]any)
+	if !ok {
+		return "", fmt.Errorf("checkpoint actor must be an object")
+	}
+	if err := exactKeys(actor, []string{"key_id", "label"}, nil, "$.body.actor"); err != nil {
+		return "", err
+	}
+	actorID, ok := actor["key_id"].(string)
+	if !ok || !isKeyID(actorID) {
+		return "", fmt.Errorf("invalid key ID")
+	}
+	label, ok := actor["label"].(string)
+	if !ok || label == "" || utf8.RuneCountInString(label) > 255 {
+		return "", fmt.Errorf("checkpoint actor label is invalid")
+	}
+	observedAt, ok := body["observed_at"].(string)
+	if !ok || observedAt == "" || utf8.RuneCountInString(observedAt) > 64 {
+		return "", fmt.Errorf("checkpoint observed_at is invalid")
+	}
+	if _, ok := body["metadata"].(map[string]any); !ok {
+		return "", fmt.Errorf("checkpoint metadata must be an object")
+	}
+	return scope, nil
+}
 func verifySignature(object map[string]any) error {
 	signature, ok := object["signature"].(map[string]any)
 	if !ok {
@@ -493,6 +656,11 @@ func resultReferenceAt(result *VerifyResult, strict bool, message string) {
 		result.Warnings = append(result.Warnings, message)
 		result.References.Warnings = append(result.References.Warnings, message)
 	}
+	result.Counts.References++
+}
+func resultReferenceError(result *VerifyResult, message string) {
+	result.Errors = append(result.Errors, message)
+	result.References.Errors = append(result.References.Errors, message)
 	result.Counts.References++
 }
 func authorizationFor(st *store.Store, verification ObjectVerification) string {

@@ -10,6 +10,12 @@ import (
 	"testing"
 )
 
+const (
+	testCLIPolicyRef = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	testCLISchemaA   = "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+	testCLISchemaB   = "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+)
+
 func TestRunInitAndHashEmitContractJSON(t *testing.T) {
 	repo := t.TempDir()
 	result := runJSON(t, []string{"init", "--repo", repo, "--namespace", "org/example/widget", "--json"})
@@ -70,11 +76,40 @@ func TestRunKeygenAndTrustAddNeverLeakPrivateBytes(t *testing.T) {
 }
 
 func TestRunRejectsMissingRequiredArguments(t *testing.T) {
-	for _, args := range [][]string{{"init", "--repo", t.TempDir()}, {"keygen", "--actor", "Alice"}, {"trust-add", "--repo", t.TempDir()}, {"hash"}} {
+	for _, args := range [][]string{{"init", "--repo", t.TempDir()}, {"keygen", "--actor", "Alice"}, {"trust-add", "--repo", t.TempDir()}, {"hash"}, {"checkpoint", "--repo", t.TempDir()}} {
 		var stdout, stderr bytes.Buffer
 		if code := run(args, &stdout, &stderr); code != 2 {
 			t.Fatalf("run(%q) exit = %d, want 2; stderr=%q", args, code, stderr.String())
 		}
+	}
+}
+
+func TestRunCheckpointEmitsCanonicalAuthorizedResult(t *testing.T) {
+	repo := t.TempDir()
+	keyPath := filepath.Join(t.TempDir(), "alice.key.json")
+	runJSON(t, []string{"init", "--repo", repo, "--namespace", "org/example/widget", "--json"})
+	runJSON(t, []string{"keygen", "--actor", "Alice", "--out", keyPath, "--json"})
+	runJSON(t, []string{"trust-add", "--repo", repo, "--key-file", keyPath, "--json"})
+	batchPath := filepath.Join(t.TempDir(), "events.json")
+	if err := os.WriteFile(batchPath, []byte(`{"events":[{"local_id":"e1","kind":"observation","type":"widget.seen","subject":"widget-1","schema_ref":"pact:core/widget/v1","payload":{},"evidence":[],"caused_by":[],"supersedes":[],"tags":[]}]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runJSON(t, []string{"commit", "--repo", repo, "--key-file", keyPath, "--events", batchPath, "--json"})
+	checkpoint := runJSON(t, []string{"checkpoint", "--repo", repo, "--key-file", keyPath, "--scope", "org/example", "--policy-ref", testCLIPolicyRef, "--authority-epoch", "epoch-1", "--schema-ref", testCLISchemaB, "--schema-ref", testCLISchemaA, "--schema-ref", testCLISchemaB, "--purpose", "release cut", "--json"})
+	if checkpoint["authorization"] != "authorized" || checkpoint["integrity"] != "valid" || checkpoint["authenticity"] != "valid" {
+		t.Fatalf("checkpoint JSON = %#v", checkpoint)
+	}
+	refs := checkpoint["schema_refs"].([]any)
+	if len(refs) != 2 || refs[0] != testCLISchemaA || refs[1] != testCLISchemaB {
+		t.Fatalf("schema refs = %#v", refs)
+	}
+	shown := runJSON(t, []string{"show", "--repo", repo, checkpoint["object_id"].(string), "--json"})
+	if shown["kind"] != "checkpoint" {
+		t.Fatalf("show checkpoint JSON = %#v", shown)
+	}
+	verified := runJSON(t, []string{"verify", "--repo", repo, "--strict", "--json"})
+	if verified["counts"].(map[string]any)["checkpoints"] != float64(1) {
+		t.Fatalf("verify checkpoint JSON = %#v", verified)
 	}
 }
 

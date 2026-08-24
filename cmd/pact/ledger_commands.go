@@ -146,18 +146,68 @@ func runVerify(args []string, stderr io.Writer) (map[string]any, error) {
 	}
 	return result, nil
 }
+func runCheckpoint(args []string, stderr io.Writer) (map[string]any, error) {
+	flags := flag.NewFlagSet("checkpoint", flag.ContinueOnError)
+	flags.SetOutput(stderr)
+	repo := flags.String("repo", ".", "project root")
+	keyPath := flags.String("key-file", "", "external key file")
+	scope := flags.String("scope", "", "namespace prefix")
+	policyRef := flags.String("policy-ref", "", "policy object ID")
+	authorityEpoch := flags.String("authority-epoch", "", "authority epoch")
+	schemaRefs := repeatFlag{}
+	flags.Var(&schemaRefs, "schema-ref", "schema object ID")
+	previous := flags.String("previous", "", "previous checkpoint ID")
+	purpose := flags.String("purpose", "", "checkpoint purpose")
+	if err := flags.Parse(args); err != nil {
+		return nil, &commandError{code: exitUsage, message: "invalid checkpoint arguments"}
+	}
+	if flags.NArg() != 0 || *keyPath == "" || *scope == "" || *policyRef == "" || *authorityEpoch == "" {
+		return nil, &commandError{code: exitUsage, message: "checkpoint requires --key-file, --scope, --policy-ref, and --authority-epoch"}
+	}
+	st, err := store.Open(*repo)
+	if err != nil {
+		return nil, &commandError{code: exitStore, message: err.Error()}
+	}
+	key, err := identity.LoadKeyFile(*keyPath, true)
+	if err != nil {
+		return nil, &commandError{code: exitUsage, message: err.Error()}
+	}
+	checkpoint, err := ledger.Checkpoint(st, key, ledger.CheckpointOptions{
+		Scope: *scope, PolicyRef: *policyRef, AuthorityEpoch: *authorityEpoch,
+		SchemaRefs: schemaRefs, PreviousCheckpoint: *previous, Purpose: *purpose,
+	})
+	if err != nil {
+		return nil, ledgerCommandError(err)
+	}
+	frontier := make([]any, len(checkpoint.Frontier))
+	for index, entry := range checkpoint.Frontier {
+		frontier[index] = map[string]any{"namespace": entry.Namespace, "heads": entry.Heads}
+	}
+	var previousValue any
+	if checkpoint.PreviousCheckpoint != "" {
+		previousValue = checkpoint.PreviousCheckpoint
+	}
+	return map[string]any{
+		"operation": "checkpoint", "object_id": checkpoint.ObjectID, "created": checkpoint.Created,
+		"scope": checkpoint.Scope, "frontier": frontier, "policy_ref": checkpoint.PolicyRef,
+		"schema_refs": checkpoint.SchemaRefs, "authority_epoch": checkpoint.AuthorityEpoch,
+		"previous_checkpoint": previousValue, "integrity": checkpoint.Integrity,
+		"authenticity": checkpoint.Authenticity, "authorization": checkpoint.Authorization,
+		"authorization_reasons": checkpoint.AuthorizationReasons, "path": checkpoint.Path,
+	}, nil
+}
 func verifyMap(result ledger.VerifyResult) map[string]any {
 	objects := map[string]any{}
 	for id, object := range result.Objects {
 		objects[id] = map[string]any{"type": object.Type, "namespace": object.Namespace, "integrity": object.Integrity, "structure": object.Structure, "authenticity": object.Authenticity, "errors": object.Errors, "warnings": object.Warnings, "path": object.Path}
 	}
-	return map[string]any{"operation": "verify", "repo": result.Repo, "store": result.Store, "strict": result.Strict, "ok": result.OK, "counts": map[string]any{"objects": result.Counts.Objects, "commits": result.Counts.Commits, "events": result.Counts.Events, "integrity": result.Counts.Integrity, "structure": result.Counts.Structure, "authenticity": result.Counts.Authenticity, "dag": result.Counts.DAG, "references": result.Counts.References, "authorized": result.Counts.Authorized, "unauthorized": result.Counts.Unauthorized, "indeterminate": result.Counts.Indeterminate}, "heads": result.Heads, "index_status": result.IndexStatus, "integrity": result.Integrity, "structure": result.Structure, "authenticity": result.Authenticity, "dag": result.DAG, "references": result.References, "errors": result.Errors, "warnings": result.Warnings, "authorization": result.Authorization, "objects": objects}
+	return map[string]any{"operation": "verify", "repo": result.Repo, "store": result.Store, "strict": result.Strict, "ok": result.OK, "counts": map[string]any{"objects": result.Counts.Objects, "commits": result.Counts.Commits, "checkpoints": result.Counts.Checkpoints, "events": result.Counts.Events, "integrity": result.Counts.Integrity, "structure": result.Counts.Structure, "authenticity": result.Counts.Authenticity, "dag": result.Counts.DAG, "references": result.Counts.References, "authorized": result.Counts.Authorized, "unauthorized": result.Counts.Unauthorized, "indeterminate": result.Counts.Indeterminate}, "heads": result.Heads, "index_status": result.IndexStatus, "integrity": result.Integrity, "structure": result.Structure, "authenticity": result.Authenticity, "dag": result.DAG, "references": result.References, "errors": result.Errors, "warnings": result.Warnings, "authorization": result.Authorization, "objects": objects}
 }
 func ledgerCommandError(err error) error {
 	if strings.Contains(err.Error(), "secret-like") {
 		return &commandError{code: exitSecretSafety, message: err.Error()}
 	}
-	if strings.Contains(err.Error(), "unavailable") || strings.Contains(err.Error(), "not found") {
+	if strings.Contains(err.Error(), "unavailable") || strings.Contains(err.Error(), "not found") || strings.Contains(err.Error(), "trusted root") || strings.Contains(err.Error(), "no commit heads") {
 		return &commandError{code: 9, message: err.Error()}
 	}
 	if errors.Is(err, ledger.ErrIntegrity) {

@@ -270,6 +270,70 @@ func TestCommitCyclesDetectsCycleFixture(t *testing.T) {
 	}
 }
 
+func TestVerifyRejectsCheckpointWithMissingOrWrongNamespaceHeads(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		namespace string
+		head      func(CommitResult) string
+		want      string
+	}{
+		{name: "missing head", namespace: "scope", head: func(CommitResult) string {
+			return "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+		}, want: "missing checkpoint head"},
+		{name: "wrong namespace", namespace: "different", head: func(commit CommitResult) string { return commit.ObjectID }, want: "namespace mismatch"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			st, key := ledgerStoreAndKey(t)
+			commit := commitInNamespace(t, st, key, "scope", "event")
+			checkpointID := putSignedCheckpointForVerify(t, st, key, test.namespace, test.head(commit), "")
+			result, err := Verify(st, true)
+			if err != nil {
+				t.Fatal(err)
+			}
+			joined := strings.Join(result.References.Errors, " ")
+			if result.OK || !strings.Contains(joined, checkpointID) || !strings.Contains(joined, test.want) {
+				t.Fatalf("Verify() = %#v", result)
+			}
+		})
+	}
+}
+
+func TestVerifyRejectsUnavailablePreviousCheckpoint(t *testing.T) {
+	st, key := ledgerStoreAndKey(t)
+	commit := commitInNamespace(t, st, key, "scope", "event")
+	missing := "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+	checkpointID := putSignedCheckpointForVerify(t, st, key, "scope", commit.ObjectID, missing)
+	result, err := Verify(st, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.OK || !strings.Contains(strings.Join(result.References.Errors, " "), checkpointID+": previous checkpoint is unavailable") {
+		t.Fatalf("Verify() = %#v", result)
+	}
+}
+
+func TestVerifyRejectsNoncanonicalCheckpointBody(t *testing.T) {
+	st, key := ledgerStoreAndKey(t)
+	commit := commitInNamespace(t, st, key, "scope", "event")
+	body := checkpointBodyFixture(key, "scope", commit.ObjectID, "")
+	body["schema_refs"] = []any{testSchemaA, testSchemaA}
+	digest, signature, err := identity.SignBody(body, key.Private)
+	if err != nil {
+		t.Fatal(err)
+	}
+	object := map[string]any{"format": checkpointFormat, "body": body, "body_digest": digest, "signature": map[string]any{"algorithm": "ed25519", "key_id": key.KeyID, "public_key": base64.RawURLEncoding.EncodeToString(key.Public), "value": base64.RawURLEncoding.EncodeToString(signature)}}
+	if _, _, err := st.PutCanonical(object); err != nil {
+		t.Fatal(err)
+	}
+	result, err := Verify(st, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.OK || result.Counts.Structure != 1 || !strings.Contains(strings.Join(result.Structure.Errors, " "), "schema_refs are not canonical") {
+		t.Fatalf("Verify() = %#v", result)
+	}
+}
+
 func putSignedCommitForVerify(t *testing.T, st *store.Store, key *identity.KeyFile, namespace string, parents []string) string {
 	t.Helper()
 	body := map[string]any{"namespace": namespace, "parents": stringsToAny(parents), "actor": map[string]any{"key_id": key.KeyID, "label": key.Actor}, "authority": map[string]any{"delegation_ref": nil, "epoch": nil, "lease_ref": nil}, "observed_at": "2026-08-23T12:00:00Z", "metadata": map[string]any{}, "events": batchEvents(mustBatch(t, "fixture").Events)}
@@ -283,4 +347,32 @@ func putSignedCommitForVerify(t *testing.T, st *store.Store, key *identity.KeyFi
 		t.Fatal(err)
 	}
 	return id
+}
+
+func putSignedCheckpointForVerify(t *testing.T, st *store.Store, key *identity.KeyFile, namespace, head, previous string) string {
+	t.Helper()
+	body := checkpointBodyFixture(key, namespace, head, previous)
+	digest, signature, err := identity.SignBody(body, key.Private)
+	if err != nil {
+		t.Fatal(err)
+	}
+	object := map[string]any{"format": checkpointFormat, "body": body, "body_digest": digest, "signature": map[string]any{"algorithm": "ed25519", "key_id": key.KeyID, "public_key": base64.RawURLEncoding.EncodeToString(key.Public), "value": base64.RawURLEncoding.EncodeToString(signature)}}
+	id, _, err := st.PutCanonical(object)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return id
+}
+
+func checkpointBodyFixture(key *identity.KeyFile, namespace, head, previous string) map[string]any {
+	var previousValue any
+	if previous != "" {
+		previousValue = previous
+	}
+	return map[string]any{
+		"scope": "scope", "frontier": []any{map[string]any{"namespace": namespace, "heads": []any{head}}},
+		"policy_ref": testPolicyRef, "schema_refs": []any{}, "authority_epoch": "epoch-1",
+		"previous_checkpoint": previousValue, "actor": map[string]any{"key_id": key.KeyID, "label": key.Actor},
+		"observed_at": "2026-08-23T12:00:00Z", "metadata": map[string]any{},
+	}
 }

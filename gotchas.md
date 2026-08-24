@@ -21,3 +21,6 @@
 - The v1 filesystem boundary blocks static symlink mistakes. It does not claim
   defense against a concurrent local process that can already replace owned
   path components; operators must protect repo and key directories.
+- Production checkpoint admission is stricter than the Python oracle: the
+  signing key must be a configured local trusted root before any checkpoint
+  bytes persist. Authentic but unknown checkpoint signers are refused.

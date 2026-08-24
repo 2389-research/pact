@@ -1,5 +1,5 @@
 // ABOUTME: Adapts PACT bootstrap operations to stable command-line arguments and output.
-// ABOUTME: Implements init, keygen, trust-add, and hash without exposing private key bytes.
+// ABOUTME: Routes bootstrap and ledger commands without exposing private key bytes.
 package main
 
 import (
@@ -61,6 +61,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		result, err = runShow(commandArgs, stderr)
 	case "verify":
 		result, err = runVerify(commandArgs, stderr)
+	case "checkpoint":
+		result, err = runCheckpoint(commandArgs, stderr)
 	default:
 		err = &commandError{code: exitUsage, message: fmt.Sprintf("unknown command: %s", command)}
 	}

@@ -1,0 +1,23 @@
+#!/bin/sh
+# ABOUTME: Runs the canonical production and reference conformance gate for PACT.
+# ABOUTME: Rejects unformatted Go before vetting, testing, and building the tool.
+set -eu
+
+unformatted="$(gofmt -l .)"
+if [ -n "$unformatted" ]; then
+	printf '%s\n' "Go files need gofmt:" >&2
+	printf '%s\n' "$unformatted" >&2
+	exit 1
+fi
+
+go vet ./...
+go test ./...
+
+check_tmp="$(mktemp -d)"
+trap 'rm -rf "$check_tmp"' EXIT HUP INT TERM
+go build -o "$check_tmp/pact" ./cmd/pact
+
+(
+	cd docs/pact-ledger
+	uv run --with-requirements requirements-dev.txt python -m unittest discover -s tests -v
+)
