@@ -4,6 +4,8 @@
 
 **Goal:** Build a usable Go `pact` CLI that can create, append, inspect, verify, and checkpoint a local signed ledger.
 
+**Status:** Tasks 1–4 implemented and independently reviewed on `wip/phase-0-1-core`; the complete product gate passes.
+
 **Architecture:** Preserve the bundled Python implementation as the behavioral oracle. Put strict JSON, cryptographic identity, immutable storage, and ledger operations in small internal Go packages; keep `cmd/pact` as an argument and output adapter. The canonical object store remains the only source of history, while heads are computed from object bytes.
 
 **Tech Stack:** Go 1.26, Go standard library, `golang.org/x/text/unicode/norm`, shell check script, Python reference suite through `uv`.
