@@ -3,6 +3,7 @@
 package ledger
 
 import (
+	"context"
 	"crypto/ed25519"
 	"encoding/base64"
 	"fmt"
@@ -235,29 +236,22 @@ type storedEvent struct {
 }
 
 func validCommits(st *store.Store) (map[string]storedCommit, []string, error) {
-	files, err := st.ObjectFiles()
+	scan, err := scanWithReadLock(context.Background(), st, ScanOptions{Limits: Phase2Limits})
 	if err != nil {
 		return nil, nil, err
 	}
-	commits := map[string]storedCommit{}
+	commits := make(map[string]storedCommit, len(scan.Commits))
 	invalid := []string{}
-	for _, file := range files {
-		verified, err := verifyStoredObject(st, file)
-		if err != nil {
-			return nil, nil, err
-		}
+	for id, verified := range scan.Objects {
 		if !verified.Valid() {
-			invalid = append(invalid, file.ID)
-			continue
-		}
-		if verified.Type == "commit" {
-			commit, err := storedCommitFromObject(verified.Object)
-			if err != nil {
-				return nil, nil, fmt.Errorf("validated commit %s has inconsistent shape: %w", file.ID, err)
-			}
-			commits[file.ID] = commit
+			invalid = append(invalid, id)
 		}
 	}
+	invalid = append(invalid, scan.Verification.DAG.Errors...)
+	for id, record := range scan.Commits {
+		commits[id] = storedCommit{namespace: record.Namespace, parents: append([]string(nil), record.Parents...)}
+	}
+	sort.Strings(invalid)
 	return commits, invalid, nil
 }
 func headsFor(commits map[string]storedCommit, namespace string) map[string][]string {

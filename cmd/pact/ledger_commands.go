@@ -207,9 +207,21 @@ func verifyMap(result ledger.VerifyResult) map[string]any {
 	for id, object := range result.Objects {
 		objects[id] = map[string]any{"type": object.Type, "namespace": object.Namespace, "integrity": object.Integrity, "structure": object.Structure, "authenticity": object.Authenticity, "errors": object.Errors, "warnings": object.Warnings, "path": object.Path}
 	}
-	return map[string]any{"operation": "verify", "repo": result.Repo, "store": result.Store, "strict": result.Strict, "ok": result.OK, "counts": map[string]any{"objects": result.Counts.Objects, "commits": result.Counts.Commits, "checkpoints": result.Counts.Checkpoints, "events": result.Counts.Events, "integrity": result.Counts.Integrity, "structure": result.Counts.Structure, "authenticity": result.Counts.Authenticity, "dag": result.Counts.DAG, "references": result.Counts.References, "authorized": result.Counts.Authorized, "unauthorized": result.Counts.Unauthorized, "indeterminate": result.Counts.Indeterminate}, "heads": result.Heads, "index_status": result.IndexStatus, "integrity": result.Integrity, "structure": result.Structure, "authenticity": result.Authenticity, "dag": result.DAG, "references": result.References, "errors": result.Errors, "warnings": result.Warnings, "authorization": result.Authorization, "objects": objects}
+	blockers := make([]any, len(result.Completeness.Blockers))
+	for index, blocker := range result.Completeness.Blockers {
+		blockers[index] = map[string]any{"code": blocker.Code, "source_id": blocker.SourceID, "field": blocker.Field, "missing_ref": blocker.MissingRef}
+	}
+	completeness := map[string]any{"scope": result.Completeness.Scope, "status": result.Completeness.Status, "global_completeness": result.Completeness.GlobalCompleteness, "blockers": blockers}
+	limits := map[string]any{"profile": result.Limits.Profile, "status": result.Limits.Status}
+	return map[string]any{"operation": "verify", "repo": result.Repo, "store": result.Store, "strict": result.Strict, "ok": result.OK, "counts": map[string]any{"objects": result.Counts.Objects, "commits": result.Counts.Commits, "checkpoints": result.Counts.Checkpoints, "events": result.Counts.Events, "integrity": result.Counts.Integrity, "structure": result.Counts.Structure, "authenticity": result.Counts.Authenticity, "dag": result.Counts.DAG, "references": result.Counts.References, "authorized": result.Counts.Authorized, "unauthorized": result.Counts.Unauthorized, "indeterminate": result.Counts.Indeterminate}, "heads": result.Heads, "index_status": result.IndexStatus, "integrity": result.Integrity, "structure": result.Structure, "authenticity": result.Authenticity, "dag": result.DAG, "references": result.References, "errors": result.Errors, "warnings": result.Warnings, "authorization": result.Authorization, "objects": objects, "completeness": completeness, "limits": limits}
 }
 func ledgerCommandError(err error) error {
+	var limit *ledger.LimitError
+	if errors.As(err, &limit) {
+		return &commandError{code: exitMissingDependency, message: limit.Error(), details: map[string]any{
+			"code": "resource_limit", "resource": limit.Resource, "maximum": limit.Maximum, "observed_at_least": limit.ObservedAtLeast,
+		}}
+	}
 	var verificationError *ledger.CheckpointVerificationError
 	if errors.As(err, &verificationError) {
 		return &commandError{code: exitIntegrity, message: err.Error(), details: verifyMap(verificationError.Result)}

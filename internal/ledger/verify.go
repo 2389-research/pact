@@ -4,6 +4,7 @@ package ledger
 
 import (
 	"bytes"
+	"context"
 	"crypto/ed25519"
 	"encoding/base64"
 	"fmt"
@@ -21,16 +22,16 @@ import (
 
 // ObjectVerification keeps byte integrity and signing authenticity distinct.
 type ObjectVerification struct {
-	ID           string         `json:"id"`
-	Path         string         `json:"path"`
-	Type         string         `json:"type"`
-	Namespace    string         `json:"namespace"`
-	Integrity    string         `json:"integrity"`
-	Structure    string         `json:"structure"`
-	Authenticity string         `json:"authenticity"`
-	Errors       []string       `json:"errors"`
-	Warnings     []string       `json:"warnings"`
-	Object       map[string]any `json:"-"`
+	ID           string   `json:"id"`
+	Path         string   `json:"path"`
+	Type         string   `json:"type"`
+	Namespace    string   `json:"namespace"`
+	Integrity    string   `json:"integrity"`
+	Structure    string   `json:"structure"`
+	Authenticity string   `json:"authenticity"`
+	Errors       []string `json:"errors"`
+	Warnings     []string `json:"warnings"`
+	object       map[string]any
 }
 
 // Valid reports whether the object passes integrity, structure, and authenticity.
@@ -57,24 +58,33 @@ type LayerResult struct {
 	Warnings []string `json:"warnings"`
 }
 
+// LimitsStatus reports the fixed resource profile applied to a successful verification.
+type LimitsStatus struct {
+	Profile string `json:"profile"`
+	Status  string `json:"status"`
+}
+
 // VerifyResult contains all verification layers without a collapsed validity signal.
 type VerifyResult struct {
-	OK            bool
-	Strict        bool
-	Repo          string
-	Store         string
-	IndexStatus   string
-	Counts        VerifyCounts
-	Heads         map[string][]string
-	Errors        []string
-	Warnings      []string
-	Authorization map[string]AuthorizationResult
-	Objects       map[string]ObjectVerification
-	Integrity     LayerResult
-	Structure     LayerResult
-	Authenticity  LayerResult
-	DAG           LayerResult
-	References    LayerResult
+	OK                   bool
+	Strict               bool
+	Repo                 string
+	Store                string
+	IndexStatus          string
+	Counts               VerifyCounts
+	Heads                map[string][]string
+	Errors               []string
+	Warnings             []string
+	Authorization        map[string]AuthorizationResult
+	Objects              map[string]ObjectVerification
+	Integrity            LayerResult
+	Structure            LayerResult
+	Authenticity         LayerResult
+	DAG                  LayerResult
+	References           LayerResult
+	DiagnosticsTruncated bool
+	Completeness         Completeness
+	Limits               LimitsStatus
 }
 
 // ShowResult provides an object or event inspection result without evidence retrieval.
@@ -105,25 +115,11 @@ func Verify(st *store.Store, strict bool) (VerifyResult, error) {
 	if st == nil {
 		return VerifyResult{}, fmt.Errorf("store is required")
 	}
-	files, err := st.ObjectFiles()
+	scan, err := scanWithReadLock(context.Background(), st, ScanOptions{Strict: strict, Limits: Phase2Limits})
 	if err != nil {
 		return VerifyResult{}, err
 	}
-	result := newVerifyResult(st, strict)
-	commits := make(map[string]storedCommit)
-	checkpoints := make(map[string]storedCheckpoint)
-	for _, file := range files {
-		if err := collectVerifiedObject(st, file, &result, commits, checkpoints); err != nil {
-			return VerifyResult{}, err
-		}
-	}
-	verifyCommitParents(&result, strict, commits)
-	verifyCheckpointReferences(&result, strict, commits, checkpoints)
-	verifyCommitCycles(&result, commits)
-	verifyEventReferences(&result, strict, commits)
-	applyAuthorization(st, &result, commits)
-	finishVerification(&result, commits)
-	return result, nil
+	return scan.Verification, nil
 }
 
 type storedCheckpoint struct {
@@ -171,58 +167,18 @@ func newVerifyResult(st *store.Store, strict bool) VerifyResult {
 	return VerifyResult{Strict: strict, Repo: filepath.Dir(st.Dir()), Store: st.Dir(), IndexStatus: "missing", Heads: map[string][]string{}, Authorization: map[string]AuthorizationResult{}, Objects: map[string]ObjectVerification{}}
 }
 
-func collectVerifiedObject(st *store.Store, file store.ObjectFile, result *VerifyResult, commits map[string]storedCommit, checkpoints map[string]storedCheckpoint) error {
-	verification, err := verifyStoredObject(st, file)
-	if err != nil {
-		return err
-	}
-	result.Objects[file.ID] = verification
-	result.Counts.Objects++
-	for _, message := range verification.Errors {
-		result.Errors = append(result.Errors, file.ID+": "+message)
-	}
-	switch {
-	case verification.Integrity != "valid":
-		result.Counts.Integrity++
-		result.Integrity.Errors = append(result.Integrity.Errors, file.ID+": "+strings.Join(verification.Errors, "; "))
-	case verification.Structure != "valid":
-		result.Counts.Structure++
-		result.Structure.Errors = append(result.Structure.Errors, file.ID+": "+strings.Join(verification.Errors, "; "))
-	case verification.Authenticity != "valid":
-		result.Counts.Authenticity++
-		result.Authenticity.Errors = append(result.Authenticity.Errors, file.ID+": "+strings.Join(verification.Errors, "; "))
-	}
-	for _, message := range verification.Warnings {
-		result.Warnings = append(result.Warnings, file.ID+": "+message)
-	}
-	if !verification.Valid() {
-		return nil
-	}
-	switch verification.Type {
-	case "commit":
-		commit, err := storedCommitFromObject(verification.Object)
-		if err != nil {
-			return fmt.Errorf("validated commit %s has inconsistent shape: %w", file.ID, err)
-		}
-		commits[file.ID] = commit
-		result.Counts.Commits++
-		result.Counts.Events += len(commit.events)
-	case "checkpoint":
-		checkpoint, err := storedCheckpointFromObject(verification.Object)
-		if err != nil {
-			return fmt.Errorf("validated checkpoint %s has inconsistent shape: %w", file.ID, err)
-		}
-		checkpoints[file.ID] = checkpoint
-		result.Counts.Checkpoints++
-	}
-	return nil
-}
-
-func verifyCommitParents(result *VerifyResult, strict bool, commits map[string]storedCommit) {
+func verifyCommitParents(result *VerifyResult, strict bool, commits map[string]storedCommit, objects map[string]ObjectVerification) {
 	for id, commit := range commits {
 		for _, parentID := range commit.parents {
 			parentCommit, found := commits[parentID]
 			if !found {
+				if _, present := objects[parentID]; present {
+					message := fmt.Sprintf("%s: parent target is present but is not a valid commit: %s", id, parentID)
+					result.Errors = append(result.Errors, message)
+					result.DAG.Errors = append(result.DAG.Errors, message)
+					result.Counts.DAG++
+					continue
+				}
 				resultDAGAt(result, strict, fmt.Sprintf("%s: missing or invalid parent %s", id, parentID))
 				continue
 			}
@@ -236,13 +192,17 @@ func verifyCommitParents(result *VerifyResult, strict bool, commits map[string]s
 	}
 }
 
-func verifyCheckpointReferences(result *VerifyResult, strict bool, commits map[string]storedCommit, checkpoints map[string]storedCheckpoint) {
+func verifyCheckpointReferences(result *VerifyResult, strict bool, commits map[string]storedCommit, checkpoints map[string]storedCheckpoint, objects map[string]ObjectVerification) {
 	for id, checkpoint := range checkpoints {
 		for _, entry := range checkpoint.frontier {
 			for _, headID := range entry.Heads {
 				head, found := commits[headID]
 				if !found {
-					resultReferenceError(result, fmt.Sprintf("%s: missing checkpoint head %s", id, headID))
+					if _, present := objects[headID]; present {
+						resultReferenceError(result, fmt.Sprintf("%s: checkpoint head is present but is not a valid commit: %s", id, headID))
+						continue
+					}
+					resultReferenceAt(result, strict, fmt.Sprintf("%s: missing checkpoint head %s", id, headID))
 					continue
 				}
 				if head.namespace != entry.Namespace {
@@ -252,22 +212,17 @@ func verifyCheckpointReferences(result *VerifyResult, strict bool, commits map[s
 		}
 		if checkpoint.previous != "" {
 			if _, found := checkpoints[checkpoint.previous]; !found {
+				if _, present := objects[checkpoint.previous]; present {
+					resultReferenceError(result, fmt.Sprintf("%s: previous checkpoint is present but invalid: %s", id, checkpoint.previous))
+					continue
+				}
 				resultReferenceAt(result, strict, fmt.Sprintf("%s: previous checkpoint is unavailable: %s", id, checkpoint.previous))
 			}
 		}
 	}
 }
 
-func verifyCommitCycles(result *VerifyResult, commits map[string]storedCommit) {
-	for _, cycle := range commitCycles(commits) {
-		message := "commit DAG cycle: " + joinCycle(cycle)
-		result.Errors = append(result.Errors, message)
-		result.DAG.Errors = append(result.DAG.Errors, message)
-		result.Counts.DAG++
-	}
-}
-
-func verifyEventReferences(result *VerifyResult, strict bool, commits map[string]storedCommit) {
+func verifyEventReferences(result *VerifyResult, strict bool, commits map[string]storedCommit, objects map[string]ObjectVerification) {
 	events := map[string]bool{}
 	for id, commit := range commits {
 		for _, event := range commit.events {
@@ -283,6 +238,10 @@ func verifyEventReferences(result *VerifyResult, strict bool, commits map[string
 						continue
 					}
 					if !events[ref] {
+						if eventTargetObjectPresent(objects, ref) {
+							resultReferenceError(result, fmt.Sprintf("%s: %s target is present but invalid: %s", source, field, ref))
+							continue
+						}
 						resultReferenceAt(result, strict, fmt.Sprintf("%s: unresolved %s reference %s", source, field, ref))
 					}
 				}
@@ -355,10 +314,10 @@ func showEvent(st *store.Store, identifier, commitID, localID string) (ShowResul
 	if verification.Integrity != "valid" || verification.Structure != "valid" {
 		return ShowResult{}, &ShowError{Result: base}
 	}
-	if verification.Type != "commit" || verification.Object == nil {
+	if verification.Type != "commit" || verification.object == nil {
 		return ShowResult{}, fmt.Errorf("%w: event reference points to non-commit object: %s", ErrIntegrity, commitID)
 	}
-	commit, err := storedCommitFromObject(verification.Object)
+	commit, err := storedCommitFromObject(verification.object)
 	if err != nil {
 		return ShowResult{}, fmt.Errorf("%w: validated commit has inconsistent shape: %w", ErrIntegrity, err)
 	}
@@ -371,64 +330,77 @@ func showEvent(st *store.Store, identifier, commitID, localID string) (ShowResul
 }
 
 func showResult(identifier string, verification ObjectVerification) ShowResult {
-	return ShowResult{Identifier: identifier, Kind: verification.Type, Object: verification.Object, Integrity: verification.Integrity, Authenticity: verification.Authenticity, Errors: verification.Errors}
+	return ShowResult{Identifier: identifier, Kind: verification.Type, Object: verification.object, Integrity: verification.Integrity, Authenticity: verification.Authenticity, Errors: verification.Errors}
 }
 
 func verificationForID(st *store.Store, id string) (ObjectVerification, error) {
-	files, err := st.ObjectFiles()
-	if err != nil {
+	hexID := strings.TrimPrefix(id, "sha256:")
+	if !digestPattern.MatchString(id) {
+		return ObjectVerification{}, fmt.Errorf("invalid object ID: %q", id)
+	}
+	file := store.ObjectFile{ID: id, Path: filepath.Join(st.Dir(), "objects", "sha256", hexID[:2], hexID[2:]+".json")}
+	raw, err := st.GetBounded(id, Phase2Limits.ObjectBytes)
+	if err == nil {
+		return verifyCanonicalBytes(file, raw), nil
+	}
+	if os.IsNotExist(err) {
+		return ObjectVerification{}, fmt.Errorf("%w: object not found: %s", ErrMissingDependency, id)
+	}
+	if strings.Contains(err.Error(), "exceeds byte limit") {
+		return ObjectVerification{}, objectLimitError("object_bytes", Phase2Limits.ObjectBytes, id)
+	}
+	if isPermissionError(err) {
+		result := ObjectVerification{ID: id, Path: file.Path, Integrity: "invalid", Structure: "unverified", Authenticity: "unverified"}
+		result.Errors = append(result.Errors, "cannot read object: "+err.Error())
+		return result, nil
+	}
+	if !strings.Contains(err.Error(), "object digest mismatch") {
 		return ObjectVerification{}, err
 	}
-	for _, file := range files {
-		if file.ID == id {
-			return verifyStoredObject(st, file)
-		}
+	// GetBounded intentionally refuses corrupt bytes; show still returns bounded structured integrity details.
+	raw, readErr := readBoundedCanonicalPath(file.Path, Phase2Limits.ObjectBytes)
+	if readErr != nil {
+		return ObjectVerification{}, fmt.Errorf("read object: %w", readErr)
 	}
-	return ObjectVerification{}, fmt.Errorf("%w: object not found: %s", ErrMissingDependency, id)
+	if uint64(len(raw)) > Phase2Limits.ObjectBytes {
+		return ObjectVerification{}, objectLimitError("object_bytes", Phase2Limits.ObjectBytes, id)
+	}
+	return verifyCanonicalBytes(file, raw), nil
 }
-func verifyStoredObject(_ *store.Store, file store.ObjectFile) (ObjectVerification, error) {
+func verifyCanonicalBytes(file store.ObjectFile, raw []byte) ObjectVerification {
 	result := ObjectVerification{ID: file.ID, Path: file.Path, Integrity: "invalid", Structure: "unverified", Authenticity: "unverified"}
-	if file.Path == "" {
-		return result, fmt.Errorf("object path is required")
-	}
-	raw, err := os.ReadFile(file.Path)
-	if err != nil {
-		result.Errors = append(result.Errors, "cannot read object: "+err.Error())
-		//nolint:nilerr // Verification failures are returned as structured result data for show/verify inspection.
-		return result, nil
-	}
 	if canonical.Digest(raw) != file.ID {
 		result.Errors = append(result.Errors, fmt.Sprintf("object digest mismatch: path says %s, bytes say %s", file.ID, canonical.Digest(raw)))
-		return result, nil
+		return result
 	}
 	parsed, err := canonical.Parse(raw)
 	if err != nil {
 		result.Errors = append(result.Errors, err.Error())
 		result.Structure = "invalid"
-		return result, nil
+		return result
 	}
 	encoded, err := canonical.Marshal(parsed)
 	if err != nil {
 		result.Errors = append(result.Errors, err.Error())
-		return result, nil
+		return result
 	}
 	if !bytes.Equal(encoded, raw) {
 		result.Errors = append(result.Errors, "object bytes are not canonical pact-json-v1")
-		return result, nil
+		return result
 	}
 	result.Integrity = "valid"
 	object, ok := parsed.(map[string]any)
 	if !ok {
 		result.Errors = append(result.Errors, "canonical object must be a JSON object")
 		result.Structure = "invalid"
-		return result, nil
+		return result
 	}
-	result.Object = object
+	result.object = object
 	objectType, namespace, err := validateSignedObject(object)
 	if err != nil {
 		result.Errors = append(result.Errors, err.Error())
 		result.Structure = "invalid"
-		return result, nil
+		return result
 	}
 	result.Type = objectType
 	result.Namespace = namespace
@@ -436,10 +408,10 @@ func verifyStoredObject(_ *store.Store, file store.ObjectFile) (ObjectVerificati
 	if err := verifySignature(object); err != nil {
 		result.Errors = append(result.Errors, err.Error())
 		result.Authenticity = "invalid"
-		return result, nil
+		return result
 	}
 	result.Authenticity = "valid"
-	return result, nil
+	return result
 }
 func validateSignedObject(object map[string]any) (string, string, error) {
 	format, ok := object["format"].(string)
@@ -819,7 +791,7 @@ func authorizationForResult(st *store.Store, verification ObjectVerification) Au
 	if err != nil {
 		return AuthorizationResult{Status: "indeterminate", Reasons: []string{"local trust roots are unavailable"}, Chain: []string{}, LeaseStatus: "not_applicable", Depth: 0}
 	}
-	commit, err := storedCommitFromObject(verification.Object)
+	commit, err := storedCommitFromObject(verification.object)
 	if err != nil {
 		return AuthorizationResult{Status: "indeterminate", Reasons: []string{"signed object shape is unavailable"}, Chain: []string{}, LeaseStatus: "not_applicable", Depth: 0}
 	}
@@ -834,55 +806,6 @@ func authorizationForCommit(roots map[string]Root, commit storedCommit) Authoriz
 		return AuthorizationResult{Status: "unauthorized", Reasons: []string{"trusted-root key ID has conflicting public bytes"}, Chain: []string{commit.signerID}, LeaseStatus: "not_applicable", Depth: 0}
 	}
 	return AuthorizationResult{Status: "authorized", Reasons: []string{"signer is a locally bootstrapped trusted root"}, Chain: []string{commit.signerID}, LeaseStatus: "not_applicable", Depth: 0}
-}
-func commitCycles(commits map[string]storedCommit) [][]string {
-	color := map[string]int{}
-	stack := []string{}
-	cycles := [][]string{}
-	var visit func(string)
-	visit = func(id string) {
-		color[id] = 1
-		stack = append(stack, id)
-		for _, parent := range commits[id].parents {
-			if _, known := commits[parent]; !known {
-				continue
-			}
-			if color[parent] == 0 {
-				visit(parent)
-			} else if color[parent] == 1 {
-				for index, node := range stack {
-					if node == parent {
-						cycle := append([]string{}, stack[index:]...)
-						cycle = append(cycle, parent)
-						cycles = append(cycles, cycle)
-						break
-					}
-				}
-			}
-		}
-		stack = stack[:len(stack)-1]
-		color[id] = 2
-	}
-	ids := make([]string, 0, len(commits))
-	for id := range commits {
-		ids = append(ids, id)
-	}
-	sort.Strings(ids)
-	for _, id := range ids {
-		if color[id] == 0 {
-			visit(id)
-		}
-	}
-	return cycles
-}
-func joinCycle(cycle []string) string {
-	return fmt.Sprint(cycle[0]) + func() string {
-		var result strings.Builder
-		for _, item := range cycle[1:] {
-			result.WriteString(" -> " + item)
-		}
-		return result.String()
-	}()
 }
 func displayEvent(event storedEvent, commitID string) map[string]any {
 	result := cloneObject(event.object)

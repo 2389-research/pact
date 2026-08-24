@@ -10,6 +10,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"pact/internal/ledger"
+	"pact/internal/store"
 )
 
 const (
@@ -337,9 +340,32 @@ func TestRunCommitHeadsShowAndVerifyEmitJSON(t *testing.T) {
 	if verify["operation"] != "verify" || verify["ok"] != true || verify["counts"] == nil {
 		t.Fatalf("verify JSON = %#v", verify)
 	}
+	completeness := verify["completeness"].(map[string]any)
+	limits := verify["limits"].(map[string]any)
+	if completeness["scope"] != "local_object_set" || completeness["status"] != "locally_closed" || limits["profile"] != "pact/resource-limits/phase2-v1" || limits["status"] != "within_limits" {
+		t.Fatalf("verify Phase 2 JSON = %#v", verify)
+	}
 	authorization := verify["authorization"].(map[string]any)[commit["object_id"].(string)].(map[string]any)
 	if authorization["status"] != "indeterminate" || authorization["Status"] != nil {
 		t.Fatalf("verify authorization JSON = %#v", authorization)
+	}
+}
+
+func TestRunShowMapsResourceLimitToStableUnavailableError(t *testing.T) {
+	repo := t.TempDir()
+	runJSON(t, []string{"init", "--repo", repo, "--namespace", "org/example/widget", "--json"})
+	st, err := store.Open(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, _, err := st.PutCanonical(map[string]any{"oversize": strings.Repeat("x", int(ledger.Phase2Limits.ObjectBytes))})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := runErrorJSON(t, []string{"show", "--repo", repo, id, "--json"}, exitMissingDependency)
+	details := result["details"].(map[string]any)
+	if details["code"] != "resource_limit" || details["resource"] != "object_bytes" || details["maximum"] != float64(ledger.Phase2Limits.ObjectBytes) {
+		t.Fatalf("resource limit JSON = %#v", result)
 	}
 }
 

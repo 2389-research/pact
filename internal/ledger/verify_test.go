@@ -377,17 +377,6 @@ func TestVerifyReportsMissingAndCrossNamespaceParentsInDAGLayer(t *testing.T) {
 	}
 }
 
-func TestCommitCyclesDetectsCycleFixture(t *testing.T) {
-	commits := map[string]storedCommit{
-		"a": {parents: []string{"b"}},
-		"b": {parents: []string{"a"}},
-	}
-	cycles := commitCycles(commits)
-	if len(cycles) != 1 || !equalStrings(cycles[0], []string{"a", "b", "a"}) {
-		t.Fatalf("commitCycles() = %#v", cycles)
-	}
-}
-
 func TestVerifyRejectsCheckpointWithMissingOrWrongNamespaceHeads(t *testing.T) {
 	for _, test := range []struct {
 		name      string
