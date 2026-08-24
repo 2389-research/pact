@@ -188,16 +188,13 @@ func prepareCommit(st *store.Store, batch EventBatch, options CommitOptions, com
 }
 
 func prepareParents(requested []string, namespace string, commits map[string]storedCommit) ([]string, error) {
-	parents := append([]string(nil), requested...)
+	parents := requested
 	if parents == nil {
 		parents = headsFor(commits, namespace)[namespace]
 	}
-	if err := normalizeParents(parents); err != nil {
+	parents, err := normalizeAndLimitParents(parents)
+	if err != nil {
 		return nil, err
-	}
-	parents = uniqueSorted(parents)
-	if uint64(len(parents)) > Phase2Limits.ParentsPerCommit {
-		return nil, limitError("parents_per_commit", Phase2Limits.ParentsPerCommit)
 	}
 	for _, parent := range parents {
 		parentObject, found := commits[parent]
@@ -390,13 +387,26 @@ func stringSlice(value any) ([]string, error) {
 	}
 	return result, nil
 }
-func normalizeParents(parents []string) error {
+func normalizeAndLimitParents(parents []string) ([]string, error) {
+	unique := map[string]struct{}{}
 	for _, parent := range parents {
 		if !digestPattern.MatchString(parent) {
-			return fmt.Errorf("invalid parent ID: %q", parent)
+			return nil, fmt.Errorf("invalid parent ID: %q", parent)
 		}
+		if _, found := unique[parent]; found {
+			continue
+		}
+		if uint64(len(unique)) == Phase2Limits.ParentsPerCommit {
+			return nil, limitError("parents_per_commit", Phase2Limits.ParentsPerCommit)
+		}
+		unique[parent] = struct{}{}
 	}
-	return nil
+	result := make([]string, 0, len(unique))
+	for parent := range unique {
+		result = append(result, parent)
+	}
+	sort.Strings(result)
+	return result, nil
 }
 func uniqueSorted(values []string) []string {
 	seen := map[string]bool{}

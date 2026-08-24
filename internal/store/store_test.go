@@ -5,6 +5,7 @@ package store
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -334,6 +335,63 @@ func TestGetBoundedRejectsOversizeBeforeRead(t *testing.T) {
 	}
 	if got, err := st.GetBounded(objectID, uint64(len(raw)-1)); err == nil || got != nil {
 		t.Fatalf("GetBounded() = (%q, %v), want no bytes and limit error", got, err)
+	}
+}
+
+func TestGetBoundedRejectsGrowthAfterStat(t *testing.T) {
+	st := testStore(t)
+	raw := []byte(`{"kind":"stable"}`)
+	objectID := canonical.Digest(raw)
+	path := objectFile(st, objectID)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, raw, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	original := afterGetBoundedStat
+	afterGetBoundedStat = func(grownPath string) error {
+		file, err := os.OpenFile(grownPath, os.O_APPEND|os.O_WRONLY, 0)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+		_, err = file.Write([]byte("x"))
+		return err
+	}
+	t.Cleanup(func() { afterGetBoundedStat = original })
+	if got, err := st.GetBounded(objectID, uint64(len(raw))); err == nil || got != nil {
+		t.Fatalf("GetBounded() after growth = (%q, %v), want no bytes and limit error", got, err)
+	}
+}
+
+func TestObjectFilesBoundedStopsWithinLargeShard(t *testing.T) {
+	st := testStore(t)
+	shard := filepath.Join(st.Dir(), "objects", "sha256", "aa")
+	if err := os.MkdirAll(shard, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for index := range 65 {
+		name := fmt.Sprintf("%062x.json", index)
+		if err := os.WriteFile(filepath.Join(shard, name), []byte(`{}`), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if objectDirectoryBatchSize >= 65 {
+		t.Fatalf("object directory batch size = %d, want bounded chunks smaller than the shard", objectDirectoryBatchSize)
+	}
+	if files, err := st.ObjectFilesBounded(1); err == nil || files != nil {
+		t.Fatalf("ObjectFilesBounded() = (%#v, %v), want no partial result at the second object", files, err)
+	}
+}
+
+func TestWithMutationLockRetainsPhaseOneErrorWording(t *testing.T) {
+	if err := (*Store)(nil).WithMutationLock(func() error { return nil }); err == nil || err.Error() != "store and mutation operation are required" {
+		t.Fatalf("nil store WithMutationLock() error = %v", err)
+	}
+	st := &Store{repo: "\x00"}
+	if err := st.WithMutationLock(func() error { return nil }); err == nil || !strings.HasPrefix(err.Error(), "lock store mutation: ") {
+		t.Fatalf("WithMutationLock() lock error = %v", err)
 	}
 }
 

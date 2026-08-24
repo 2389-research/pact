@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -20,8 +21,10 @@ import (
 )
 
 const (
-	formatName = "pact/store/v1"
-	trustName  = "pact/trust/v1"
+	formatName               = "pact/store/v1"
+	trustName                = "pact/trust/v1"
+	objectDirectoryBatchSize = 64
+	maximumReadableBytes     = int64(^uint64(0) >> 1)
 )
 
 var (
@@ -36,13 +39,14 @@ var (
 	// ErrMissingDependency marks an immutable object that is not available locally.
 	ErrMissingDependency = errors.New("store dependency missing")
 
-	linkFile          = os.Link
-	afterLink         = func(string) error { return nil }
-	beforePublish     = func(_, _ string) error { return nil }
-	syncDirectoryFile = syncDirectory
-	readCanonicalFile = os.ReadFile
-	unlockLockFile    = func(lock *os.File) error { return syscall.Flock(int(lock.Fd()), syscall.LOCK_UN) }
-	closeLockFile     = func(lock *os.File) error { return lock.Close() }
+	linkFile            = os.Link
+	afterLink           = func(string) error { return nil }
+	beforePublish       = func(_, _ string) error { return nil }
+	syncDirectoryFile   = syncDirectory
+	readCanonicalFile   = os.ReadFile
+	unlockLockFile      = func(lock *os.File) error { return syscall.Flock(int(lock.Fd()), syscall.LOCK_UN) }
+	closeLockFile       = func(lock *os.File) error { return lock.Close() }
+	afterGetBoundedStat = func(string) error { return nil }
 )
 
 // Store identifies one initialized PACT store.
@@ -157,21 +161,27 @@ func (st *Store) Root() string { return st.repo }
 
 // WithMutationLock serializes one store mutation across processes.
 func (st *Store) WithMutationLock(operation func() error) error {
+	if st == nil || operation == nil {
+		return fmt.Errorf("store and mutation operation are required")
+	}
 	return st.withLock(syscall.LOCK_EX, operation)
 }
 
 // WithReadLock holds a shared store lock across one read operation.
 func (st *Store) WithReadLock(operation func() error) error {
+	if st == nil || operation == nil {
+		return fmt.Errorf("store and read operation are required")
+	}
 	return st.withLock(syscall.LOCK_SH, operation)
 }
 
 func (st *Store) withLock(mode int, operation func() error) (err error) {
-	if st == nil || operation == nil {
-		return fmt.Errorf("store and lock operation are required")
-	}
 	lock, err := lockStore(st.repo, mode)
 	if err != nil {
-		return fmt.Errorf("lock store: %w", err)
+		if mode == syscall.LOCK_EX {
+			return fmt.Errorf("lock store mutation: %w", err)
+		}
+		return fmt.Errorf("lock store read: %w", err)
 	}
 	defer releaseLock(lock, &err)
 	return operation()
@@ -411,8 +421,10 @@ func (st *Store) GetBounded(objectID string, maximum uint64) ([]byte, error) {
 	if info.Mode().IsRegular() && fileSizeExceedsLimit(info.Size(), maximum) {
 		return nil, fmt.Errorf("canonical object exceeds byte limit %d", maximum)
 	}
-	// #nosec G304 -- objectPath derives path from a validated content digest under the checked store.
-	raw, err := os.ReadFile(path)
+	if err := afterGetBoundedStat(path); err != nil {
+		return nil, fmt.Errorf("prepare bounded object read: %w", err)
+	}
+	raw, err := readBoundedFile(path, maximum)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, fmt.Errorf("%w: object not found: %s", ErrMissingDependency, objectID)
 	}
@@ -429,11 +441,27 @@ func (st *Store) GetBounded(objectID string, maximum uint64) ([]byte, error) {
 }
 
 func fileSizeExceedsLimit(size int64, maximum uint64) bool {
-	const maxInt64 = int64(^uint64(0) >> 1)
-	if size <= 0 || maximum >= uint64(maxInt64) {
+	if size <= 0 || maximum >= uint64(maximumReadableBytes) {
 		return false
 	}
 	return size > int64(maximum)
+}
+
+func readBoundedFile(path string, maximum uint64) ([]byte, error) {
+	// #nosec G304,G703 -- objectPath derives path from a validated content digest under the checked store.
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	return io.ReadAll(io.LimitReader(file, boundedReadLimit(maximum)))
+}
+
+func boundedReadLimit(maximum uint64) int64 {
+	if maximum >= uint64(maximumReadableBytes) {
+		return maximumReadableBytes
+	}
+	return int64(maximum + 1)
 }
 
 // ObjectFiles returns every canonical immutable object path in stable ID order.
@@ -453,44 +481,63 @@ func (st *Store) ObjectFilesBounded(maximum uint64) ([]ObjectFile, error) {
 	if err := ensureExistingRealDirectory(root); err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrIntegrity, err)
 	}
-	entries, err := os.ReadDir(root)
-	if err != nil {
-		return nil, fmt.Errorf("%w: read object directory: %w", ErrIntegrity, err)
-	}
 	result := make([]ObjectFile, 0)
-	for _, entry := range entries {
+	err := visitDirectoryEntries(root, "object directory", func(entry os.DirEntry) error {
 		directory := filepath.Join(root, entry.Name())
 		if err := rejectSymlink(directory); err != nil {
-			return nil, fmt.Errorf("%w: %w", ErrIntegrity, err)
+			return err
 		}
 		if !entry.IsDir() || len(entry.Name()) != 2 {
-			continue
+			return nil
 		}
-		files, err := os.ReadDir(directory)
-		if err != nil {
-			return nil, fmt.Errorf("%w: read object shard: %w", ErrIntegrity, err)
-		}
-		for _, file := range files {
+		return visitDirectoryEntries(directory, "object shard", func(file os.DirEntry) error {
 			path := filepath.Join(directory, file.Name())
 			if err := rejectSymlink(path); err != nil {
-				return nil, fmt.Errorf("%w: %w", ErrIntegrity, err)
+				return err
 			}
 			if file.IsDir() || !strings.HasSuffix(file.Name(), ".json") {
-				continue
+				return nil
 			}
 			hexDigest := entry.Name() + strings.TrimSuffix(file.Name(), ".json")
 			objectID := "sha256:" + hexDigest
 			if _, err := st.objectPath(objectID); err != nil {
-				return nil, fmt.Errorf("%w: invalid canonical object path %s: %w", ErrIntegrity, path, err)
+				return fmt.Errorf("invalid canonical object path %s: %w", path, err)
 			}
 			if uint64(len(result)) == maximum {
-				return nil, fmt.Errorf("canonical object count exceeds limit %d", maximum)
+				return fmt.Errorf("canonical object count exceeds limit %d", maximum)
 			}
 			result = append(result, ObjectFile{ID: objectID, Path: path})
-		}
+			return nil
+		})
+	})
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrIntegrity, err)
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].ID < result[j].ID })
 	return result, nil
+}
+
+func visitDirectoryEntries(path, description string, operation func(os.DirEntry) error) error {
+	// #nosec G304,G703 -- callers derive paths beneath the checked store directory.
+	directory, err := os.Open(path)
+	if err != nil {
+		return fmt.Errorf("read %s: %w", description, err)
+	}
+	defer directory.Close()
+	for {
+		entries, readErr := directory.ReadDir(objectDirectoryBatchSize)
+		for _, entry := range entries {
+			if err := operation(entry); err != nil {
+				return err
+			}
+		}
+		if errors.Is(readErr, io.EOF) {
+			return nil
+		}
+		if readErr != nil {
+			return fmt.Errorf("read %s: %w", description, readErr)
+		}
+	}
 }
 
 func (st *Store) ensureObjectDirectories(objectID string, createTemp bool) error {

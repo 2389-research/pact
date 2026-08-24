@@ -36,6 +36,16 @@ func TestPrepareParentsAdmitsExactLimitAndRejectsFirstExcess(t *testing.T) {
 	}
 }
 
+func TestPrepareParentsStopsAtFirstDistinctExcess(t *testing.T) {
+	parents := make([]string, 0, 66)
+	for index := range 65 {
+		parents = append(parents, fmt.Sprintf("sha256:%064x", index))
+	}
+	parents = append(parents, "not-an-object-id")
+	_, err := prepareParents(parents, "org/example/widget", nil)
+	assertLimitError(t, err, "parents_per_commit", Phase2Limits.ParentsPerCommit)
+}
+
 func TestCommitRejectsOversizeCanonicalObjectBeforePublication(t *testing.T) {
 	st, key := ledgerStoreAndKey(t)
 	batch, err := NormalizeEventBatch(map[string]any{"events": []any{eventInput("a", []any{}, []any{})}})
