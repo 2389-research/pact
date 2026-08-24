@@ -121,9 +121,7 @@ func Verify(st *store.Store, strict bool) (VerifyResult, error) {
 	verifyCheckpointReferences(&result, strict, commits, checkpoints)
 	verifyCommitCycles(&result, commits)
 	verifyEventReferences(&result, strict, commits)
-	if err := applyAuthorization(st, &result, commits); err != nil {
-		return VerifyResult{}, err
-	}
+	applyAuthorization(st, &result, commits)
 	finishVerification(&result, commits)
 	return result, nil
 }
@@ -293,10 +291,11 @@ func verifyEventReferences(result *VerifyResult, strict bool, commits map[string
 	}
 }
 
-func applyAuthorization(st *store.Store, result *VerifyResult, commits map[string]storedCommit) error {
+func applyAuthorization(st *store.Store, result *VerifyResult, commits map[string]storedCommit) {
 	roots, rootErr := Roots(st)
 	if rootErr != nil {
-		return rootErr
+		result.Errors = append(result.Errors, "authority evaluation failed: "+rootErr.Error())
+		return
 	}
 	for id, commit := range commits {
 		auth := authorizationForCommit(roots, commit)
@@ -310,7 +309,6 @@ func applyAuthorization(st *store.Store, result *VerifyResult, commits map[strin
 			result.Counts.Indeterminate++
 		}
 	}
-	return nil
 }
 
 func finishVerification(result *VerifyResult, commits map[string]storedCommit) {

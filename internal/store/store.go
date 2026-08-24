@@ -41,6 +41,8 @@ var (
 	beforePublish     = func(_, _ string) error { return nil }
 	syncDirectoryFile = syncDirectory
 	readCanonicalFile = os.ReadFile
+	unlockLockFile    = func(lock *os.File) error { return syscall.Flock(int(lock.Fd()), syscall.LOCK_UN) }
+	closeLockFile     = func(lock *os.File) error { return lock.Close() }
 )
 
 // Store identifies one initialized PACT store.
@@ -56,7 +58,7 @@ type ObjectFile struct {
 }
 
 // Init creates an empty PACT store at repo.
-func Init(repo, namespace string, now time.Time) (*Store, error) {
+func Init(repo, namespace string, now time.Time) (result *Store, err error) {
 	if err := validateNamespace(namespace); err != nil {
 		return nil, err
 	}
@@ -68,8 +70,7 @@ func Init(repo, namespace string, now time.Time) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("lock store initialization: %w", err)
 	}
-	defer lock.Close()
-	defer func() { _ = syscall.Flock(int(lock.Fd()), syscall.LOCK_UN) }()
+	defer releaseLock(lock, &err)
 
 	destination := filepath.Join(absRepo, ".pact")
 	if err := checkStoreDestination(destination); err != nil {
@@ -155,7 +156,7 @@ func (st *Store) Dir() string { return st.dir }
 func (st *Store) Root() string { return st.repo }
 
 // WithMutationLock serializes one store mutation across processes.
-func (st *Store) WithMutationLock(operation func() error) error {
+func (st *Store) WithMutationLock(operation func() error) (err error) {
 	if st == nil || operation == nil {
 		return fmt.Errorf("store and mutation operation are required")
 	}
@@ -163,9 +164,20 @@ func (st *Store) WithMutationLock(operation func() error) error {
 	if err != nil {
 		return fmt.Errorf("lock store mutation: %w", err)
 	}
-	defer lock.Close()
-	defer func() { _ = syscall.Flock(int(lock.Fd()), syscall.LOCK_UN) }()
+	defer releaseLock(lock, &err)
 	return operation()
+}
+
+func releaseLock(lock *os.File, resultErr *error) {
+	unlockErr := unlockLockFile(lock)
+	closeErr := closeLockFile(lock)
+	if unlockErr != nil {
+		unlockErr = fmt.Errorf("unlock store lock: %w", unlockErr)
+	}
+	if closeErr != nil {
+		closeErr = fmt.Errorf("close store lock: %w", closeErr)
+	}
+	*resultErr = errors.Join(*resultErr, unlockErr, closeErr)
 }
 
 // ReadLocal reads one named mutable local configuration file.

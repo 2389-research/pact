@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -260,6 +261,55 @@ func TestCLIConcurrentTrustAddPreservesDistinctAndIdenticalRoots(t *testing.T) {
 	}
 	if created != 1 {
 		t.Fatalf("identical concurrent created count = %d, want 1; results=%#v", created, results)
+	}
+}
+
+func TestCLIVerifyMalformedTrustPreservesFullStrictDetails(t *testing.T) {
+	root := projectRoot(t)
+	workspace := t.TempDir()
+	binary := filepath.Join(workspace, "pact")
+	buildBinary(t, root, binary)
+	repo := filepath.Join(workspace, "project")
+	mustMkdir(t, repo)
+	runJSON(t, binary, "init", "--repo", repo, "--namespace", "org/example/widget", "--json")
+	keyPath := filepath.Join(workspace, "operator.key.json")
+	runJSON(t, binary, "keygen", "--actor", "Operator", "--out", keyPath, "--json")
+	batchPath := writeBatch(t, workspace, "verify.json", "verify", "widget.verify")
+	commit := runJSON(t, binary, "commit", "--repo", repo, "--key-file", keyPath, "--events", batchPath, "--json")
+	commitID := commit["object_id"].(string)
+	if err := os.WriteFile(filepath.Join(repo, ".pact", "trust.json"), []byte(`{"format":"wrong","roots":[]}`+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	failure := runErrorJSON(t, 4, binary, "verify", "--repo", repo, "--strict", "--json")
+	details, ok := failure["details"].(map[string]any)
+	if !ok {
+		t.Fatalf("verify failure = %#v, want details", failure)
+	}
+	counts := details["counts"].(map[string]any)
+	if counts["objects"] != float64(1) || counts["commits"] != float64(1) || counts["events"] != float64(1) {
+		t.Fatalf("verify counts = %#v", counts)
+	}
+	objects := details["objects"].(map[string]any)
+	if object := objects[commitID].(map[string]any); object["integrity"] != "valid" || object["authenticity"] != "valid" {
+		t.Fatalf("verified object = %#v", object)
+	}
+	heads := details["heads"].(map[string]any)["org/example/widget"].([]any)
+	if len(heads) != 1 || heads[0] != commitID {
+		t.Fatalf("verify heads = %#v", details["heads"])
+	}
+	errorsValue := details["errors"].([]any)
+	errorsText := make([]string, len(errorsValue))
+	for index, value := range errorsValue {
+		errorsText[index] = value.(string)
+	}
+	if !sort.StringsAreSorted(errorsText) || len(errorsText) != 1 || errorsText[0] != "authority evaluation failed: ledger store failure: malformed local trust file" {
+		t.Fatalf("verify errors = %#v", errorsText)
+	}
+	for _, layer := range []string{"integrity", "structure", "authenticity", "dag", "references"} {
+		if _, ok := details[layer].(map[string]any); !ok {
+			t.Fatalf("verify %s layer missing from %#v", layer, details)
+		}
 	}
 }
 

@@ -237,8 +237,9 @@ Doctor Biz chose to adopt the full lint baseline after the new hook stack found
   admission into small helpers. Wire fields, validation order, error text, and
   stored canonical bytes remain unchanged; the existing characterization,
   conformance, ledger, CLI, and E2E tests cover those contracts.
-- Removed two unused authorization helpers and checked JSON encoding, flock
-  unlock, and Ed25519 public-key assertions.
+- Removed two unused authorization helpers and checked JSON encoding and
+  Ed25519 public-key assertions. Store lock release now checks both flock
+  unlock and lock-file close errors, joining them with any operation error.
 - Used one narrow `nolint:nilerr` where read failures are intentionally carried
   in `ObjectVerification`. Narrow documented `#nosec` lines cover only the
   required `private_key` wire field, public/user directory modes, and paths
@@ -266,6 +267,76 @@ Final full gate from the reviewed source state:
 ```text
 env -u GOROOT mise exec -- go test -count=1 ./...
 PASS: all Go packages, CLI integration, and real-binary E2E
+
+env -u GOROOT mise exec -- go test -race -count=1 ./...
+PASS: all packages under the race detector
+
+env -u GOROOT mise exec -- go vet ./...
+PASS
+
+env -u GOROOT mise exec -- golangci-lint run --timeout=10m
+0 issues.
+
+env -u GOROOT mise exec -- go fix -diff ./...
+PASS: no pending rewrites
+
+git diff --check
+PASS
+
+env -u GOROOT mise exec -- ./scripts/check
+PASS: Go gate and 17/17 Python oracle tests
+```
+
+## Final re-review
+
+The re-review found that the lint refactor had changed one established verify
+contract: malformed trust configuration returned early and discarded valid
+object, count, head, and layer results. The Python oracle and the pre-refactor
+Go path treat authority evaluation as one verification error while preserving
+the rest of the scan.
+
+Focused RED:
+
+```text
+env -u GOROOT mise exec -- go test -count=1 ./internal/ledger -run TestVerifyPreservesPartialResultWhenTrustEvaluationFails -v
+FAIL: Verify() returned `ledger store failure: malformed local trust file`
+instead of the partial result
+
+env -u GOROOT mise exec -- go test -count=1 ./tests/e2e -run TestCLIVerifyMalformedTrustPreservesFullStrictDetails -v
+FAIL: real binary exited 3 with no details, want exit 4 with full details
+
+env -u GOROOT mise exec -- go test -count=1 ./internal/store -run 'TestInitReturnsPublishedStoreWithBothReleaseErrors|TestWithMutationLockPreservesOperationAndBothReleaseErrors' -v
+FAIL: undefined injectable lock-release functions
+```
+
+GREEN behavior:
+
+- `Verify` appends `authority evaluation failed: ...` to its in-progress result,
+  then computes heads, sorts every error list, and sets `OK`. The CLI therefore
+  exits 4 and includes the complete structured verification result.
+- One shared store lock-release helper attempts unlock and close, then joins
+  both errors with the operation error. Tests prove the mutation callback runs
+  once. `Init` returns the published `Store` with release errors, so callers can
+  inspect the successfully created state without repeating initialization.
+
+Focused GREEN:
+
+```text
+env -u GOROOT mise exec -- go test -count=1 ./internal/ledger -run TestVerifyPreservesPartialResultWhenTrustEvaluationFails -v
+PASS
+
+env -u GOROOT mise exec -- go test -count=1 ./tests/e2e -run TestCLIVerifyMalformedTrustPreservesFullStrictDetails -v
+PASS: real binary exit 4 with object, counts, heads, layers, and sorted authority error
+
+env -u GOROOT mise exec -- go test -count=1 ./internal/store -run 'TestInitReturnsPublishedStoreWithBothReleaseErrors|TestWithMutationLockPreservesOperationAndBothReleaseErrors' -v
+PASS
+```
+
+Final re-review gate:
+
+```text
+env -u GOROOT mise exec -- go test -count=1 ./...
+PASS: all packages, CLI integration, and real-binary E2E
 
 env -u GOROOT mise exec -- go test -race -count=1 ./...
 PASS: all packages under the race detector

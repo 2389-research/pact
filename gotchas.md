@@ -25,8 +25,7 @@
   signing key must be a configured local trusted root before any checkpoint
   bytes persist. Authentic but unknown checkpoint signers are refused.
 - Dev tooling (Makefile, golangci, goreleaser, pre-commit, GitHub workflows)
-  was ported from ../portal on 2026-08-23. The lint gate finds ~93 issues
-  (unchecked type assertions, gosec G304/G301, dead funcs in verify.go), and
-  the count grows as unlinted code lands. Do not `pre-commit install` until
-  that cleanup lands, or every commit fails the golangci hook. Goreleaser's release target (2389-research/pact) is the
-  presumed future home; no git remote exists yet.
+  was ported from ../portal on 2026-08-23. The full lint baseline is zero, and
+  the strict hooks are usable when commits run under the project toolchain:
+  `env -u GOROOT mise exec -- git commit ...`. Goreleaser's release target
+  (`2389-research/pact`) is the presumed future home; no git remote exists yet.

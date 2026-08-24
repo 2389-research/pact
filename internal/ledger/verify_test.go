@@ -59,6 +59,35 @@ func TestVerifySeparatesAuthorizationFromAuthenticityAndShowExpandsEvent(t *test
 	}
 }
 
+func TestVerifyPreservesPartialResultWhenTrustEvaluationFails(t *testing.T) {
+	st, key := ledgerStoreAndKey(t)
+	commit := commitOne(t, st, key, "a", nil)
+	if err := os.WriteFile(filepath.Join(st.Dir(), "trust.json"), []byte(`{"format":"wrong","roots":[]}`+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := Verify(st, true)
+	if err != nil {
+		t.Fatalf("Verify() error = %v, want partial result", err)
+	}
+	authorityError := "authority evaluation failed: ledger store failure: malformed local trust file"
+	if result.OK || result.Counts.Objects != 1 || result.Counts.Commits != 1 || result.Counts.Events != 1 {
+		t.Fatalf("Verify() counts = %#v, ok=%v", result.Counts, result.OK)
+	}
+	if object := result.Objects[commit.ObjectID]; !object.Valid() {
+		t.Fatalf("verified object = %#v", object)
+	}
+	if heads := result.Heads["org/example/widget"]; len(heads) != 1 || heads[0] != commit.ObjectID {
+		t.Fatalf("heads = %#v", result.Heads)
+	}
+	if !sort.StringsAreSorted(result.Errors) || len(result.Errors) != 1 || result.Errors[0] != authorityError {
+		t.Fatalf("errors = %#v, want sorted authority error", result.Errors)
+	}
+	if len(result.Integrity.Errors) != 0 || len(result.Structure.Errors) != 0 || len(result.Authenticity.Errors) != 0 || len(result.DAG.Errors) != 0 || len(result.References.Errors) != 0 {
+		t.Fatalf("verification layers = %#v", result)
+	}
+}
+
 func TestVerifyReportsCanonicalPathDigestMismatch(t *testing.T) {
 	st, key := ledgerStoreAndKey(t)
 	commit := commitOne(t, st, key, "a", nil)

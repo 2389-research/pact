@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -53,6 +54,76 @@ func TestInitRefusesExistingStore(t *testing.T) {
 	if _, err := Init(repo, "org/example/widget", time.Now()); err == nil {
 		t.Fatal("second Init() error = nil, want refusal")
 	}
+}
+
+func TestInitReturnsPublishedStoreWithBothReleaseErrors(t *testing.T) {
+	repo := t.TempDir()
+	unlockErr := errors.New("injected unlock failure")
+	closeErr := errors.New("injected close failure")
+	restore := injectLockReleaseErrors(t, unlockErr, closeErr)
+
+	st, err := Init(repo, "org/example/widget", time.Now())
+	if st == nil || !errors.Is(err, unlockErr) || !errors.Is(err, closeErr) {
+		t.Fatalf("Init() = (%#v, %v), want published store and both release errors", st, err)
+	}
+	restore()
+	if opened, openErr := Open(repo); openErr != nil || opened.Dir() != st.Dir() {
+		t.Fatalf("Open() after release error = (%#v, %v)", opened, openErr)
+	}
+}
+
+func TestWithMutationLockPreservesOperationAndBothReleaseErrors(t *testing.T) {
+	st := testStore(t)
+	operationErr := errors.New("injected operation failure")
+	unlockErr := errors.New("injected unlock failure")
+	closeErr := errors.New("injected close failure")
+	injectLockReleaseErrors(t, unlockErr, closeErr)
+	calls := 0
+
+	err := st.WithMutationLock(func() error {
+		calls++
+		return operationErr
+	})
+	if calls != 1 || !errors.Is(err, operationErr) || !errors.Is(err, unlockErr) || !errors.Is(err, closeErr) {
+		t.Fatalf("WithMutationLock() calls=%d error=%v, want operation and both release errors", calls, err)
+	}
+	successfulCalls := 0
+	err = st.WithMutationLock(func() error {
+		successfulCalls++
+		return nil
+	})
+	if successfulCalls != 1 || !errors.Is(err, unlockErr) || !errors.Is(err, closeErr) {
+		t.Fatalf("successful WithMutationLock() calls=%d error=%v, want one call and both release errors", successfulCalls, err)
+	}
+}
+
+func injectLockReleaseErrors(t *testing.T, unlockErr, closeErr error) func() {
+	t.Helper()
+	originalUnlock := unlockLockFile
+	originalClose := closeLockFile
+	restored := false
+	restore := func() {
+		if restored {
+			return
+		}
+		restored = true
+		unlockLockFile = originalUnlock
+		closeLockFile = originalClose
+	}
+	t.Cleanup(restore)
+	unlockLockFile = func(lock *os.File) error {
+		if err := syscall.Flock(int(lock.Fd()), syscall.LOCK_UN); err != nil {
+			return errors.Join(unlockErr, err)
+		}
+		return unlockErr
+	}
+	closeLockFile = func(lock *os.File) error {
+		if err := lock.Close(); err != nil {
+			return errors.Join(closeErr, err)
+		}
+		return closeErr
+	}
+	return restore
 }
 
 func TestInitRejectsSymlinkedStore(t *testing.T) {
