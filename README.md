@@ -8,6 +8,12 @@ store, create an external Ed25519 identity, trust that identity, append signed
 event commits, inspect local heads and objects, verify the full store, and make
 official signed checkpoints.
 
+The Phase 0 contract and Phase 1 single-replica core are verified and now
+dogfood this repository. The setup wrapper is deferred; use the explicit
+bootstrap commands below. See the
+[Phase 0 and Phase 1 status](docs/status/phase-0-1-dogfood.md) for exact gate,
+ledger, checkpoint, recovery, and setup-review evidence.
+
 ## Install
 
 Install `pact` at the exact destination `$HOME/.local/bin/pact`:

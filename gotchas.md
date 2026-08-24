@@ -32,3 +32,13 @@
   the strict hooks are usable when commits run under the project toolchain:
   `env -u GOROOT mise exec -- git commit ...`. Goreleaser's release target
   (`2389-research/pact`) is the presumed future home; no git remote exists yet.
+- Phase 0 and Phase 1 passed the full gate and dogfood this repository under
+  namespace `org/2389/pact`; durable IDs and proof are in
+  `docs/status/phase-0-1-dogfood.md`. The root key stays outside the repository.
+- The setup CLI is deferred after all Omakase variants and a later repair plan
+  failed review. Its rejected design and review remain on branch
+  `setup-cli/omakase/setup-service`; do not merge setup into the core by
+  accident.
+- Canonical files under `.pact/objects/` must not gain a trailing newline; it
+  changes their SHA-256 identity. The pre-commit EOF fixer excludes that path.
+  Keep the exclusion and rely on PACT's canonical writer and verifier.

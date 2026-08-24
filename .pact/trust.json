@@ -1,0 +1,11 @@
+{
+  "format": "pact/trust/v1",
+  "roots": [
+    {
+      "key_id": "ed25519:sha256:bdf05ec0cd70191a1343dd4db0cd0c7b094794238a73e64bdcca06081053dd3a",
+      "actor": "Harper Reed",
+      "public_key": "korKaY10s8dqSpqmcjbDon58VdDZSkcPro-lkbCC5cQ",
+      "added_at": "2026-08-24T14:55:45Z"
+    }
+  ]
+}
