@@ -198,6 +198,10 @@ func Verify(st *store.Store, strict bool) (VerifyResult, error) {
 	result.Heads = headsFor(commits, "")
 	sort.Strings(result.Errors)
 	sort.Strings(result.Warnings)
+	for _, layer := range []*LayerResult{&result.Integrity, &result.Structure, &result.Authenticity, &result.DAG, &result.References} {
+		sort.Strings(layer.Errors)
+		sort.Strings(layer.Warnings)
+	}
 	result.OK = len(result.Errors) == 0
 	return result, nil
 }
@@ -285,6 +289,7 @@ func verifyStoredObject(_ *store.Store, file store.ObjectFile) (ObjectVerificati
 	namespace, err := validateCommitObject(object)
 	if err != nil {
 		result.Errors = append(result.Errors, err.Error())
+		result.Structure = "invalid"
 		return result, nil
 	}
 	result.Type = "commit"

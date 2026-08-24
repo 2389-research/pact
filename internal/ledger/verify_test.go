@@ -6,12 +6,14 @@ import (
 	"encoding/base64"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 	"time"
 
 	"pact/internal/canonical"
 	"pact/internal/identity"
+	"pact/internal/store"
 )
 
 func TestVerifySeparatesAuthorizationFromAuthenticityAndShowExpandsEvent(t *testing.T) {
@@ -204,4 +206,65 @@ func TestCorrectionCommitLeavesOriginalObjectBytesImmutable(t *testing.T) {
 	if string(before) != string(after) {
 		t.Fatal("correction changed original immutable bytes")
 	}
+}
+
+func TestVerifyMarksFailedCommitStructureInvalid(t *testing.T) {
+	st, _ := ledgerStoreAndKey(t)
+	if _, _, err := st.PutCanonical(map[string]any{"format": commitFormat, "body": map[string]any{}, "body_digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "signature": map[string]any{}}); err != nil {
+		t.Fatal(err)
+	}
+	result, err := Verify(st, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, object := range result.Objects {
+		if object.Structure != "invalid" || len(result.Structure.Errors) != 1 {
+			t.Fatalf("verification = %#v", result)
+		}
+	}
+}
+
+func TestVerifyReportsMissingAndCrossNamespaceParentsInDAGLayer(t *testing.T) {
+	st, key := ledgerStoreAndKey(t)
+	missing := "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	missingID := putSignedCommitForVerify(t, st, key, "org/example/widget", []string{missing})
+	other := commitOne(t, st, key, "other", nil)
+	crossID := putSignedCommitForVerify(t, st, key, "different/widget", []string{other.ObjectID})
+	result, err := Verify(st, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	joined := strings.Join(result.DAG.Errors, " ")
+	if !strings.Contains(joined, missingID+": missing or invalid parent") || !strings.Contains(joined, crossID+": parent "+other.ObjectID+" belongs to different namespace") {
+		t.Fatalf("DAG = %#v", result.DAG)
+	}
+	if !sort.StringsAreSorted(result.DAG.Errors) || !sort.StringsAreSorted(result.Errors) {
+		t.Fatalf("verification layers are not sorted: %#v", result)
+	}
+}
+
+func TestCommitCyclesDetectsCycleFixture(t *testing.T) {
+	commits := map[string]storedCommit{
+		"a": {body: map[string]any{"parents": []any{"b"}}},
+		"b": {body: map[string]any{"parents": []any{"a"}}},
+	}
+	cycles := commitCycles(commits)
+	if len(cycles) != 1 || !equalStrings(cycles[0], []string{"a", "b", "a"}) {
+		t.Fatalf("commitCycles() = %#v", cycles)
+	}
+}
+
+func putSignedCommitForVerify(t *testing.T, st *store.Store, key *identity.KeyFile, namespace string, parents []string) string {
+	t.Helper()
+	body := map[string]any{"namespace": namespace, "parents": stringsToAny(parents), "actor": map[string]any{"key_id": key.KeyID, "label": key.Actor}, "authority": map[string]any{"delegation_ref": nil, "epoch": nil, "lease_ref": nil}, "observed_at": "2026-08-23T12:00:00Z", "metadata": map[string]any{}, "events": batchEvents(mustBatch(t, "fixture").Events)}
+	digest, signature, err := identity.SignBody(body, key.Private)
+	if err != nil {
+		t.Fatal(err)
+	}
+	object := map[string]any{"format": commitFormat, "body": body, "body_digest": digest, "signature": map[string]any{"algorithm": "ed25519", "key_id": key.KeyID, "public_key": base64.RawURLEncoding.EncodeToString(key.Public), "value": base64.RawURLEncoding.EncodeToString(signature)}}
+	id, _, err := st.PutCanonical(object)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return id
 }
