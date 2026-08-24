@@ -40,6 +40,9 @@ func TestInitCreatesReferenceLayout(t *testing.T) {
 	if got, err := os.ReadFile(filepath.Join(repo, ".pact", "trust.json")); err != nil || string(got) != "{\n  \"format\": \"pact/trust/v1\",\n  \"roots\": []\n}\n" {
 		t.Fatalf("trust.json = %q, err=%v", got, err)
 	}
+	if _, err := os.Lstat(filepath.Join(repo, ".pact.init.lock")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("project init lock artifact exists: err=%v", err)
+	}
 }
 
 func TestInitRefusesExistingStore(t *testing.T) {
@@ -107,6 +110,51 @@ func TestConcurrentInitHasOneWinner(t *testing.T) {
 	}
 	if successes != 1 {
 		t.Fatalf("successful Init calls = %d, want 1", successes)
+	}
+}
+
+func TestInitIgnoresUnlockedStaleLockFile(t *testing.T) {
+	repo := t.TempDir()
+	lockPath, err := initLockPath(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Dir(lockPath), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(lockPath, []byte("stale"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Init(repo, "org/example/widget", time.Now()); err != nil {
+		t.Fatalf("Init() with stale lock error = %v", err)
+	}
+}
+
+func TestInitCleansStagingAfterPublishConflictAndRetries(t *testing.T) {
+	repo := t.TempDir()
+	original := beforePublish
+	beforePublish = func(_, destination string) error {
+		return os.Mkdir(destination, 0o755)
+	}
+	t.Cleanup(func() { beforePublish = original })
+	if _, err := Init(repo, "org/example/widget", time.Now()); err == nil {
+		t.Fatal("Init() error = nil, want publish conflict")
+	}
+	storePath := filepath.Join(repo, ".pact")
+	entries, err := os.ReadDir(storePath)
+	if err != nil || len(entries) != 0 {
+		t.Fatalf("partial store after failed init: entries=%v err=%v", entries, err)
+	}
+	staging, err := filepath.Glob(filepath.Join(repo, ".pact.init-*"))
+	if err != nil || len(staging) != 0 {
+		t.Fatalf("staging paths after failed init: %v err=%v", staging, err)
+	}
+	if err := os.Remove(storePath); err != nil {
+		t.Fatal(err)
+	}
+	beforePublish = original
+	if _, err := Init(repo, "org/example/widget", time.Now()); err != nil {
+		t.Fatalf("Init() retry error = %v", err)
 	}
 }
 

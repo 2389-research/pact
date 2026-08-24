@@ -4,6 +4,7 @@ package store
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -30,8 +31,9 @@ var (
 	// ErrInvalidNamespace marks namespace input rejected before initialization.
 	ErrInvalidNamespace = errors.New("invalid namespace")
 
-	linkFile  = os.Link
-	afterLink = func(string) error { return nil }
+	linkFile      = os.Link
+	afterLink     = func(string) error { return nil }
+	beforePublish = func(_, _ string) error { return nil }
 )
 
 // Store identifies one initialized PACT store.
@@ -49,43 +51,41 @@ func Init(repo, namespace string, now time.Time) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("resolve repository path: %w", err)
 	}
-	st := &Store{repo: absRepo, dir: filepath.Join(absRepo, ".pact")}
-	claim, err := os.OpenFile(filepath.Join(absRepo, ".pact.init.lock"), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
-	if errors.Is(err, fs.ErrExist) {
-		return nil, fmt.Errorf("%w: initialization is already in progress", ErrAlreadyInitialized)
-	}
+	lock, err := lockInit(absRepo)
 	if err != nil {
-		return nil, fmt.Errorf("claim store initialization: %w", err)
+		return nil, fmt.Errorf("lock store initialization: %w", err)
 	}
-	claimPath := claim.Name()
-	defer os.Remove(claimPath)
-	if err := claim.Close(); err != nil {
-		return nil, fmt.Errorf("close store initialization claim: %w", err)
+	defer lock.Close()
+	defer syscall.Flock(int(lock.Fd()), syscall.LOCK_UN)
+
+	destination := filepath.Join(absRepo, ".pact")
+	if err := checkStoreDestination(destination); err != nil {
+		return nil, err
 	}
-	if info, err := os.Lstat(st.dir); err == nil && info.Mode()&fs.ModeSymlink != 0 {
-		return nil, fmt.Errorf("refusing symlinked PACT store: %s", st.dir)
-	} else if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return nil, fmt.Errorf("inspect store directory: %w", err)
+	staging, err := os.MkdirTemp(absRepo, ".pact.init-")
+	if err != nil {
+		return nil, fmt.Errorf("create store staging directory: %w", err)
 	}
-	if entries, err := os.ReadDir(st.dir); err == nil && len(entries) > 0 {
-		return nil, fmt.Errorf("%w: refusing to overwrite existing PACT store: %s", ErrAlreadyInitialized, st.dir)
-	} else if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		return nil, fmt.Errorf("inspect store directory: %w", err)
-	}
+	defer func() {
+		if staging != "" {
+			_ = os.RemoveAll(staging)
+		}
+	}()
+	staged := &Store{repo: absRepo, dir: staging}
 	for _, path := range []string{
-		st.dir,
-		filepath.Join(st.dir, "objects"),
-		filepath.Join(st.dir, "objects", "sha256"),
-		filepath.Join(st.dir, "index"),
-		filepath.Join(st.dir, "refs"),
-		filepath.Join(st.dir, "tmp"),
+		staged.dir,
+		filepath.Join(staged.dir, "objects"),
+		filepath.Join(staged.dir, "objects", "sha256"),
+		filepath.Join(staged.dir, "index"),
+		filepath.Join(staged.dir, "refs"),
+		filepath.Join(staged.dir, "tmp"),
 	} {
 		if err := ensureRealDirectory(path); err != nil {
 			return nil, fmt.Errorf("create store layout: %w", err)
 		}
 	}
 	createdAt := now.UTC().Format(time.RFC3339)
-	if err := st.WriteLocalJSON("format.json", map[string]any{
+	if err := staged.WriteLocalJSON("format.json", map[string]any{
 		"format":              formatName,
 		"default_namespace":   namespace,
 		"created_at":          createdAt,
@@ -95,13 +95,26 @@ func Init(repo, namespace string, now time.Time) (*Store, error) {
 	}, 0o644); err != nil {
 		return nil, err
 	}
-	if err := st.WriteLocalJSON("trust.json", map[string]any{"format": trustName, "roots": []any{}}, 0o644); err != nil {
+	if err := staged.WriteLocalJSON("trust.json", map[string]any{"format": trustName, "roots": []any{}}, 0o644); err != nil {
 		return nil, err
 	}
-	if err := atomicReplace(filepath.Join(st.dir, ".gitignore"), []byte("index/\ntmp/\nrefs/\n"), 0o644); err != nil {
+	if err := atomicReplace(filepath.Join(staged.dir, ".gitignore"), []byte("index/\ntmp/\nrefs/\n"), 0o644); err != nil {
 		return nil, fmt.Errorf("write store gitignore: %w", err)
 	}
-	return st, nil
+	if err := beforePublish(staging, destination); err != nil {
+		return nil, err
+	}
+	if err := checkStoreDestination(destination); err != nil {
+		return nil, err
+	}
+	if err := os.Rename(staging, destination); err != nil {
+		return nil, fmt.Errorf("publish initialized store: %w", err)
+	}
+	staging = ""
+	if err := syncDirectory(absRepo); err != nil {
+		return nil, fmt.Errorf("sync repository directory: %w", err)
+	}
+	return &Store{repo: absRepo, dir: destination}, nil
 }
 
 // Open verifies and opens an initialized PACT store at repo.
@@ -379,6 +392,48 @@ func syncDirectory(path string) error {
 		return ignoreUnsupportedDirectorySync(err)
 	}
 	return nil
+}
+
+func lockInit(repo string) (*os.File, error) {
+	path, err := initLockPath(repo)
+	if err != nil {
+		return nil, err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return nil, err
+	}
+	lock, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		return nil, err
+	}
+	if err := syscall.Flock(int(lock.Fd()), syscall.LOCK_EX); err != nil {
+		lock.Close()
+		return nil, err
+	}
+	return lock, nil
+}
+
+func initLockPath(repo string) (string, error) {
+	resolved, err := resolveRepository(repo)
+	if err != nil {
+		return "", err
+	}
+	digest := sha256.Sum256([]byte(resolved))
+	return filepath.Join(os.TempDir(), "pact-init-locks", fmt.Sprintf("%x.lock", digest)), nil
+}
+
+func checkStoreDestination(path string) error {
+	info, err := os.Lstat(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("inspect store directory: %w", err)
+	}
+	if info.Mode()&fs.ModeSymlink != 0 {
+		return fmt.Errorf("refusing symlinked PACT store: %s", path)
+	}
+	return fmt.Errorf("%w: refusing to overwrite existing PACT store: %s", ErrAlreadyInitialized, path)
 }
 
 func resolveRepository(repo string) (string, error) {
