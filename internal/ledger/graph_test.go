@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"slices"
 	"testing"
 )
 
@@ -94,6 +95,11 @@ func TestCausalGraphReportsParentAndCausedByCyclesAndCrossNamespaceEdges(t *test
 	if len(result.Errors) < 3 {
 		t.Fatalf("graph errors = %#v, want cycles and cross-namespace failures", result.Errors)
 	}
+	wantParent := "commit DAG cycle: a -> b -> a"
+	wantCausedBy := "caused_by cycle: event:a -> event:b -> event:a"
+	if !slices.Contains(result.Errors, wantParent) || !slices.Contains(result.Errors, wantCausedBy) {
+		t.Fatalf("graph errors = %#v, want %q and %q", result.Errors, wantParent, wantCausedBy)
+	}
 }
 
 func TestCausalDepthAllows4096AndRejects4097SignedEdges(t *testing.T) {
@@ -140,14 +146,15 @@ func TestGraphFrontierAllows4096AndRejects4097Nodes(t *testing.T) {
 }
 
 func TestGraphEdgeCounterAllowsMillionAndRejectsFirstExcess(t *testing.T) {
-	counts := ScanCounts{Edges: Phase2Limits.GraphEdges - 1}
-	if err := addGraphEdges(&counts, Phase2Limits, 1); err != nil {
+	counts := edgeCategoryCounts{parents: 200_000, eventGates: 300_000, causedBy: 100_000, supersedes: 100_000, checkpointHeads: 200_000, previousCheckpoints: 100_000}
+	if err := counts.validate(Phase2Limits, "object"); err != nil {
 		t.Fatal(err)
 	}
-	if counts.Edges != 1_000_000 {
-		t.Fatalf("edges = %d", counts.Edges)
+	if counts.total() != 1_000_000 {
+		t.Fatalf("edges = %d", counts.total())
 	}
-	assertLimitError(t, addGraphEdges(&counts, Phase2Limits, 1), "graph_edges", 1_000_000)
+	counts.previousCheckpoints++
+	assertLimitError(t, counts.validate(Phase2Limits, "object"), "graph_edges", 1_000_000)
 }
 
 func TestCausalGraphHonorsCanceledContext(t *testing.T) {
@@ -156,6 +163,65 @@ func TestCausalGraphHonorsCanceledContext(t *testing.T) {
 	_, err := analyzeGraph(ctx, nil, nil, Phase2Limits)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("analyzeGraph() error = %v", err)
+	}
+}
+
+func TestCausalGraphHonorsCancellationDuringInnerWork(t *testing.T) {
+	commits, events := causedByChain(300)
+	ctx, cancel := context.WithCancel(context.Background())
+	polls := 0
+	original := afterLedgerWorkPoll
+	afterLedgerWorkPoll = func() {
+		polls++
+		if polls == 4 {
+			cancel()
+		}
+	}
+	t.Cleanup(func() { afterLedgerWorkPoll = original })
+	_, err := analyzeGraph(ctx, commits, events, Phase2Limits)
+	if !errors.Is(err, context.Canceled) || polls < 4 {
+		t.Fatalf("analyzeGraph() = %v after %d polls, want mid-work cancellation", err, polls)
+	}
+}
+
+func TestUnresolvedPropagationHonorsCancellationWithinLargeOutgoingSet(t *testing.T) {
+	nodes := map[string]*graphNode{"source": {id: "source"}}
+	for index := range 300 {
+		key := fmt.Sprintf("target:%03d", index)
+		nodes[key] = &graphNode{id: key}
+		nodes["source"].outgoing = append(nodes["source"].outgoing, graphEdge{target: key})
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	polls := 0
+	original := afterLedgerWorkPoll
+	afterLedgerWorkPoll = func() {
+		polls++
+		if polls == 2 {
+			cancel()
+		}
+	}
+	t.Cleanup(func() { afterLedgerWorkPoll = original })
+	unresolved := map[string]bool{"source": true}
+	err := propagateUnresolved(ctx, nodes, unresolved)
+	if !errors.Is(err, context.Canceled) || polls < 2 || len(unresolved) == len(nodes) {
+		t.Fatalf("propagateUnresolved() = %v after %d polls and %d marks, want mid-edge cancellation", err, polls, len(unresolved))
+	}
+}
+
+func TestCausalGraphReportsEveryStableParentCycleWitness(t *testing.T) {
+	commits := map[string]CommitRecord{
+		"a": {ID: "a", Parents: []string{"b"}},
+		"b": {ID: "b", Parents: []string{"a"}},
+		"c": {ID: "c", Parents: []string{"d"}},
+		"d": {ID: "d", Parents: []string{"c"}},
+	}
+	result, err := analyzeGraph(context.Background(), commits, nil, Phase2Limits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"commit DAG cycle: a -> b -> a", "commit DAG cycle: c -> d -> c"}
+	if !reflect.DeepEqual(result.Errors, want) || result.ErrorCount != 2 {
+		t.Fatalf("cycle diagnostics = %#v, count %d", result.Errors, result.ErrorCount)
 	}
 }
 

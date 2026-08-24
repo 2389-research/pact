@@ -80,6 +80,19 @@ func TestScanCompleteReplicaReturnsTypedImmutableRecords(t *testing.T) {
 	}
 }
 
+func TestScanPreservesParentsForImplicitCommitChain(t *testing.T) {
+	st, key := ledgerStoreAndKey(t)
+	first := commitOne(t, st, key, "first", nil)
+	second := commitOne(t, st, key, "second", nil)
+	result, err := Scan(context.Background(), st, ScanOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(result.Commits[second.ObjectID].Parents, []string{first.ObjectID}) {
+		t.Fatalf("second parents = %#v, want %s", result.Commits[second.ObjectID].Parents, first.ObjectID)
+	}
+}
+
 func TestScanCompletenessBlockersAreSortedUniqueAndStrictOnlyFailsBlockers(t *testing.T) {
 	st, key := ledgerStoreAndKey(t)
 	missingObject := "sha256:" + strings.Repeat("a", 64)
@@ -127,6 +140,44 @@ func TestScanCompletenessBlockersAreSortedUniqueAndStrictOnlyFailsBlockers(t *te
 	}
 }
 
+func TestRecordCompletenessPropagatesAcrossPresentDependencyClosure(t *testing.T) {
+	result := ScanResult{
+		Commits: map[string]CommitRecord{
+			"a": {ID: "a", Completeness: "complete"},
+			"b": {ID: "b", Parents: []string{"a"}, Completeness: "complete"},
+			"c": {ID: "c", Completeness: "complete"},
+			"d": {ID: "d", Completeness: "complete"},
+			"e": {ID: "e", Parents: []string{"d"}, Completeness: "complete"},
+		},
+		Events: map[string]EventRecord{
+			"event:b": {Ref: "event:b", CommitID: "b"},
+			"event:c": {Ref: "event:c", CommitID: "c", CausedBy: []string{"event:b"}},
+			"event:d": {Ref: "event:d", CommitID: "d", Supersedes: []string{"missing"}},
+		},
+		Checkpoints: map[string]CheckpointRecord{
+			"cp1": {ID: "cp1", Frontier: []CheckpointFrontier{{Heads: []string{"b"}}}, Completeness: "complete"},
+			"cp2": {ID: "cp2", PreviousCheckpoint: "cp1", Completeness: "complete"},
+		},
+		Completeness: Completeness{Blockers: []Blocker{
+			{Code: "missing_parent", SourceID: "a"},
+			{Code: "missing_event_reference", SourceID: "event:d", Field: "supersedes"},
+		}},
+	}
+	if err := applyRecordCompleteness(context.Background(), &result); err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"a", "b", "c", "d", "e"} {
+		if result.Commits[id].Completeness != "partial" {
+			t.Fatalf("commit %s completeness = %q", id, result.Commits[id].Completeness)
+		}
+	}
+	for _, id := range []string{"cp1", "cp2"} {
+		if result.Checkpoints[id].Completeness != "partial" {
+			t.Fatalf("checkpoint %s completeness = %q", id, result.Checkpoints[id].Completeness)
+		}
+	}
+}
+
 func TestScanEnforcesObjectByteEventEdgeAndTotalBounds(t *testing.T) {
 	st, key := ledgerStoreAndKey(t)
 	batch, err := NormalizeEventBatch(map[string]any{"events": []any{eventInput("a", []any{}, []any{}), eventInput("b", []any{}, []any{})}})
@@ -161,6 +212,62 @@ func TestScanEnforcesObjectByteEventEdgeAndTotalBounds(t *testing.T) {
 	commitOne(t, st, key, "c", nil)
 	_, err = Scan(context.Background(), st, ScanOptions{Limits: Limits{Objects: 1}})
 	assertLimitError(t, err, "objects", 1)
+}
+
+func TestEffectiveScanLimitsCanReduceButNeverRaisePhaseTwoCaps(t *testing.T) {
+	overrides := Limits{
+		ObjectBytes:       Phase2Limits.ObjectBytes + 1,
+		Objects:           1,
+		Events:            Phase2Limits.Events + 1,
+		GraphEdges:        7,
+		DiagnosticSamples: Phase2Limits.DiagnosticSamples + 1,
+	}
+	got := effectiveLimits(overrides)
+	if got.ObjectBytes != Phase2Limits.ObjectBytes || got.Events != Phase2Limits.Events || got.DiagnosticSamples != Phase2Limits.DiagnosticSamples {
+		t.Fatalf("raised effective limits = %#v", got)
+	}
+	if got.Objects != 1 || got.GraphEdges != 7 {
+		t.Fatalf("reduced effective limits = %#v", got)
+	}
+}
+
+func TestScanResourceAccountingRejectsRawCommitCountsBeforeProjection(t *testing.T) {
+	limits := Phase2Limits
+	limits.ParentsPerCommit = 1
+	object := ObjectVerification{Type: "commit", Integrity: "valid", Structure: "valid", Authenticity: "valid", object: map[string]any{
+		"body": map[string]any{"parents": []any{"one", "two"}, "events": []any{}},
+	}}
+	counts := scanResourceCounts{}
+	err := counts.addCanonicalObject("commit-id", object, limits)
+	var limit *LimitError
+	if !errors.As(err, &limit) || limit.Resource != "parents_per_commit" || limit.Maximum != 1 || limit.ObjectID != "commit-id" {
+		t.Fatalf("limit = %#v", limit)
+	}
+	if counts.events != 0 || counts.edges.total() != 0 {
+		t.Fatalf("accounting changed after rejected raw object: %#v", counts)
+	}
+}
+
+func TestScanEdgeAccountingIncludesEveryContractCategory(t *testing.T) {
+	st, key := ledgerStoreAndKey(t)
+	parent := commitOne(t, st, key, "parent", nil)
+	batch := mustBatch(t, "source")
+	batch.Events[0].CausedBy = []string{parent.EventRefs[0]}
+	batch.Events[0].Supersedes = []string{parent.EventRefs[0]}
+	source, err := Commit(st, key, batch, CommitOptions{Parents: []string{parent.ObjectID}, ObservedAt: "2026-08-23T12:00:00Z"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	putSignedCheckpointForVerify(t, st, key, "scope", source.ObjectID, "sha256:"+strings.Repeat("f", 64))
+	result, err := Scan(context.Background(), st, ScanOptions{Limits: Limits{GraphEdges: 9}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Counts.Edges != 9 {
+		t.Fatalf("Scan() edges = %d, want 9", result.Counts.Edges)
+	}
+	_, err = Scan(context.Background(), st, ScanOptions{Limits: Limits{GraphEdges: 8}})
+	assertLimitError(t, err, "graph_edges", 8)
 }
 
 func TestScanProcessesRecordLimitsInObjectIDOrder(t *testing.T) {
@@ -208,6 +315,27 @@ func TestScanBoundsDiagnosticSamplesAndText(t *testing.T) {
 	}
 	if len(result.Verification.Errors[0]) > 80 || len(result.Verification.Structure.Errors[0]) > 80 {
 		t.Fatalf("diagnostic text exceeds bound: %#v", result.Verification)
+	}
+}
+
+func TestDiagnosticCollectorBoundsAtAppendAndPreservesUTF8(t *testing.T) {
+	result := VerifyResult{diagnosticLimits: Limits{DiagnosticSamples: 1, DiagnosticTextBytes: 3}}
+	appendVerificationDiagnostic(&result, &result.Errors, "éé")
+	appendVerificationDiagnostic(&result, &result.Errors, "discarded")
+	if !result.DiagnosticsTruncated || !reflect.DeepEqual(result.Errors, []string{"é"}) {
+		t.Fatalf("bounded diagnostics = %#v", result.Errors)
+	}
+
+	exact := VerifyResult{diagnosticLimits: Limits{DiagnosticSamples: 1, DiagnosticTextBytes: 4}}
+	appendVerificationDiagnostic(&exact, &exact.Errors, "éé")
+	if exact.DiagnosticsTruncated || !reflect.DeepEqual(exact.Errors, []string{"éé"}) {
+		t.Fatalf("exact UTF-8 diagnostic = %#v, truncated %t", exact.Errors, exact.DiagnosticsTruncated)
+	}
+
+	firstByte := VerifyResult{diagnosticLimits: Limits{DiagnosticSamples: 1, DiagnosticTextBytes: 1}}
+	appendVerificationDiagnostic(&firstByte, &firstByte.Errors, "é")
+	if !firstByte.DiagnosticsTruncated || !reflect.DeepEqual(firstByte.Errors, []string{""}) {
+		t.Fatalf("first-byte-over diagnostic = %#v", firstByte.Errors)
 	}
 }
 

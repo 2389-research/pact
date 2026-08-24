@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -327,6 +328,19 @@ func TestRunCommitHeadsShowAndVerifyEmitJSON(t *testing.T) {
 	if commit["operation"] != "commit" || commit["integrity"] != "valid" || commit["authenticity"] != "valid" {
 		t.Fatalf("commit JSON = %#v", commit)
 	}
+	beforeSecond := runJSON(t, []string{"heads", "--repo", repo, "--namespace", "org/example", "--json"})
+	if !reflect.DeepEqual(beforeSecond["heads"].(map[string]any)["org/example/widget"], []any{commit["object_id"]}) {
+		t.Fatalf("heads before second commit = %#v", beforeSecond)
+	}
+	secondBatchPath := filepath.Join(t.TempDir(), "events.json")
+	secondBatch := []byte(`{"observed_at":"2026-08-23T12:00:01Z","events":[{"local_id":"e2","kind":"observation","type":"widget.seen","subject":"widget-2","schema_ref":"pact:core/widget/v1","payload":{},"evidence":[],"caused_by":[],"supersedes":[],"tags":[]}]}`)
+	if err := os.WriteFile(secondBatchPath, secondBatch, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	second := runJSON(t, []string{"commit", "--repo", repo, "--key-file", keyPath, "--events", secondBatchPath, "--json"})
+	if !reflect.DeepEqual(second["parents"], []any{commit["object_id"]}) {
+		t.Fatalf("second commit parents = %#v, want first commit", second["parents"])
+	}
 	heads := runJSON(t, []string{"heads", "--repo", repo, "--namespace", "org/example", "--json"})
 	if heads["operation"] != "heads" || heads["heads"] == nil {
 		t.Fatalf("heads JSON = %#v", heads)
@@ -344,6 +358,9 @@ func TestRunCommitHeadsShowAndVerifyEmitJSON(t *testing.T) {
 	limits := verify["limits"].(map[string]any)
 	if completeness["scope"] != "local_object_set" || completeness["status"] != "locally_closed" || limits["profile"] != "pact/resource-limits/phase2-v1" || limits["status"] != "within_limits" {
 		t.Fatalf("verify Phase 2 JSON = %#v", verify)
+	}
+	if limits["diagnostics_truncated"] != false {
+		t.Fatalf("verify diagnostics_truncated = %#v", limits["diagnostics_truncated"])
 	}
 	authorization := verify["authorization"].(map[string]any)[commit["object_id"].(string)].(map[string]any)
 	if authorization["status"] != "indeterminate" || authorization["Status"] != nil {

@@ -4,6 +4,7 @@ package store
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -319,6 +320,32 @@ func TestObjectFilesBoundedStopsAtFirstExcess(t *testing.T) {
 	}
 	if files, err := st.ObjectFilesBounded(1); err == nil || files != nil {
 		t.Fatalf("ObjectFilesBounded() = (%#v, %v), want no partial result and limit error", files, err)
+	} else {
+		var limit *ObjectCountLimitError
+		if !errors.As(err, &limit) || limit.Maximum != 1 {
+			t.Fatalf("ObjectFilesBounded() error = %#v, want typed maximum 1", err)
+		}
+	}
+}
+
+func TestObjectFilesBoundedContextHonorsCancellationDuringEnumeration(t *testing.T) {
+	st := testStore(t)
+	shard := filepath.Join(st.Dir(), "objects", "sha256", "aa")
+	if err := os.MkdirAll(shard, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for index := range objectDirectoryBatchSize + 1 {
+		if err := os.WriteFile(filepath.Join(shard, fmt.Sprintf("%062x.json", index)), []byte(`{}`), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	original := afterObjectDirectoryBatch
+	afterObjectDirectoryBatch = func() { cancel() }
+	t.Cleanup(func() { afterObjectDirectoryBatch = original })
+	files, err := st.ObjectFilesBoundedContext(ctx, 100)
+	if !errors.Is(err, context.Canceled) || files != nil {
+		t.Fatalf("ObjectFilesBoundedContext() = (%#v, %v), want cancellation", files, err)
 	}
 }
 
@@ -335,6 +362,27 @@ func TestGetBoundedRejectsOversizeBeforeRead(t *testing.T) {
 	}
 	if got, err := st.GetBounded(objectID, uint64(len(raw)-1)); err == nil || got != nil {
 		t.Fatalf("GetBounded() = (%q, %v), want no bytes and limit error", got, err)
+	} else {
+		var limit *ObjectByteLimitError
+		if !errors.As(err, &limit) || limit.Maximum != uint64(len(raw)-1) {
+			t.Fatalf("GetBounded() error = %#v, want typed byte limit", err)
+		}
+	}
+}
+
+func TestGetBoundedMarksDigestMismatch(t *testing.T) {
+	st := testStore(t)
+	raw := []byte(`{"kind":"stable"}`)
+	objectID := canonical.Digest(raw)
+	path := objectFile(st, objectID)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(`{"kind":"changed"}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.GetBounded(objectID, 1_000); !errors.Is(err, ErrIntegrity) || !errors.Is(err, ErrObjectDigestMismatch) {
+		t.Fatalf("GetBounded() error = %v, want integrity and digest sentinels", err)
 	}
 }
 

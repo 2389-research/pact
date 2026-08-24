@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/ed25519"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -85,6 +86,7 @@ type VerifyResult struct {
 	DiagnosticsTruncated bool
 	Completeness         Completeness
 	Limits               LimitsStatus
+	diagnosticLimits     Limits
 }
 
 // ShowResult provides an object or event inspection result without evidence retrieval.
@@ -167,15 +169,25 @@ func newVerifyResult(st *store.Store, strict bool) VerifyResult {
 	return VerifyResult{Strict: strict, Repo: filepath.Dir(st.Dir()), Store: st.Dir(), IndexStatus: "missing", Heads: map[string][]string{}, Authorization: map[string]AuthorizationResult{}, Objects: map[string]ObjectVerification{}}
 }
 
-func verifyCommitParents(result *VerifyResult, strict bool, commits map[string]storedCommit, objects map[string]ObjectVerification) {
-	for id, commit := range commits {
+func verifyCommitParents(ctx context.Context, result *VerifyResult, strict bool, commits map[string]storedCommit, objects map[string]ObjectVerification) error {
+	work := 0
+	for _, id := range sortedKeys(commits) {
+		commit := commits[id]
+		if err := pollContext(ctx, work); err != nil {
+			return err
+		}
+		work++
 		for _, parentID := range commit.parents {
+			if err := pollContext(ctx, work); err != nil {
+				return err
+			}
+			work++
 			parentCommit, found := commits[parentID]
 			if !found {
 				if _, present := objects[parentID]; present {
 					message := fmt.Sprintf("%s: parent target is present but is not a valid commit: %s", id, parentID)
-					result.Errors = append(result.Errors, message)
-					result.DAG.Errors = append(result.DAG.Errors, message)
+					appendVerificationDiagnostic(result, &result.Errors, message)
+					appendVerificationDiagnostic(result, &result.DAG.Errors, message)
 					result.Counts.DAG++
 					continue
 				}
@@ -184,79 +196,146 @@ func verifyCommitParents(result *VerifyResult, strict bool, commits map[string]s
 			}
 			if parentCommit.namespace != commit.namespace {
 				message := fmt.Sprintf("%s: parent %s belongs to different namespace %q", id, parentID, parentCommit.namespace)
-				result.Errors = append(result.Errors, message)
-				result.DAG.Errors = append(result.DAG.Errors, message)
+				appendVerificationDiagnostic(result, &result.Errors, message)
+				appendVerificationDiagnostic(result, &result.DAG.Errors, message)
 				result.Counts.DAG++
 			}
 		}
 	}
+	return nil
 }
 
-func verifyCheckpointReferences(result *VerifyResult, strict bool, commits map[string]storedCommit, checkpoints map[string]storedCheckpoint, objects map[string]ObjectVerification) {
-	for id, checkpoint := range checkpoints {
-		for _, entry := range checkpoint.frontier {
-			for _, headID := range entry.Heads {
-				head, found := commits[headID]
-				if !found {
-					if _, present := objects[headID]; present {
-						resultReferenceError(result, fmt.Sprintf("%s: checkpoint head is present but is not a valid commit: %s", id, headID))
-						continue
-					}
-					resultReferenceAt(result, strict, fmt.Sprintf("%s: missing checkpoint head %s", id, headID))
-					continue
-				}
-				if head.namespace != entry.Namespace {
-					resultReferenceError(result, fmt.Sprintf("%s: head %s namespace mismatch (%q != %q)", id, headID, head.namespace, entry.Namespace))
-				}
+func verifyCheckpointReferences(ctx context.Context, result *VerifyResult, strict bool, commits map[string]storedCommit, checkpoints map[string]storedCheckpoint, objects map[string]ObjectVerification) error {
+	work := 0
+	for _, id := range sortedKeys(checkpoints) {
+		if err := pollContext(ctx, work); err != nil {
+			return err
+		}
+		work++
+		if err := verifyCheckpointReference(ctx, result, strict, id, checkpoints[id], commits, checkpoints, objects, &work); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func verifyCheckpointReference(ctx context.Context, result *VerifyResult, strict bool, id string, checkpoint storedCheckpoint, commits map[string]storedCommit, checkpoints map[string]storedCheckpoint, objects map[string]ObjectVerification, work *int) error {
+	for _, entry := range checkpoint.frontier {
+		for _, headID := range entry.Heads {
+			if err := pollContext(ctx, *work); err != nil {
+				return err
+			}
+			(*work)++
+			head, found := commits[headID]
+			switch {
+			case found && head.namespace != entry.Namespace:
+				resultReferenceError(result, fmt.Sprintf("%s: head %s namespace mismatch (%q != %q)", id, headID, head.namespace, entry.Namespace))
+			case !found:
+				verifyMissingCheckpointHead(result, strict, id, headID, objects)
 			}
 		}
-		if checkpoint.previous != "" {
-			if _, found := checkpoints[checkpoint.previous]; !found {
-				if _, present := objects[checkpoint.previous]; present {
-					resultReferenceError(result, fmt.Sprintf("%s: previous checkpoint is present but invalid: %s", id, checkpoint.previous))
-					continue
-				}
+	}
+	if checkpoint.previous != "" {
+		if _, found := checkpoints[checkpoint.previous]; !found {
+			if _, present := objects[checkpoint.previous]; present {
+				resultReferenceError(result, fmt.Sprintf("%s: previous checkpoint is present but invalid: %s", id, checkpoint.previous))
+			} else {
 				resultReferenceAt(result, strict, fmt.Sprintf("%s: previous checkpoint is unavailable: %s", id, checkpoint.previous))
 			}
 		}
 	}
+	return nil
 }
 
-func verifyEventReferences(result *VerifyResult, strict bool, commits map[string]storedCommit, objects map[string]ObjectVerification) {
+func verifyMissingCheckpointHead(result *VerifyResult, strict bool, id, headID string, objects map[string]ObjectVerification) {
+	if _, present := objects[headID]; present {
+		resultReferenceError(result, fmt.Sprintf("%s: checkpoint head is present but is not a valid commit: %s", id, headID))
+		return
+	}
+	resultReferenceAt(result, strict, fmt.Sprintf("%s: missing checkpoint head %s", id, headID))
+}
+
+func verifyEventReferences(ctx context.Context, result *VerifyResult, strict bool, commits map[string]storedCommit, objects map[string]ObjectVerification) error {
+	events, work, err := collectKnownEventRefs(ctx, commits)
+	if err != nil {
+		return err
+	}
+	for _, id := range sortedKeys(commits) {
+		if err := pollContext(ctx, work); err != nil {
+			return err
+		}
+		work++
+		if err := verifyCommitEventReferences(ctx, result, strict, id, commits[id], events, objects, &work); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func collectKnownEventRefs(ctx context.Context, commits map[string]storedCommit) (map[string]bool, int, error) {
 	events := map[string]bool{}
-	for id, commit := range commits {
+	work := 0
+	for _, id := range sortedKeys(commits) {
+		commit := commits[id]
+		if err := pollContext(ctx, work); err != nil {
+			return nil, 0, err
+		}
+		work++
 		for _, event := range commit.events {
+			if err := pollContext(ctx, work); err != nil {
+				return nil, 0, err
+			}
+			work++
 			events[EventRef(id, event.localID)] = true
 		}
 	}
-	for id, commit := range commits {
-		for _, event := range commit.events {
-			source := EventRef(id, event.localID)
-			for field, references := range map[string][]string{"caused_by": event.causedBy, "supersedes": event.supersedes} {
-				for _, ref := range references {
-					if localRefPattern.MatchString(ref) {
-						continue
-					}
-					if !events[ref] {
-						if eventTargetObjectPresent(objects, ref) {
-							resultReferenceError(result, fmt.Sprintf("%s: %s target is present but invalid: %s", source, field, ref))
-							continue
-						}
-						resultReferenceAt(result, strict, fmt.Sprintf("%s: unresolved %s reference %s", source, field, ref))
-					}
-				}
-			}
-		}
-	}
+	return events, work, nil
 }
 
-func applyAuthorization(st *store.Store, result *VerifyResult, commits map[string]storedCommit) {
+func verifyCommitEventReferences(ctx context.Context, result *VerifyResult, strict bool, id string, commit storedCommit, events map[string]bool, objects map[string]ObjectVerification, work *int) error {
+	for _, event := range commit.events {
+		source := EventRef(id, event.localID)
+		if err := verifyEventReferenceList(ctx, result, strict, source, "caused_by", event.causedBy, events, objects, work); err != nil {
+			return err
+		}
+		if err := verifyEventReferenceList(ctx, result, strict, source, "supersedes", event.supersedes, events, objects, work); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func verifyEventReferenceList(ctx context.Context, result *VerifyResult, strict bool, source, field string, references []string, events map[string]bool, objects map[string]ObjectVerification, work *int) error {
+	for _, ref := range references {
+		if err := pollContext(ctx, *work); err != nil {
+			return err
+		}
+		(*work)++
+		if localRefPattern.MatchString(ref) || events[ref] {
+			continue
+		}
+		if eventTargetObjectPresent(objects, ref) {
+			resultReferenceError(result, fmt.Sprintf("%s: %s target is present but invalid: %s", source, field, ref))
+			continue
+		}
+		resultReferenceAt(result, strict, fmt.Sprintf("%s: unresolved %s reference %s", source, field, ref))
+	}
+	return nil
+}
+
+func applyAuthorization(ctx context.Context, st *store.Store, result *VerifyResult, commits map[string]storedCommit) error {
 	roots, rootErr := Roots(st)
 	if rootErr != nil {
-		result.Errors = append(result.Errors, "authority evaluation failed: "+rootErr.Error())
-		return
+		appendVerificationDiagnostic(result, &result.Errors, "authority evaluation failed: "+rootErr.Error())
+		return authorityContextStatus(ctx)
 	}
-	for id, commit := range commits {
+	work := 0
+	for _, id := range sortedKeys(commits) {
+		commit := commits[id]
+		if err := pollContext(ctx, work); err != nil {
+			return err
+		}
+		work++
 		auth := authorizationForCommit(roots, commit)
 		result.Authorization[id] = auth
 		switch auth.Status {
@@ -268,7 +347,10 @@ func applyAuthorization(st *store.Store, result *VerifyResult, commits map[strin
 			result.Counts.Indeterminate++
 		}
 	}
+	return nil
 }
+
+func authorityContextStatus(ctx context.Context) error { return ctx.Err() }
 
 func finishVerification(result *VerifyResult, commits map[string]storedCommit) {
 	result.Heads = headsFor(commits, "")
@@ -346,7 +428,7 @@ func verificationForID(st *store.Store, id string) (ObjectVerification, error) {
 	if os.IsNotExist(err) {
 		return ObjectVerification{}, fmt.Errorf("%w: object not found: %s", ErrMissingDependency, id)
 	}
-	if strings.Contains(err.Error(), "exceeds byte limit") {
+	if _, ok := errors.AsType[*store.ObjectByteLimitError](err); ok {
 		return ObjectVerification{}, objectLimitError("object_bytes", Phase2Limits.ObjectBytes, id)
 	}
 	if isPermissionError(err) {
@@ -354,7 +436,7 @@ func verificationForID(st *store.Store, id string) (ObjectVerification, error) {
 		result.Errors = append(result.Errors, "cannot read object: "+err.Error())
 		return result, nil
 	}
-	if !strings.Contains(err.Error(), "object digest mismatch") {
+	if !errors.Is(err, store.ErrObjectDigestMismatch) {
 		return ObjectVerification{}, err
 	}
 	// GetBounded intentionally refuses corrupt bytes; show still returns bounded structured integrity details.
@@ -763,27 +845,27 @@ func hasDuplicate(values []string) bool {
 }
 func resultDAGAt(result *VerifyResult, strict bool, message string) {
 	if strict {
-		result.Errors = append(result.Errors, message)
-		result.DAG.Errors = append(result.DAG.Errors, message)
+		appendVerificationDiagnostic(result, &result.Errors, message)
+		appendVerificationDiagnostic(result, &result.DAG.Errors, message)
 	} else {
-		result.Warnings = append(result.Warnings, message)
-		result.DAG.Warnings = append(result.DAG.Warnings, message)
+		appendVerificationDiagnostic(result, &result.Warnings, message)
+		appendVerificationDiagnostic(result, &result.DAG.Warnings, message)
 	}
 	result.Counts.DAG++
 }
 func resultReferenceAt(result *VerifyResult, strict bool, message string) {
 	if strict {
-		result.Errors = append(result.Errors, message)
-		result.References.Errors = append(result.References.Errors, message)
+		appendVerificationDiagnostic(result, &result.Errors, message)
+		appendVerificationDiagnostic(result, &result.References.Errors, message)
 	} else {
-		result.Warnings = append(result.Warnings, message)
-		result.References.Warnings = append(result.References.Warnings, message)
+		appendVerificationDiagnostic(result, &result.Warnings, message)
+		appendVerificationDiagnostic(result, &result.References.Warnings, message)
 	}
 	result.Counts.References++
 }
 func resultReferenceError(result *VerifyResult, message string) {
-	result.Errors = append(result.Errors, message)
-	result.References.Errors = append(result.References.Errors, message)
+	appendVerificationDiagnostic(result, &result.Errors, message)
+	appendVerificationDiagnostic(result, &result.References.Errors, message)
 	result.Counts.References++
 }
 func authorizationForResult(st *store.Store, verification ObjectVerification) AuthorizationResult {

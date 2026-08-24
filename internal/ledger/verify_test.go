@@ -3,10 +3,13 @@
 package ledger
 
 import (
+	"context"
 	"encoding/base64"
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
+	"slices"
 	"sort"
 	"strings"
 	"testing"
@@ -501,5 +504,52 @@ func checkpointBodyFixture(key *identity.KeyFile, namespace, head, previous stri
 		"policy_ref": testPolicyRef, "schema_refs": []any{}, "authority_epoch": "epoch-1",
 		"previous_checkpoint": previousValue, "actor": map[string]any{"key_id": key.KeyID, "label": key.Actor},
 		"observed_at": "2026-08-23T12:00:00Z", "metadata": map[string]any{},
+	}
+}
+
+func TestVerifyGraphDiagnosticsPublishStableIterativeCycleWitnesses(t *testing.T) {
+	commits := map[string]CommitRecord{
+		"a": {ID: "a", Namespace: "scope", Parents: []string{"b"}, EventRefs: []string{"event:a"}},
+		"b": {ID: "b", Namespace: "scope", Parents: []string{"a"}, EventRefs: []string{"event:b"}},
+	}
+	events := map[string]EventRecord{
+		"event:a": {Ref: "event:a", CommitID: "a", Namespace: "scope", CausedBy: []string{"event:b"}},
+		"event:b": {Ref: "event:b", CommitID: "b", Namespace: "scope", CausedBy: []string{"event:a"}},
+	}
+	graph, err := analyzeGraph(context.Background(), commits, events, Phase2Limits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := VerifyResult{diagnosticLimits: Phase2Limits}
+	applyGraphVerification(&result, graph)
+	want := []string{
+		"caused_by cycle: event:a -> event:b -> event:a",
+		"commit DAG cycle: a -> b -> a",
+	}
+	if !reflect.DeepEqual(result.DAG.Errors, want) || !reflect.DeepEqual(result.Errors, want) || result.Counts.DAG != 2 {
+		t.Fatalf("Verify graph diagnostics = %#v", result)
+	}
+}
+
+func TestVerifyReportsStableCausedByCycleFromSignedCommit(t *testing.T) {
+	st, key := ledgerStoreAndKey(t)
+	batch, err := NormalizeEventBatch(map[string]any{"events": []any{
+		eventInput("a", []any{}, []any{"local:b"}),
+		eventInput("b", []any{}, []any{"local:a"}),
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	commit, err := Commit(st, key, batch, CommitOptions{ObservedAt: "2026-08-23T12:00:00Z"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := Verify(st, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "caused_by cycle: " + EventRef(commit.ObjectID, "a") + " -> " + EventRef(commit.ObjectID, "b") + " -> " + EventRef(commit.ObjectID, "a")
+	if result.OK || !slices.Contains(result.DAG.Errors, want) || result.Counts.DAG != 1 {
+		t.Fatalf("Verify() DAG = %#v, want %q", result.DAG, want)
 	}
 }

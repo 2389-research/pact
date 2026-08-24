@@ -4,6 +4,7 @@ package store
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
@@ -38,16 +39,33 @@ var (
 	ErrIntegrity = errors.New("store integrity failure")
 	// ErrMissingDependency marks an immutable object that is not available locally.
 	ErrMissingDependency = errors.New("store dependency missing")
+	// ErrObjectDigestMismatch marks canonical bytes whose content does not match their object path.
+	ErrObjectDigestMismatch = errors.New("object digest mismatch")
 
-	linkFile            = os.Link
-	afterLink           = func(string) error { return nil }
-	beforePublish       = func(_, _ string) error { return nil }
-	syncDirectoryFile   = syncDirectory
-	readCanonicalFile   = os.ReadFile
-	unlockLockFile      = func(lock *os.File) error { return syscall.Flock(int(lock.Fd()), syscall.LOCK_UN) }
-	closeLockFile       = func(lock *os.File) error { return lock.Close() }
-	afterGetBoundedStat = func(string) error { return nil }
+	linkFile                  = os.Link
+	afterLink                 = func(string) error { return nil }
+	beforePublish             = func(_, _ string) error { return nil }
+	syncDirectoryFile         = syncDirectory
+	readCanonicalFile         = os.ReadFile
+	unlockLockFile            = func(lock *os.File) error { return syscall.Flock(int(lock.Fd()), syscall.LOCK_UN) }
+	closeLockFile             = func(lock *os.File) error { return lock.Close() }
+	afterGetBoundedStat       = func(string) error { return nil }
+	afterObjectDirectoryBatch = func() {}
 )
+
+// ObjectCountLimitError reports the fixed maximum reached during object enumeration.
+type ObjectCountLimitError struct{ Maximum uint64 }
+
+func (err *ObjectCountLimitError) Error() string {
+	return fmt.Sprintf("canonical object count exceeds limit %d", err.Maximum)
+}
+
+// ObjectByteLimitError reports the fixed maximum reached during one canonical object read.
+type ObjectByteLimitError struct{ Maximum uint64 }
+
+func (err *ObjectByteLimitError) Error() string {
+	return fmt.Sprintf("canonical object exceeds byte limit %d", err.Maximum)
+}
 
 // Store identifies one initialized PACT store.
 type Store struct {
@@ -419,7 +437,7 @@ func (st *Store) GetBounded(objectID string, maximum uint64) ([]byte, error) {
 		return nil, fmt.Errorf("stat object: %w", err)
 	}
 	if info.Mode().IsRegular() && fileSizeExceedsLimit(info.Size(), maximum) {
-		return nil, fmt.Errorf("canonical object exceeds byte limit %d", maximum)
+		return nil, &ObjectByteLimitError{Maximum: maximum}
 	}
 	if err := afterGetBoundedStat(path); err != nil {
 		return nil, fmt.Errorf("prepare bounded object read: %w", err)
@@ -432,10 +450,10 @@ func (st *Store) GetBounded(objectID string, maximum uint64) ([]byte, error) {
 		return nil, fmt.Errorf("read object: %w", err)
 	}
 	if uint64(len(raw)) > maximum {
-		return nil, fmt.Errorf("canonical object exceeds byte limit %d", maximum)
+		return nil, &ObjectByteLimitError{Maximum: maximum}
 	}
 	if canonical.Digest(raw) != objectID {
-		return nil, fmt.Errorf("%w: object digest mismatch at %s", ErrIntegrity, path)
+		return nil, fmt.Errorf("%w: %w at %s", ErrIntegrity, ErrObjectDigestMismatch, path)
 	}
 	return raw, nil
 }
@@ -471,6 +489,17 @@ func (st *Store) ObjectFiles() ([]ObjectFile, error) {
 
 // ObjectFilesBounded returns at most maximum canonical immutable object paths in stable ID order.
 func (st *Store) ObjectFilesBounded(maximum uint64) ([]ObjectFile, error) {
+	return st.ObjectFilesBoundedContext(context.Background(), maximum)
+}
+
+// ObjectFilesBoundedContext returns at most maximum canonical object paths and polls ctx during enumeration.
+func (st *Store) ObjectFilesBoundedContext(ctx context.Context, maximum uint64) ([]ObjectFile, error) {
+	if ctx == nil {
+		return nil, fmt.Errorf("context is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	root := filepath.Join(st.dir, "objects", "sha256")
 	if err := ensureExistingRealDirectory(st.dir); err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrIntegrity, err)
@@ -482,7 +511,7 @@ func (st *Store) ObjectFilesBounded(maximum uint64) ([]ObjectFile, error) {
 		return nil, fmt.Errorf("%w: %w", ErrIntegrity, err)
 	}
 	result := make([]ObjectFile, 0)
-	err := visitDirectoryEntries(root, "object directory", func(entry os.DirEntry) error {
+	err := visitDirectoryEntriesContext(ctx, root, "object directory", func(entry os.DirEntry) error {
 		directory := filepath.Join(root, entry.Name())
 		if err := rejectSymlink(directory); err != nil {
 			return err
@@ -490,7 +519,7 @@ func (st *Store) ObjectFilesBounded(maximum uint64) ([]ObjectFile, error) {
 		if !entry.IsDir() || len(entry.Name()) != 2 {
 			return nil
 		}
-		return visitDirectoryEntries(directory, "object shard", func(file os.DirEntry) error {
+		return visitDirectoryEntriesContext(ctx, directory, "object shard", func(file os.DirEntry) error {
 			path := filepath.Join(directory, file.Name())
 			if err := rejectSymlink(path); err != nil {
 				return err
@@ -504,7 +533,7 @@ func (st *Store) ObjectFilesBounded(maximum uint64) ([]ObjectFile, error) {
 				return fmt.Errorf("invalid canonical object path %s: %w", path, err)
 			}
 			if uint64(len(result)) == maximum {
-				return fmt.Errorf("canonical object count exceeds limit %d", maximum)
+				return &ObjectCountLimitError{Maximum: maximum}
 			}
 			result = append(result, ObjectFile{ID: objectID, Path: path})
 			return nil
@@ -517,7 +546,7 @@ func (st *Store) ObjectFilesBounded(maximum uint64) ([]ObjectFile, error) {
 	return result, nil
 }
 
-func visitDirectoryEntries(path, description string, operation func(os.DirEntry) error) error {
+func visitDirectoryEntriesContext(ctx context.Context, path, description string, operation func(os.DirEntry) error) error {
 	// #nosec G304,G703 -- callers derive paths beneath the checked store directory.
 	directory, err := os.Open(path)
 	if err != nil {
@@ -525,11 +554,21 @@ func visitDirectoryEntries(path, description string, operation func(os.DirEntry)
 	}
 	defer directory.Close()
 	for {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		entries, readErr := directory.ReadDir(objectDirectoryBatchSize)
 		for _, entry := range entries {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
 			if err := operation(entry); err != nil {
 				return err
 			}
+		}
+		afterObjectDirectoryBatch()
+		if err := ctx.Err(); err != nil {
+			return err
 		}
 		if errors.Is(readErr, io.EOF) {
 			return nil

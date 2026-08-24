@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"maps"
 	"math"
 	"os"
 	"sort"
@@ -20,6 +21,8 @@ import (
 )
 
 const sourceFingerprintDomain = "PACT-OBJECT-SET-FINGERPRINT-V1\x00"
+
+var afterLedgerWorkPoll = func() {}
 
 // Blocker identifies one absent immutable dependency in the local object set.
 type Blocker struct{ Code, SourceID, Field, MissingRef string }
@@ -85,15 +88,16 @@ func Scan(ctx context.Context, st *store.Store, options ScanOptions) (ScanResult
 		return ScanResult{}, err
 	}
 	limits := effectiveLimits(options.Limits)
-	files, err := st.ObjectFilesBounded(limits.Objects)
+	files, err := st.ObjectFilesBoundedContext(ctx, limits.Objects)
 	if err != nil {
-		if strings.Contains(err.Error(), "canonical object count exceeds limit") {
+		if _, ok := errors.AsType[*store.ObjectCountLimitError](err); ok {
 			return ScanResult{}, limitError("objects", limits.Objects)
 		}
 		return ScanResult{}, err
 	}
 	result := emptyScanResult()
 	verification := newVerifyResult(st, options.Strict)
+	verification.diagnosticLimits = limits
 	collected, err := collectCanonicalObjects(ctx, st, files, limits, &result, &verification)
 	if err != nil {
 		return ScanResult{}, err
@@ -101,40 +105,53 @@ func Scan(ctx context.Context, st *store.Store, options ScanOptions) (ScanResult
 	if collected.allValid {
 		result.SourceFingerprint = sourceFingerprint(collected.ids)
 	}
-	if err := buildScanRecords(ctx, limits, collected, &result); err != nil {
+	if err := buildScanRecords(ctx, collected, &result); err != nil {
 		return ScanResult{}, err
 	}
-	if err := setVerificationRecordCounts(&verification, result.Counts); err != nil {
+	if err := setVerificationRecordCounts(&verification, result.Counts, limits); err != nil {
 		return ScanResult{}, err
 	}
-	verifyCommitParents(&verification, options.Strict, collected.commits, collected.objects)
-	verifyCheckpointReferences(&verification, options.Strict, collected.commits, collected.checkpoints, collected.objects)
-	verifyEventReferences(&verification, options.Strict, collected.commits, collected.objects)
+	if err := verifyScannedRelationships(ctx, &verification, options.Strict, collected); err != nil {
+		return ScanResult{}, err
+	}
 	graph, err := analyzeGraph(ctx, result.Commits, result.Events, limits)
 	if err != nil {
 		return ScanResult{}, err
 	}
-	for _, message := range graph.Errors {
-		verification.Errors = append(verification.Errors, message)
-		verification.DAG.Errors = append(verification.DAG.Errors, message)
-		verification.Counts.DAG++
-	}
+	applyGraphVerification(&verification, graph)
 	result.CausalBatches = graph.Batches
 	result.UnresolvedEvents = graph.Unresolved
-	applyAuthorization(st, &verification, collected.commits)
+	if err := applyAuthorization(ctx, st, &verification, collected.commits); err != nil {
+		return ScanResult{}, err
+	}
 	finishVerification(&verification, collected.commits)
-	result.Completeness.Blockers = completenessBlockers(collected.objects, result.Commits, result.Checkpoints, result.Events)
+	blockers, err := completenessBlockers(ctx, collected.objects, result.Commits, result.Checkpoints, result.Events)
+	if err != nil {
+		return ScanResult{}, err
+	}
+	result.Completeness.Blockers = blockers
 	if len(result.Completeness.Blockers) != 0 {
 		result.Completeness.Status = "incomplete"
-		applyRecordCompleteness(&result)
+		if err := applyRecordCompleteness(ctx, &result); err != nil {
+			return ScanResult{}, err
+		}
 	}
-	boundVerificationDiagnostics(&verification, limits)
 	result.Objects = cloneVerifications(verification.Objects)
 	result.Heads = cloneStringMap(verification.Heads)
 	verification.Completeness = cloneCompleteness(result.Completeness)
 	verification.Limits = LimitsStatus{Profile: LimitsProfile, Status: "within_limits"}
 	result.Verification = verification
 	return result, nil
+}
+
+func verifyScannedRelationships(ctx context.Context, verification *VerifyResult, strict bool, collected collectedObjects) error {
+	if err := verifyCommitParents(ctx, verification, strict, collected.commits, collected.objects); err != nil {
+		return err
+	}
+	if err := verifyCheckpointReferences(ctx, verification, strict, collected.commits, collected.checkpoints, collected.objects); err != nil {
+		return err
+	}
+	return verifyEventReferences(ctx, verification, strict, collected.commits, collected.objects)
 }
 
 type collectedObjects struct {
@@ -150,6 +167,7 @@ func collectCanonicalObjects(ctx context.Context, st *store.Store, files []store
 		ids: make([]string, 0, len(files)), allValid: true, objects: make(map[string]ObjectVerification, len(files)),
 		commits: make(map[string]storedCommit), checkpoints: make(map[string]storedCheckpoint),
 	}
+	resources := scanResourceCounts{}
 	for _, file := range files {
 		if err := ctx.Err(); err != nil {
 			return collectedObjects{}, err
@@ -167,10 +185,17 @@ func collectCanonicalObjects(ctx context.Context, st *store.Store, files []store
 			collected.allValid = false
 		}
 		collected.objects[file.ID] = object
+		if err := resources.addCanonicalObject(file.ID, object, limits); err != nil {
+			return collectedObjects{}, err
+		}
 		if err := collectScannedObject(file.ID, object, verification, collected.commits, collected.checkpoints); err != nil {
 			return collectedObjects{}, err
 		}
 	}
+	result.Counts.Commits = resources.commits
+	result.Counts.Checkpoints = resources.checkpoints
+	result.Counts.Events = resources.events
+	result.Counts.Edges = resources.edges.total()
 	return collected, nil
 }
 
@@ -180,10 +205,10 @@ func readScannedObject(st *store.Store, file store.ObjectFile, limits Limits, re
 	if err == nil {
 		return verifyCanonicalBytes(file, raw), uint64(len(raw)), nil
 	}
-	if strings.Contains(err.Error(), "exceeds byte limit") {
+	if _, ok := errors.AsType[*store.ObjectByteLimitError](err); ok {
 		return ObjectVerification{}, 0, scanByteLimitError(limits, remaining)
 	}
-	if strings.Contains(err.Error(), "object digest mismatch") {
+	if errors.Is(err, store.ErrObjectDigestMismatch) {
 		raw, err = readBoundedCanonicalPath(file.Path, readLimit)
 		if err == nil {
 			return verifyCanonicalBytes(file, raw), uint64(len(raw)), nil
@@ -222,25 +247,10 @@ func canonicalFileSize(path string) (uint64, error) {
 	return uint64(info.Size()), nil
 }
 
-func buildScanRecords(ctx context.Context, limits Limits, collected collectedObjects, result *ScanResult) error {
-	result.Counts.Commits = uint64(len(collected.commits))
-	result.Counts.Checkpoints = uint64(len(collected.checkpoints))
+func buildScanRecords(ctx context.Context, collected collectedObjects, result *ScanResult) error {
 	for _, id := range sortedKeys(collected.commits) {
 		commit := collected.commits[id]
 		if err := ctx.Err(); err != nil {
-			return err
-		}
-		if uint64(len(commit.parents)) > limits.ParentsPerCommit {
-			return objectLimitError("parents_per_commit", limits.ParentsPerCommit, id)
-		}
-		if uint64(len(commit.events)) > limits.EventsPerCommit {
-			return objectLimitError("events_per_commit", limits.EventsPerCommit, id)
-		}
-		if uint64(len(commit.events)) > limits.Events-result.Counts.Events {
-			return objectLimitError("events", limits.Events, id)
-		}
-		result.Counts.Events += uint64(len(commit.events))
-		if err := addGraphEdges(&result.Counts, limits, uint64(len(commit.parents))+2*uint64(len(commit.events))); err != nil {
 			return err
 		}
 		record, events, recordErr := recordsForCommit(id, collected.objects[id], commit)
@@ -248,12 +258,7 @@ func buildScanRecords(ctx context.Context, limits Limits, collected collectedObj
 			return recordErr
 		}
 		result.Commits[id] = record
-		for ref, event := range events {
-			if err := addGraphEdges(&result.Counts, limits, uint64(len(event.CausedBy))+uint64(len(event.Supersedes))); err != nil {
-				return err
-			}
-			result.Events[ref] = event
-		}
+		maps.Copy(result.Events, events)
 	}
 	for _, id := range sortedKeys(collected.checkpoints) {
 		checkpoint := collected.checkpoints[id]
@@ -262,34 +267,24 @@ func buildScanRecords(ctx context.Context, limits Limits, collected collectedObj
 			return recordErr
 		}
 		result.Checkpoints[id] = record
-		edges := uint64(0)
-		for _, entry := range record.Frontier {
-			edges += uint64(len(entry.Heads))
-		}
-		if record.PreviousCheckpoint != "" {
-			edges++
-		}
-		if err := addGraphEdges(&result.Counts, limits, edges); err != nil {
-			return err
-		}
 	}
 	return nil
 }
 
-func setVerificationRecordCounts(verification *VerifyResult, counts ScanCounts) error {
-	objects, err := boundedCountInt(counts.Objects, Phase2Limits.Objects)
+func setVerificationRecordCounts(verification *VerifyResult, counts ScanCounts, limits Limits) error {
+	objects, err := boundedCountInt(counts.Objects, limits.Objects)
 	if err != nil {
 		return err
 	}
-	commits, err := boundedCountInt(counts.Commits, Phase2Limits.Objects)
+	commits, err := boundedCountInt(counts.Commits, limits.Objects)
 	if err != nil {
 		return err
 	}
-	checkpoints, err := boundedCountInt(counts.Checkpoints, Phase2Limits.Objects)
+	checkpoints, err := boundedCountInt(counts.Checkpoints, limits.Objects)
 	if err != nil {
 		return err
 	}
-	events, err := boundedCountInt(counts.Events, Phase2Limits.Events)
+	events, err := boundedCountInt(counts.Events, limits.Events)
 	if err != nil {
 		return err
 	}
@@ -300,6 +295,16 @@ func setVerificationRecordCounts(verification *VerifyResult, counts ScanCounts) 
 	return nil
 }
 
+func applyGraphVerification(verification *VerifyResult, graph graphAnalysis) {
+	for _, message := range graph.Errors {
+		appendVerificationDiagnostic(verification, &verification.Errors, message)
+		appendVerificationDiagnostic(verification, &verification.DAG.Errors, message)
+	}
+	// #nosec G115 -- graph errors are bounded by the one-million-edge fixed profile.
+	verification.Counts.DAG += int(graph.ErrorCount)
+	verification.DiagnosticsTruncated = verification.DiagnosticsTruncated || graph.DiagnosticsTruncated
+}
+
 func boundedCountInt(value, maximum uint64) (int, error) {
 	if value > maximum || maximum > uint64(math.MaxInt) {
 		return 0, fmt.Errorf("bounded count does not fit in an int")
@@ -308,24 +313,12 @@ func boundedCountInt(value, maximum uint64) (int, error) {
 	return int(value), nil
 }
 
-func applyRecordCompleteness(result *ScanResult) {
-	for _, blocker := range result.Completeness.Blockers {
-		if commit, found := result.Commits[blocker.SourceID]; found {
-			commit.Completeness = "partial"
-			result.Commits[blocker.SourceID] = commit
-			continue
-		}
-		if event, found := result.Events[blocker.SourceID]; found {
-			commit := result.Commits[event.CommitID]
-			commit.Completeness = "partial"
-			result.Commits[event.CommitID] = commit
-			continue
-		}
-		if checkpoint, found := result.Checkpoints[blocker.SourceID]; found {
-			checkpoint.Completeness = "partial"
-			result.Checkpoints[blocker.SourceID] = checkpoint
-		}
+func pollContext(ctx context.Context, index int) error {
+	if index%64 == 0 {
+		afterLedgerWorkPoll()
+		return ctx.Err()
 	}
+	return nil
 }
 
 func scanWithReadLock(ctx context.Context, st *store.Store, options ScanOptions) (ScanResult, error) {
@@ -353,7 +346,7 @@ func ResolveCommit(ctx context.Context, st *store.Store, id string, requested Li
 		if os.IsNotExist(err) {
 			return CommitRecord{}, fmt.Errorf("%w: object not found: %s", ErrMissingDependency, id)
 		}
-		if strings.Contains(err.Error(), "exceeds byte limit") {
+		if _, ok := errors.AsType[*store.ObjectByteLimitError](err); ok {
 			if limits.CanonicalBytes < limits.ObjectBytes {
 				return CommitRecord{}, limitError("canonical_bytes", limits.CanonicalBytes)
 			}
@@ -368,18 +361,13 @@ func ResolveCommit(ctx context.Context, st *store.Store, id string, requested Li
 	if !verification.Valid() || verification.Type != "commit" {
 		return CommitRecord{}, fmt.Errorf("%w: object is not a valid commit: %s", ErrIntegrity, id)
 	}
+	resources := scanResourceCounts{}
+	if err := resources.addCanonicalObject(id, verification, limits); err != nil {
+		return CommitRecord{}, err
+	}
 	commit, err := storedCommitFromObject(verification.object)
 	if err != nil {
 		return CommitRecord{}, fmt.Errorf("%w: validated commit shape: %w", ErrIntegrity, err)
-	}
-	if uint64(len(commit.parents)) > limits.ParentsPerCommit {
-		return CommitRecord{}, objectLimitError("parents_per_commit", limits.ParentsPerCommit, id)
-	}
-	if uint64(len(commit.events)) > limits.EventsPerCommit {
-		return CommitRecord{}, objectLimitError("events_per_commit", limits.EventsPerCommit, id)
-	}
-	if uint64(len(commit.events)) > limits.Events {
-		return CommitRecord{}, objectLimitError("events", limits.Events, id)
 	}
 	record, _, err := recordsForCommit(id, verification, commit)
 	if err != nil {
@@ -397,20 +385,21 @@ func emptyScanResult() ScanResult {
 }
 
 func collectScannedObject(id string, object ObjectVerification, result *VerifyResult, commits map[string]storedCommit, checkpoints map[string]storedCheckpoint) error {
+	object = boundedObjectVerification(result, object)
 	result.Objects[id] = object
 	for _, message := range object.Errors {
-		result.Errors = append(result.Errors, id+": "+message)
+		appendVerificationDiagnostic(result, &result.Errors, id+": "+message)
 	}
 	switch {
 	case object.Integrity != "valid":
 		result.Counts.Integrity++
-		result.Integrity.Errors = append(result.Integrity.Errors, id+": "+strings.Join(object.Errors, "; "))
+		appendVerificationDiagnostic(result, &result.Integrity.Errors, id+": "+strings.Join(object.Errors, "; "))
 	case object.Structure != "valid":
 		result.Counts.Structure++
-		result.Structure.Errors = append(result.Structure.Errors, id+": "+strings.Join(object.Errors, "; "))
+		appendVerificationDiagnostic(result, &result.Structure.Errors, id+": "+strings.Join(object.Errors, "; "))
 	case object.Authenticity != "valid":
 		result.Counts.Authenticity++
-		result.Authenticity.Errors = append(result.Authenticity.Errors, id+": "+strings.Join(object.Errors, "; "))
+		appendVerificationDiagnostic(result, &result.Authenticity.Errors, id+": "+strings.Join(object.Errors, "; "))
 	}
 	if !object.Valid() {
 		return nil
@@ -513,75 +502,6 @@ func recordForCheckpoint(id string, verification ObjectVerification, checkpoint 
 	}, nil
 }
 
-func completenessBlockers(objects map[string]ObjectVerification, commits map[string]CommitRecord, checkpoints map[string]CheckpointRecord, events map[string]EventRecord) []Blocker {
-	unique := make(map[string]Blocker)
-	add := func(blocker Blocker) { unique[blockerSortKey(blocker)] = blocker }
-	collectCommitBlockers(objects, commits, add)
-	collectEventBlockers(objects, events, add)
-	collectCheckpointBlockers(objects, checkpoints, add)
-	result := make([]Blocker, 0, len(unique))
-	for _, blocker := range unique {
-		result = append(result, blocker)
-	}
-	sort.Slice(result, func(i, j int) bool { return blockerSortKey(result[i]) < blockerSortKey(result[j]) })
-	return result
-}
-
-func collectCommitBlockers(objects map[string]ObjectVerification, commits map[string]CommitRecord, add func(Blocker)) {
-	for id, commit := range commits {
-		for _, parent := range commit.Parents {
-			if _, present := objects[parent]; !present {
-				add(Blocker{Code: "missing_parent", SourceID: id, Field: "parents", MissingRef: parent})
-			}
-		}
-	}
-}
-
-func collectEventBlockers(objects map[string]ObjectVerification, events map[string]EventRecord, add func(Blocker)) {
-	for ref, event := range events {
-		for _, dependency := range event.CausedBy {
-			if _, present := events[dependency]; !present && !eventTargetObjectPresent(objects, dependency) {
-				add(Blocker{Code: "missing_event_reference", SourceID: ref, Field: "caused_by", MissingRef: dependency})
-			}
-		}
-		for _, dependency := range event.Supersedes {
-			if _, present := events[dependency]; !present && !eventTargetObjectPresent(objects, dependency) {
-				add(Blocker{Code: "missing_event_reference", SourceID: ref, Field: "supersedes", MissingRef: dependency})
-			}
-		}
-	}
-}
-
-func collectCheckpointBlockers(objects map[string]ObjectVerification, checkpoints map[string]CheckpointRecord, add func(Blocker)) {
-	for id, checkpoint := range checkpoints {
-		for _, entry := range checkpoint.Frontier {
-			for _, head := range entry.Heads {
-				if _, present := objects[head]; !present {
-					add(Blocker{Code: "missing_checkpoint_head", SourceID: id, Field: "frontier.heads", MissingRef: head})
-				}
-			}
-		}
-		if checkpoint.PreviousCheckpoint != "" {
-			if _, present := objects[checkpoint.PreviousCheckpoint]; !present {
-				add(Blocker{Code: "missing_previous_checkpoint", SourceID: id, Field: "previous_checkpoint", MissingRef: checkpoint.PreviousCheckpoint})
-			}
-		}
-	}
-}
-
-func eventTargetObjectPresent(objects map[string]ObjectVerification, ref string) bool {
-	match := eventRefPattern.FindStringSubmatch(ref)
-	if match == nil {
-		return false
-	}
-	_, present := objects[match[1]]
-	return present
-}
-
-func blockerSortKey(blocker Blocker) string {
-	return blocker.Code + "\x00" + blocker.SourceID + "\x00" + blocker.Field + "\x00" + blocker.MissingRef
-}
-
 func sourceFingerprint(ids []string) string {
 	hash := sha256.New()
 	_, _ = hash.Write([]byte(sourceFingerprintDomain))
@@ -598,18 +518,6 @@ func sourceFingerprint(ids []string) string {
 		_, _ = hash.Write([]byte(id))
 	}
 	return fmt.Sprintf("sha256:%x", hash.Sum(nil))
-}
-
-func objectLimitError(resource string, maximum uint64, id string) *LimitError {
-	return &LimitError{Resource: resource, Maximum: maximum, ObservedAtLeast: maximum + 1, ObjectID: id}
-}
-
-func addGraphEdges(counts *ScanCounts, limits Limits, amount uint64) error {
-	if counts.Edges > limits.GraphEdges || amount > limits.GraphEdges-counts.Edges {
-		return limitError("graph_edges", limits.GraphEdges)
-	}
-	counts.Edges += amount
-	return nil
 }
 
 func resolvedEventRefs(commitID string, refs []string) []string {
@@ -640,63 +548,36 @@ func requiredStringField(object map[string]any, field string) (string, error) {
 	return value, nil
 }
 
-func effectiveLimits(overrides Limits) Limits {
-	result := Phase2Limits
-	set := func(target *uint64, override uint64) {
-		if override != 0 {
-			*target = override
-		}
+func appendVerificationDiagnostic(result *VerifyResult, values *[]string, value string) {
+	limits := effectiveLimits(result.diagnosticLimits)
+	if uint64(len(*values)) >= limits.DiagnosticSamples {
+		result.DiagnosticsTruncated = true
+		return
 	}
-	set(&result.ObjectBytes, overrides.ObjectBytes)
-	set(&result.Objects, overrides.Objects)
-	set(&result.CanonicalBytes, overrides.CanonicalBytes)
-	set(&result.EventsPerCommit, overrides.EventsPerCommit)
-	set(&result.Events, overrides.Events)
-	set(&result.ParentsPerCommit, overrides.ParentsPerCommit)
-	set(&result.CausalDepth, overrides.CausalDepth)
-	set(&result.FrontierNodes, overrides.FrontierNodes)
-	set(&result.GraphEdges, overrides.GraphEdges)
-	set(&result.PageResults, overrides.PageResults)
-	set(&result.FilterValuesPerFamily, overrides.FilterValuesPerFamily)
-	set(&result.FilterValuesTotal, overrides.FilterValuesTotal)
-	set(&result.EncodedCursorBytes, overrides.EncodedCursorBytes)
-	set(&result.DecodedCursorBytes, overrides.DecodedCursorBytes)
-	set(&result.JSONResultBytes, overrides.JSONResultBytes)
-	set(&result.SQLiteBytes, overrides.SQLiteBytes)
-	set(&result.DiagnosticSamples, overrides.DiagnosticSamples)
-	set(&result.DiagnosticTextBytes, overrides.DiagnosticTextBytes)
-	return result
+	if uint64(len(value)) > limits.DiagnosticTextBytes {
+		// #nosec G115 -- the effective diagnostic limit is capped at 512 bytes.
+		cut := int(limits.DiagnosticTextBytes)
+		for cut > 0 && !utf8.ValidString(value[:cut]) {
+			cut--
+		}
+		value = value[:cut]
+		result.DiagnosticsTruncated = true
+	}
+	*values = append(*values, value)
 }
 
-func boundVerificationDiagnostics(result *VerifyResult, limits Limits) {
-	bound := func(values *[]string) {
-		for index, value := range *values {
-			if uint64(len(value)) > limits.DiagnosticTextBytes {
-				// #nosec G115 -- this branch proves the limit is smaller than len(value), which is an int.
-				cut := int(limits.DiagnosticTextBytes)
-				for cut > 0 && !utf8.ValidString(value[:cut]) {
-					cut--
-				}
-				(*values)[index] = value[:cut]
-				result.DiagnosticsTruncated = true
-			}
-		}
-		if uint64(len(*values)) > limits.DiagnosticSamples {
-			*values = append([]string(nil), (*values)[:limits.DiagnosticSamples]...)
-			result.DiagnosticsTruncated = true
-		}
+func boundedObjectVerification(result *VerifyResult, object ObjectVerification) ObjectVerification {
+	errorsCopy := []string{}
+	for _, message := range object.Errors {
+		appendVerificationDiagnostic(result, &errorsCopy, message)
 	}
-	bound(&result.Errors)
-	bound(&result.Warnings)
-	for _, layer := range []*LayerResult{&result.Integrity, &result.Structure, &result.Authenticity, &result.DAG, &result.References} {
-		bound(&layer.Errors)
-		bound(&layer.Warnings)
+	warningsCopy := []string{}
+	for _, message := range object.Warnings {
+		appendVerificationDiagnostic(result, &warningsCopy, message)
 	}
-	for id, object := range result.Objects {
-		bound(&object.Errors)
-		bound(&object.Warnings)
-		result.Objects[id] = object
-	}
+	object.Errors = errorsCopy
+	object.Warnings = warningsCopy
+	return object
 }
 
 func cloneVerifications(source map[string]ObjectVerification) map[string]ObjectVerification {
