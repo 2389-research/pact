@@ -3,7 +3,10 @@
 package ledger
 
 import (
+	"bytes"
 	"crypto/ed25519"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -49,5 +52,55 @@ func TestAddRootRejectsConflictingPublicBytes(t *testing.T) {
 	conflict := &identity.KeyFile{Actor: "Mallory", KeyID: key.KeyID, Public: make(ed25519.PublicKey, ed25519.PublicKeySize)}
 	if _, err := AddRoot(st, conflict, time.Now()); err == nil {
 		t.Fatal("AddRoot() error = nil, want conflicting public bytes refusal")
+	}
+}
+
+func TestAddRootRefusesTrustFileWithoutExplicitRoots(t *testing.T) {
+	st, err := store.Init(t.TempDir(), "org/example/widget", time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	key, err := identity.GenerateKeyFile(filepath.Join(t.TempDir(), "alice.key.json"), "Alice", time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(st.Dir(), "trust.json")
+	before := []byte("{\"format\":\"pact/trust/v1\"}\n")
+	if err := os.WriteFile(path, before, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := AddRoot(st, key, time.Now()); err == nil {
+		t.Fatal("AddRoot() error = nil, want missing roots refusal")
+	}
+	after, err := os.ReadFile(path)
+	if err != nil || !bytes.Equal(after, before) {
+		t.Fatalf("trust file changed after refusal: %q, err=%v", after, err)
+	}
+}
+
+func TestRootsRejectsNonStrictTrustJSON(t *testing.T) {
+	st, err := store.Init(t.TempDir(), "org/example/widget", time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(st.Dir(), "trust.json")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, malformed := range map[string][]byte{
+		"duplicate":     bytes.Replace(raw, []byte(`"format": "pact/trust/v1"`), []byte(`"format": "bad", "format": "pact/trust/v1"`), 1),
+		"nfc collision": append([]byte("{\"e\\u0301\":1,\"é\":2,"), raw[1:]...),
+		"BOM":           append([]byte{0xef, 0xbb, 0xbf}, raw...),
+		"trailing":      append(append([]byte{}, raw...), []byte("{}")...),
+	} {
+		t.Run(name, func(t *testing.T) {
+			if err := os.WriteFile(path, malformed, 0o644); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := Roots(st); err == nil {
+				t.Fatal("Roots() error = nil, want strict JSON refusal")
+			}
+		})
 	}
 }

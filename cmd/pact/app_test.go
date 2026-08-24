@@ -13,7 +13,11 @@ import (
 func TestRunInitAndHashEmitContractJSON(t *testing.T) {
 	repo := t.TempDir()
 	result := runJSON(t, []string{"init", "--repo", repo, "--namespace", "org/example/widget", "--json"})
-	if result["operation"] != "init" || result["format"] != "pact/store/v1" || result["default_namespace"] != "org/example/widget" || result["store"] != filepath.Join(repo, ".pact") {
+	storePath, err := filepath.EvalSymlinks(filepath.Join(repo, ".pact"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result["operation"] != "init" || result["format"] != "pact/store/v1" || result["default_namespace"] != "org/example/widget" || result["store"] != storePath {
 		t.Fatalf("init JSON = %#v", result)
 	}
 	file := filepath.Join(t.TempDir(), "evidence.txt")

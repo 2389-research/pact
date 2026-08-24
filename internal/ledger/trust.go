@@ -10,6 +10,7 @@ import (
 	"sort"
 	"time"
 
+	"pact/internal/canonical"
 	"pact/internal/identity"
 	"pact/internal/store"
 )
@@ -100,9 +101,51 @@ func loadRoots(st *store.Store) ([]Root, error) {
 	if err != nil {
 		return nil, err
 	}
-	var config trustFile
-	if err := json.Unmarshal(raw, &config); err != nil || config.Format != trustFormat {
+	value, err := canonical.Parse(raw)
+	if err != nil {
 		return nil, fmt.Errorf("malformed local trust file")
 	}
+	object, ok := value.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("malformed local trust file")
+	}
+	rootsValue, exists := object["roots"]
+	if !exists {
+		return nil, fmt.Errorf("malformed local trust file")
+	}
+	if _, ok := rootsValue.([]any); !ok {
+		return nil, fmt.Errorf("malformed local trust file")
+	}
+	encoded, err := canonical.Marshal(value)
+	if err != nil {
+		return nil, fmt.Errorf("malformed local trust file")
+	}
+	var config trustFile
+	if err := json.Unmarshal(encoded, &config); err != nil || config.Format != trustFormat {
+		return nil, fmt.Errorf("malformed local trust file")
+	}
+	for _, root := range config.Roots {
+		if err := validateRoot(root); err != nil {
+			return nil, err
+		}
+	}
 	return config.Roots, nil
+}
+
+func validateRoot(root Root) error {
+	if root.Actor == "" || root.AddedAt == "" {
+		return fmt.Errorf("%w: malformed trusted-root entry", ErrIntegrity)
+	}
+	if _, err := time.Parse(time.RFC3339, root.AddedAt); err != nil {
+		return fmt.Errorf("%w: malformed trusted-root entry", ErrIntegrity)
+	}
+	public, err := base64.RawURLEncoding.DecodeString(root.PublicKey)
+	if err != nil {
+		return fmt.Errorf("%w: invalid trusted root public key", ErrIntegrity)
+	}
+	expectedID, err := identity.KeyID(public)
+	if err != nil || expectedID != root.KeyID {
+		return fmt.Errorf("%w: trusted root public key mismatch for %s", ErrIntegrity, root.KeyID)
+	}
+	return nil
 }

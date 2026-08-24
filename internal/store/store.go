@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"pact/internal/canonical"
@@ -44,21 +45,42 @@ func Init(repo, namespace string, now time.Time) (*Store, error) {
 	if err := validateNamespace(namespace); err != nil {
 		return nil, err
 	}
-	absRepo, err := filepath.Abs(repo)
+	absRepo, err := resolveRepository(repo)
 	if err != nil {
 		return nil, fmt.Errorf("resolve repository path: %w", err)
 	}
-	if err := os.MkdirAll(absRepo, 0o755); err != nil {
-		return nil, fmt.Errorf("create repository directory: %w", err)
-	}
 	st := &Store{repo: absRepo, dir: filepath.Join(absRepo, ".pact")}
+	claim, err := os.OpenFile(filepath.Join(absRepo, ".pact.init.lock"), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	if errors.Is(err, fs.ErrExist) {
+		return nil, fmt.Errorf("%w: initialization is already in progress", ErrAlreadyInitialized)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("claim store initialization: %w", err)
+	}
+	claimPath := claim.Name()
+	defer os.Remove(claimPath)
+	if err := claim.Close(); err != nil {
+		return nil, fmt.Errorf("close store initialization claim: %w", err)
+	}
+	if info, err := os.Lstat(st.dir); err == nil && info.Mode()&fs.ModeSymlink != 0 {
+		return nil, fmt.Errorf("refusing symlinked PACT store: %s", st.dir)
+	} else if err != nil && !errors.Is(err, fs.ErrNotExist) {
+		return nil, fmt.Errorf("inspect store directory: %w", err)
+	}
 	if entries, err := os.ReadDir(st.dir); err == nil && len(entries) > 0 {
 		return nil, fmt.Errorf("%w: refusing to overwrite existing PACT store: %s", ErrAlreadyInitialized, st.dir)
 	} else if err != nil && !errors.Is(err, fs.ErrNotExist) {
 		return nil, fmt.Errorf("inspect store directory: %w", err)
 	}
-	for _, name := range []string{"objects/sha256", "index", "refs", "tmp"} {
-		if err := os.MkdirAll(filepath.Join(st.dir, name), 0o755); err != nil {
+	for _, path := range []string{
+		st.dir,
+		filepath.Join(st.dir, "objects"),
+		filepath.Join(st.dir, "objects", "sha256"),
+		filepath.Join(st.dir, "index"),
+		filepath.Join(st.dir, "refs"),
+		filepath.Join(st.dir, "tmp"),
+	} {
+		if err := ensureRealDirectory(path); err != nil {
 			return nil, fmt.Errorf("create store layout: %w", err)
 		}
 	}
@@ -84,7 +106,7 @@ func Init(repo, namespace string, now time.Time) (*Store, error) {
 
 // Open verifies and opens an initialized PACT store at repo.
 func Open(repo string) (*Store, error) {
-	absRepo, err := filepath.Abs(repo)
+	absRepo, err := resolveRepository(repo)
 	if err != nil {
 		return nil, fmt.Errorf("resolve repository path: %w", err)
 	}
@@ -94,7 +116,7 @@ func Open(repo string) (*Store, error) {
 		return nil, fmt.Errorf("%w at %s; run 'pact init' first", ErrNotInitialized, st.dir)
 	}
 	var format map[string]any
-	if err := json.Unmarshal(raw, &format); err != nil || format["format"] != formatName {
+	if err := decodeStrictJSON(raw, &format); err != nil || format["format"] != formatName {
 		return nil, fmt.Errorf("%w or unsupported format at %s", ErrNotInitialized, filepath.Join(st.dir, "format.json"))
 	}
 	return st, nil
@@ -109,6 +131,12 @@ func (st *Store) ReadLocal(name string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := ensureExistingRealDirectory(st.dir); err != nil {
+		return nil, err
+	}
+	if err := rejectSymlink(path); err != nil {
+		return nil, err
+	}
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read local file %s: %w", path, err)
@@ -120,6 +148,12 @@ func (st *Store) ReadLocal(name string) ([]byte, error) {
 func (st *Store) WriteLocalJSON(name string, value any, mode fs.FileMode) error {
 	path, err := st.localPath(name)
 	if err != nil {
+		return err
+	}
+	if err := ensureExistingRealDirectory(st.dir); err != nil {
+		return err
+	}
+	if err := rejectSymlink(path); err != nil {
 		return err
 	}
 	raw, err := json.MarshalIndent(value, "", "  ")
@@ -144,6 +178,12 @@ func (st *Store) PutCanonical(value any) (objectID string, created bool, err err
 	if err != nil {
 		return "", false, err
 	}
+	if err := st.ensureObjectDirectories(objectID, true); err != nil {
+		return "", false, err
+	}
+	if err := rejectSymlink(path); err != nil {
+		return "", false, err
+	}
 	if existing, readErr := os.ReadFile(path); readErr == nil {
 		if !bytes.Equal(existing, raw) {
 			return "", false, fmt.Errorf("content-address collision or corruption at %s", path)
@@ -151,9 +191,6 @@ func (st *Store) PutCanonical(value any) (objectID string, created bool, err err
 		return objectID, false, nil
 	} else if !errors.Is(readErr, fs.ErrNotExist) {
 		return "", false, fmt.Errorf("read canonical object: %w", readErr)
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return "", false, fmt.Errorf("create object directory: %w", err)
 	}
 	temporary, err := os.CreateTemp(filepath.Join(st.dir, "tmp"), "object.*.tmp")
 	if err != nil {
@@ -213,6 +250,12 @@ func (st *Store) Get(objectID string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := st.ensureObjectDirectories(objectID, false); err != nil {
+		return nil, err
+	}
+	if err := rejectSymlink(path); err != nil {
+		return nil, err
+	}
 	raw, err := os.ReadFile(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, fmt.Errorf("object not found: %s", objectID)
@@ -224,6 +267,27 @@ func (st *Store) Get(objectID string) ([]byte, error) {
 		return nil, fmt.Errorf("object digest mismatch at %s", path)
 	}
 	return raw, nil
+}
+
+func (st *Store) ensureObjectDirectories(objectID string, createTemp bool) error {
+	hexDigest := strings.TrimPrefix(objectID, "sha256:")
+	for _, path := range []string{st.dir, filepath.Join(st.dir, "objects"), filepath.Join(st.dir, "objects", "sha256")} {
+		if err := ensureExistingRealDirectory(path); err != nil {
+			return err
+		}
+	}
+	prefix := filepath.Join(st.dir, "objects", "sha256", hexDigest[:2])
+	if createTemp {
+		if err := ensureRealDirectory(prefix); err != nil {
+			return err
+		}
+	} else if err := ensureExistingRealDirectory(prefix); err != nil {
+		return err
+	}
+	if createTemp {
+		return ensureRealDirectory(filepath.Join(st.dir, "tmp"))
+	}
+	return nil
 }
 
 func (st *Store) localPath(name string) (string, error) {
@@ -271,7 +335,7 @@ func isASCIIAlphaNumeric(character rune) bool {
 }
 
 func atomicReplace(path string, data []byte, mode fs.FileMode) (err error) {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := ensureRealDirectory(filepath.Dir(path)); err != nil {
 		return err
 	}
 	temporary, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".")
@@ -308,11 +372,97 @@ func atomicReplace(path string, data []byte, mode fs.FileMode) (err error) {
 func syncDirectory(path string) error {
 	directory, err := os.Open(path)
 	if err != nil {
-		return nil
+		return ignoreUnsupportedDirectorySync(err)
 	}
 	defer directory.Close()
 	if err := directory.Sync(); err != nil {
-		return nil
+		return ignoreUnsupportedDirectorySync(err)
 	}
 	return nil
+}
+
+func resolveRepository(repo string) (string, error) {
+	absRepo, err := filepath.Abs(repo)
+	if err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(absRepo, 0o755); err != nil {
+		return "", err
+	}
+	resolved, err := filepath.EvalSymlinks(absRepo)
+	if err != nil {
+		return "", err
+	}
+	info, err := os.Stat(resolved)
+	if err != nil || !info.IsDir() {
+		return "", fmt.Errorf("repository is not a directory")
+	}
+	return resolved, nil
+}
+
+func ensureRealDirectory(path string) error {
+	info, err := os.Lstat(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		if err := os.Mkdir(path, 0o755); err != nil && !errors.Is(err, fs.ErrExist) {
+			return err
+		}
+		info, err = os.Lstat(path)
+	}
+	if err != nil {
+		return err
+	}
+	if info.Mode()&fs.ModeSymlink != 0 {
+		return fmt.Errorf("refusing symlinked store path: %s", path)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("store path is not a directory: %s", path)
+	}
+	return nil
+}
+
+func ensureExistingRealDirectory(path string) error {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return err
+	}
+	if info.Mode()&fs.ModeSymlink != 0 {
+		return fmt.Errorf("refusing symlinked store path: %s", path)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("store path is not a directory: %s", path)
+	}
+	return nil
+}
+
+func rejectSymlink(path string) error {
+	info, err := os.Lstat(path)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if info.Mode()&fs.ModeSymlink != 0 {
+		return fmt.Errorf("refusing symlinked store path: %s", path)
+	}
+	return nil
+}
+
+func decodeStrictJSON(raw []byte, destination any) error {
+	value, err := canonical.Parse(raw)
+	if err != nil {
+		return err
+	}
+	encoded, err := canonical.Marshal(value)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(encoded, destination)
+}
+
+func ignoreUnsupportedDirectorySync(err error) error {
+	if errors.Is(err, syscall.EINVAL) || errors.Is(err, syscall.ENOTSUP) || errors.Is(err, syscall.EOPNOTSUPP) {
+		return nil
+	}
+	return err
 }

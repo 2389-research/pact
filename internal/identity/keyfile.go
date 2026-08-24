@@ -13,7 +13,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
+
+	"pact/internal/canonical"
 
 	"golang.org/x/text/unicode/norm"
 )
@@ -48,7 +51,7 @@ func GenerateKeyFile(path, actor string, now time.Time) (*KeyFile, error) {
 	if actor == "" || len([]rune(actor)) > 255 {
 		return nil, fmt.Errorf("actor label must be 1-255 characters")
 	}
-	absPath, err := filepath.Abs(path)
+	absPath, err := resolveOutputPath(path)
 	if err != nil {
 		return nil, fmt.Errorf("resolve key file path: %w", err)
 	}
@@ -99,7 +102,7 @@ func LoadKeyFile(path string, requirePrivate bool) (*KeyFile, error) {
 		return nil, fmt.Errorf("read key file: %w", err)
 	}
 	var encoded encodedKeyFile
-	if err := json.Unmarshal(raw, &encoded); err != nil {
+	if err := decodeStrictJSON(raw, &encoded); err != nil {
 		return nil, fmt.Errorf("unsupported or malformed PACT key file: %s", absPath)
 	}
 	if encoded.Format != keyFormat || encoded.Algorithm != "ed25519" {
@@ -202,15 +205,68 @@ func writeNewFile(path string, data []byte, mode fs.FileMode) (err error) {
 		}
 		return err
 	}
-	syncDirectory(filepath.Dir(path))
+	if err := syncDirectory(filepath.Dir(path)); err != nil {
+		return err
+	}
 	return nil
 }
 
-func syncDirectory(path string) {
+func syncDirectory(path string) error {
 	directory, err := os.Open(path)
 	if err != nil {
-		return
+		return ignoreUnsupportedDirectorySync(err)
 	}
 	defer directory.Close()
-	_ = directory.Sync()
+	return ignoreUnsupportedDirectorySync(directory.Sync())
+}
+
+func resolveOutputPath(path string) (string, error) {
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	directory := filepath.Dir(absPath)
+	var missing []string
+	for {
+		info, err := os.Lstat(directory)
+		if err == nil {
+			if !info.IsDir() && info.Mode()&fs.ModeSymlink == 0 {
+				return "", fmt.Errorf("key output parent is not a directory")
+			}
+			break
+		}
+		if !errors.Is(err, fs.ErrNotExist) {
+			return "", err
+		}
+		parent := filepath.Dir(directory)
+		if parent == directory {
+			return "", err
+		}
+		missing = append([]string{filepath.Base(directory)}, missing...)
+		directory = parent
+	}
+	resolved, err := filepath.EvalSymlinks(directory)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(append([]string{resolved}, append(missing, filepath.Base(absPath))...)...), nil
+}
+
+func decodeStrictJSON(raw []byte, destination any) error {
+	value, err := canonical.Parse(raw)
+	if err != nil {
+		return err
+	}
+	encoded, err := canonical.Marshal(value)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(encoded, destination)
+}
+
+func ignoreUnsupportedDirectorySync(err error) error {
+	if err == nil || errors.Is(err, syscall.EINVAL) || errors.Is(err, syscall.ENOTSUP) || errors.Is(err, syscall.EOPNOTSUPP) {
+		return nil
+	}
+	return err
 }

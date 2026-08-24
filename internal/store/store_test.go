@@ -3,10 +3,12 @@
 package store
 
 import (
+	"bytes"
 	"errors"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -20,7 +22,7 @@ func TestInitCreatesReferenceLayout(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Init() error = %v", err)
 	}
-	if got, want := st.Dir(), filepath.Join(repo, ".pact"); got != want {
+	if got, want := st.Dir(), resolvedPath(t, filepath.Join(repo, ".pact")); got != want {
 		t.Fatalf("store directory = %q, want %q", got, want)
 	}
 	for _, name := range []string{"objects/sha256", "index", "refs", "tmp"} {
@@ -50,6 +52,83 @@ func TestInitRefusesExistingStore(t *testing.T) {
 	}
 }
 
+func TestInitRejectsSymlinkedStore(t *testing.T) {
+	repo := t.TempDir()
+	escaped := t.TempDir()
+	if err := os.Symlink(escaped, filepath.Join(repo, ".pact")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Init(repo, "org/example/widget", time.Now()); err == nil || !strings.Contains(err.Error(), "symlink") {
+		t.Fatalf("Init() error = %v, want symlink refusal", err)
+	}
+	entries, err := os.ReadDir(escaped)
+	if err != nil || len(entries) != 0 {
+		t.Fatalf("symlink target changed: entries=%v err=%v", entries, err)
+	}
+}
+
+func TestInitAllowsRepositoryReachedThroughSymlink(t *testing.T) {
+	repo := t.TempDir()
+	link := filepath.Join(t.TempDir(), "repo")
+	if err := os.Symlink(repo, link); err != nil {
+		t.Fatal(err)
+	}
+	st, err := Init(link, "org/example/widget", time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := st.Dir(), resolvedPath(t, filepath.Join(repo, ".pact")); got != want {
+		t.Fatalf("store directory = %q, want %q", got, want)
+	}
+}
+
+func TestConcurrentInitHasOneWinner(t *testing.T) {
+	repo := t.TempDir()
+	start := make(chan struct{})
+	results := make(chan error, 2)
+	var group sync.WaitGroup
+	for range 2 {
+		group.Add(1)
+		go func() {
+			defer group.Done()
+			<-start
+			_, err := Init(repo, "org/example/widget", time.Now())
+			results <- err
+		}()
+	}
+	close(start)
+	group.Wait()
+	close(results)
+	successes := 0
+	for err := range results {
+		if err == nil {
+			successes++
+		}
+	}
+	if successes != 1 {
+		t.Fatalf("successful Init calls = %d, want 1", successes)
+	}
+}
+
+func TestOpenRejectsNonStrictFormatJSON(t *testing.T) {
+	st := testStore(t)
+	path := filepath.Join(st.Dir(), "format.json")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, malformed := range strictJSONMutations(raw) {
+		t.Run(name, func(t *testing.T) {
+			if err := os.WriteFile(path, malformed, 0o644); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := Open(filepath.Dir(st.Dir())); err == nil {
+				t.Fatal("Open() error = nil, want strict JSON refusal")
+			}
+		})
+	}
+}
+
 func TestPutCanonicalIsIdempotent(t *testing.T) {
 	st := testStore(t)
 	value := map[string]any{"kind": "test", "count": 1}
@@ -60,6 +139,56 @@ func TestPutCanonicalIsIdempotent(t *testing.T) {
 	againID, created, err := st.PutCanonical(value)
 	if err != nil || created || againID != objectID {
 		t.Fatalf("second PutCanonical() = (%q, %v, %v), want (%q, false, nil)", againID, created, err, objectID)
+	}
+}
+
+func TestPutCanonicalRejectsSymlinkedObjectDirectory(t *testing.T) {
+	st := testStore(t)
+	objects := filepath.Join(st.Dir(), "objects")
+	escaped := t.TempDir()
+	if err := os.RemoveAll(objects); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(escaped, objects); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := st.PutCanonical(map[string]any{"kind": "test"}); err == nil || !strings.Contains(err.Error(), "symlink") {
+		t.Fatalf("PutCanonical() error = %v, want symlink refusal", err)
+	}
+	entries, err := os.ReadDir(escaped)
+	if err != nil || len(entries) != 0 {
+		t.Fatalf("symlink target changed: entries=%v err=%v", entries, err)
+	}
+}
+
+func TestPutCanonicalRecreatesDisposableTempDirectory(t *testing.T) {
+	st := testStore(t)
+	firstID, _, err := st.PutCanonical(map[string]any{"kind": "first"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.RemoveAll(filepath.Join(st.Dir(), "tmp")); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := st.PutCanonical(map[string]any{"kind": "second"}); err != nil {
+		t.Fatalf("PutCanonical() after tmp removal error = %v", err)
+	}
+	if _, err := st.Get(firstID); err != nil {
+		t.Fatalf("Get(first object) after tmp removal error = %v", err)
+	}
+}
+
+func TestPutCanonicalRefusesMissingImmutableObjectTree(t *testing.T) {
+	st := testStore(t)
+	objects := filepath.Join(st.Dir(), "objects")
+	if err := os.RemoveAll(objects); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := st.PutCanonical(map[string]any{"kind": "test"}); err == nil {
+		t.Fatal("PutCanonical() error = nil, want missing immutable tree refusal")
+	}
+	if _, err := os.Stat(objects); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("immutable object tree was recreated: err=%v", err)
 	}
 }
 
@@ -143,4 +272,22 @@ func testStore(t *testing.T) *Store {
 func objectFile(st *Store, objectID string) string {
 	hexDigest := strings.TrimPrefix(objectID, "sha256:")
 	return filepath.Join(st.Dir(), "objects", "sha256", hexDigest[:2], hexDigest[2:]+".json")
+}
+
+func strictJSONMutations(raw []byte) map[string][]byte {
+	return map[string][]byte{
+		"duplicate":     bytes.Replace(raw, []byte(`"format": "pact/store/v1"`), []byte(`"format": "bad", "format": "pact/store/v1"`), 1),
+		"nfc collision": append([]byte("{\"e\\u0301\":1,\"é\":2,"), raw[1:]...),
+		"BOM":           append([]byte{0xef, 0xbb, 0xbf}, raw...),
+		"trailing":      append(append([]byte{}, raw...), []byte("{}")...),
+	}
+}
+
+func resolvedPath(t *testing.T, path string) string {
+	t.Helper()
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return resolved
 }
