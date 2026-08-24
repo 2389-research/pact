@@ -353,15 +353,38 @@ func insertSnapshot(ctx context.Context, transaction *sql.Tx, snapshot Snapshot)
 func insertRows(ctx context.Context, transaction *sql.Tx, statement string, count int, values func(int) []any) (err error) {
 	prepared, err := transaction.PrepareContext(ctx, statement)
 	if err != nil {
-		return fmt.Errorf("prepare index row insertion: %w", err)
+		return safeIndexWriteError("prepare index row write", err)
 	}
-	defer func() { err = errors.Join(err, prepared.Close()) }()
+	defer func() {
+		if closeErr := prepared.Close(); closeErr != nil {
+			err = errors.Join(err, safeIndexWriteError("close index row write", closeErr))
+		}
+	}()
 	for index := range count {
 		if _, err := execPreparedIndexRow(ctx, prepared, values(index)...); err != nil {
-			return fmt.Errorf("insert index row: %w", err)
+			return safeIndexWriteError("write index row", err)
 		}
 	}
 	return nil
+}
+
+type indexWriteError struct {
+	message string
+	cause   error
+}
+
+func (err *indexWriteError) Error() string { return err.message }
+
+func (err *indexWriteError) Unwrap() error { return err.cause }
+
+func safeIndexWriteError(message string, cause error) error {
+	if errors.Is(cause, context.Canceled) {
+		return context.Canceled
+	}
+	if errors.Is(cause, context.DeadlineExceeded) {
+		return context.DeadlineExceeded
+	}
+	return &indexWriteError{message: message, cause: cause}
 }
 
 func refuseSidecars(path string) error {

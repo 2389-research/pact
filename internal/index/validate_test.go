@@ -162,56 +162,66 @@ func TestStatusClassificationPrecedence(t *testing.T) {
 			t.Fatalf("status = %#v, error = %v; want partial-build", status, err)
 		}
 	})
+
+	t.Run("corrupt metadata beats safely queryable incompatible schema", func(t *testing.T) {
+		st, path, _ := managerFixture(t)
+		mutateSQLiteFixture(t, path, "DROP INDEX events_type_idx")
+		mutateSQLiteFixture(t, path, "UPDATE index_meta SET value='sha256:broken' WHERE key='logical_digest'")
+		status, err := New(st).Status(context.Background())
+		if err != nil || status.Index.State != "corrupt" {
+			t.Fatalf("status = %#v, error = %v; want corrupt", status, err)
+		}
+	})
 }
 
 func TestStatusValidationDamageMatrix(t *testing.T) {
 	tests := []struct {
 		name, want string
-		mutate     func(*testing.T, string)
+		mutate     func(*testing.T, string, Snapshot)
 	}{
-		{name: "metadata key missing", want: "corrupt", mutate: func(t *testing.T, path string) {
+		{name: "metadata key missing", want: "corrupt", mutate: func(t *testing.T, path string, _ Snapshot) {
 			mutateSQLiteFixture(t, path, "DELETE FROM index_meta WHERE key='limits_contract'")
 		}},
-		{name: "metadata numeric malformed", want: "corrupt", mutate: func(t *testing.T, path string) {
+		{name: "metadata numeric malformed", want: "corrupt", mutate: func(t *testing.T, path string, _ Snapshot) {
 			mutateSQLiteFixture(t, path, "UPDATE index_meta SET value='many' WHERE key='row_count_events'")
 		}},
-		{name: "metadata format unsupported", want: "incompatible", mutate: func(t *testing.T, path string) {
+		{name: "metadata format unsupported", want: "incompatible", mutate: func(t *testing.T, path string, expected Snapshot) {
 			mutateSQLiteFixture(t, path, "UPDATE index_meta SET value='pact/sqlite-index/v2' WHERE key='format'")
-			refreshFixtureLogicalDigest(t, path)
+			refreshFixtureLogicalDigest(t, path, expected)
 		}},
-		{name: "metadata schema digest unsupported", want: "incompatible", mutate: func(t *testing.T, path string) {
+		{name: "metadata schema digest unsupported", want: "incompatible", mutate: func(t *testing.T, path string, expected Snapshot) {
 			mutateSQLiteFixture(t, path, "UPDATE index_meta SET value=? WHERE key='schema_digest'", "sha256:"+strings.Repeat("a", 64))
-			refreshFixtureLogicalDigest(t, path)
+			refreshFixtureLogicalDigest(t, path, expected)
 		}},
-		{name: "required index missing", want: "incompatible", mutate: func(t *testing.T, path string) {
+		{name: "required index missing", want: "incompatible", mutate: func(t *testing.T, path string, _ Snapshot) {
 			mutateSQLiteFixture(t, path, "DROP INDEX events_type_idx")
 		}},
-		{name: "required column missing", want: "incompatible", mutate: func(t *testing.T, path string) {
+		{name: "required column missing", want: "incompatible", mutate: func(t *testing.T, path string, _ Snapshot) {
 			writeDamagedSchemaFixture(t, path, strings.Replace(schemaDDL, "  actor_label TEXT NOT NULL,\n", "", 1))
 		}},
-		{name: "required check changed", want: "incompatible", mutate: func(t *testing.T, path string) {
+		{name: "required check changed", want: "incompatible", mutate: func(t *testing.T, path string, _ Snapshot) {
 			writeDamagedSchemaFixture(t, path, strings.Replace(schemaDDL, "('commit','checkpoint')", "('commit','checkpoint','blob')", 1))
 		}},
-		{name: "unauthorized table", want: "corrupt", mutate: func(t *testing.T, path string) {
+		{name: "unauthorized table", want: "corrupt", mutate: func(t *testing.T, path string, _ Snapshot) {
 			mutateSQLiteFixture(t, path, "CREATE TABLE extra(value TEXT) STRICT")
 		}},
-		{name: "unauthorized trigger", want: "corrupt", mutate: func(t *testing.T, path string) {
+		{name: "unauthorized trigger", want: "corrupt", mutate: func(t *testing.T, path string, _ Snapshot) {
 			mutateSQLiteFixture(t, path, "CREATE TRIGGER extra_trigger AFTER UPDATE ON index_meta BEGIN SELECT 1; END")
 		}},
-		{name: "typed row changed", want: "corrupt", mutate: func(t *testing.T, path string) {
+		{name: "typed row changed", want: "corrupt", mutate: func(t *testing.T, path string, _ Snapshot) {
 			mutateSQLiteFixture(t, path, "UPDATE objects SET actor_label='changed' WHERE object_id=(SELECT object_id FROM objects LIMIT 1)")
 		}},
-		{name: "stored row count changed", want: "corrupt", mutate: func(t *testing.T, path string) {
+		{name: "stored row count changed", want: "corrupt", mutate: func(t *testing.T, path string, _ Snapshot) {
 			mutateSQLiteFixture(t, path, "UPDATE index_meta SET value='999' WHERE key='row_count_objects'")
 		}},
-		{name: "foreign key violation", want: "corrupt", mutate: func(t *testing.T, path string) {
+		{name: "foreign key violation", want: "corrupt", mutate: func(t *testing.T, path string, _ Snapshot) {
 			mutateSQLiteFixture(t, path, "DELETE FROM objects WHERE object_id=(SELECT commit_id FROM commits LIMIT 1)")
 		}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			st, path, _ := managerFixture(t)
-			test.mutate(t, path)
+			st, path, expected := managerFixture(t)
+			test.mutate(t, path, expected)
 			status, err := New(st).Status(context.Background())
 			if err != nil {
 				t.Fatal(err)
@@ -326,25 +336,50 @@ func TestReaderCloseFailureClassifiesCorrupt(t *testing.T) {
 	}
 }
 
-func TestValidationPreflightRejectsHostileLengthsAndCountsWithoutAllocation(t *testing.T) {
+func TestValidationPreflightRejectsExcessRowsAtAdmissionSentinel(t *testing.T) {
 	db, err := sql.Open("sqlite", ":memory:")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer db.Close()
-	var equivalentLength int64
-	if err := db.QueryRow("SELECT length(zeroblob(?))", int64(900*1024*1024)).Scan(&equivalentLength); err != nil {
-		t.Fatal(err)
-	}
-	if err := validateTextLength(equivalentLength); err == nil {
-		t.Fatal("900 MiB SQL length passed the canonical-object-derived text bound")
-	}
 	if _, err := db.Exec("CREATE TABLE hostile_rows(value TEXT); INSERT INTO hostile_rows VALUES('a'),('b'),('c')"); err != nil {
 		t.Fatal(err)
 	}
-	table := streamTable{name: "hostile_rows", textLengthQuery: "SELECT coalesce(max(length(value)),0) FROM hostile_rows", maximumRows: 2}
+	table := streamTable{name: "hostile_rows", textLengthQuery: "SELECT coalesce(max(octet_length(value)),0) FROM hostile_rows", maximumRows: 2}
 	if _, err := preflightTable(context.Background(), db, table); err == nil {
 		t.Fatal("excess SQL row count passed its fixed bound")
+	}
+}
+
+func TestValidationPreflightUsesStoredTextBytes(t *testing.T) {
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if _, err := db.Exec("CREATE TABLE multibyte(value TEXT)"); err != nil {
+		t.Fatal(err)
+	}
+	value := strings.Repeat("é", int(ledger.Phase2Limits.ObjectBytes/2+1))
+	if _, err := db.Exec("INSERT INTO multibyte VALUES(?)", value); err != nil {
+		t.Fatal(err)
+	}
+	var characters, bytes int64
+	if err := db.QueryRow("SELECT length(value),octet_length(value) FROM multibyte").Scan(&characters, &bytes); err != nil {
+		t.Fatalf("modernc/sqlite v1.57.0 octet_length support: %v", err)
+	}
+	if characters >= bytes || bytes <= int64(ledger.Phase2Limits.ObjectBytes) {
+		t.Fatalf("length=%d octet_length=%d, want multibyte byte overflow", characters, bytes)
+	}
+	table := streamTable{name: "multibyte", textLengthQuery: "SELECT coalesce(max(octet_length(value)),0) FROM multibyte", maximumRows: 1}
+	if _, err := preflightTable(context.Background(), db, table); err == nil {
+		t.Fatal("stored multibyte TEXT passed the byte limit")
+	}
+	for _, table := range streamingTables(logicalTables(Snapshot{})) {
+		withoutOctets := strings.ReplaceAll(table.textLengthQuery, "octet_length(", "")
+		if strings.Contains(withoutOctets, "length(") {
+			t.Fatalf("%s bound query uses character length: %s", table.name, table.textLengthQuery)
+		}
 	}
 }
 
@@ -417,7 +452,7 @@ func TestStatusClassifiesUnsafeAndOversizeFilesAsCorrupt(t *testing.T) {
 	})
 }
 
-func TestStatusClassifiesPartialBuildBeforeStale(t *testing.T) {
+func TestStatusRejectsRowsBeyondSourceDerivedAdmission(t *testing.T) {
 	st, path, snapshot := managerFixture(t)
 	rogueID := "sha256:" + strings.Repeat("9", 64)
 	rogueRef := rogueID + "#rogue"
@@ -452,15 +487,15 @@ func TestStatusClassifiesPartialBuildBeforeStale(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if status.Index.State != "partial-build" {
-		t.Fatalf("state = %q, want partial-build", status.Index.State)
+	if status.Index.State != "corrupt" {
+		t.Fatalf("state = %q, want corrupt", status.Index.State)
 	}
 }
 
 func TestStatusClassifiesStaleWhenRowsRemainInternallyValid(t *testing.T) {
-	st, path, _ := managerFixture(t)
+	st, path, expected := managerFixture(t)
 	mutateSQLiteFixture(t, path, "UPDATE index_meta SET value=? WHERE key='source_fingerprint'", "sha256:"+strings.Repeat("7", 64))
-	refreshFixtureLogicalDigest(t, path)
+	refreshFixtureLogicalDigest(t, path, expected)
 	status, err := New(st).Status(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -479,13 +514,13 @@ func setFixtureMetadata(rows []IndexMetaRow, key, value string) {
 	}
 }
 
-func refreshFixtureLogicalDigest(t *testing.T, path string) {
+func refreshFixtureLogicalDigest(t *testing.T, path string, expected Snapshot) {
 	t.Helper()
 	db, err := openIndexReader(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	digest, _, _, readErr := readSnapshotDB(context.Background(), db, Snapshot{})
+	digest, _, _, readErr := readSnapshotDB(context.Background(), db, expected)
 	closeErr := db.Close()
 	if readErr != nil {
 		t.Fatal(readErr)

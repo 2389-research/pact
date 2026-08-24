@@ -131,10 +131,7 @@ func inspectDatabase(ctx context.Context, db *sql.DB, expected Snapshot) (databa
 	if err := validatePragmas(ctx, db); err != nil {
 		return inspection, "corrupt", err
 	}
-	if err := validateTextLengthQuery(ctx, db, "SELECT coalesce(max(max(length(name),length(type),coalesce(length(sql),0))),0) FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%'"); err != nil {
-		return inspection, "corrupt", err
-	}
-	state, err := validateSchema(ctx, db)
+	state, dataTablesSafe, err := validateSchema(ctx, db)
 	if err != nil {
 		return inspection, "corrupt", err
 	}
@@ -142,12 +139,15 @@ func inspectDatabase(ctx context.Context, db *sql.DB, expected Snapshot) (databa
 		return inspection, state, nil
 	}
 	if state == "incompatible" {
-		return inspection, "incompatible", nil
-	}
-	if err := validateTextLengthQuery(ctx, db, "SELECT coalesce(max(max(length(key),length(value))),0) FROM index_meta"); err != nil {
-		return inspection, "corrupt", err
+		incompatible = true
+		if !dataTablesSafe {
+			return inspection, "incompatible", nil
+		}
 	}
 	if err := validateRowCountQuery(ctx, db, "index_meta", uint64(len(metadataKeys))); err != nil {
+		return inspection, "corrupt", err
+	}
+	if err := validateTextLengthQuery(ctx, db, "SELECT coalesce(max(max(octet_length(key),octet_length(value))),0) FROM index_meta"); err != nil {
 		return inspection, "corrupt", err
 	}
 	meta, err := readMetadata(ctx, db)
@@ -226,28 +226,50 @@ func readPragmaInteger(ctx context.Context, db *sql.DB, name string) (int, error
 
 type schemaObject struct{ kind, sql string }
 
-func validateSchema(ctx context.Context, db *sql.DB) (string, error) {
-	want, err := schemaObjectMap(ctx, nil)
+func validateSchema(ctx context.Context, db *sql.DB) (string, bool, error) {
+	want, err := schemaObjectMap(ctx, nil, 0)
 	if err != nil {
-		return "corrupt", err
+		return "corrupt", false, err
 	}
-	got, err := schemaObjectMap(ctx, db)
+	maximum := uint64(len(want))
+	if err := validateSchemaObjectCount(ctx, db, maximum); err != nil {
+		return "corrupt", false, err
+	}
+	if err := validateTextLengthQuery(ctx, db, "SELECT coalesce(max(max(octet_length(name),octet_length(type),coalesce(octet_length(sql),0))),0) FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%'"); err != nil {
+		return "corrupt", false, err
+	}
+	got, err := schemaObjectMap(ctx, db, maximum)
 	if err != nil {
-		return "corrupt", err
+		return "corrupt", false, err
 	}
 	for name, object := range got {
 		if _, found := want[name]; !found {
 			_ = object
-			return "corrupt", nil
+			return "corrupt", false, nil
 		}
 	}
 	if !reflect.DeepEqual(got, want) {
-		return "incompatible", nil
+		return "incompatible", approvedDataTablesMatch(got, want), nil
 	}
-	return "current", nil
+	return "current", true, nil
 }
 
-func schemaObjectMap(ctx context.Context, source *sql.DB) (result map[string]schemaObject, err error) {
+func approvedDataTablesMatch(got, want map[string]schemaObject) bool {
+	for name, object := range want {
+		if object.kind == "table" && got[name] != object {
+			return false
+		}
+	}
+	return true
+}
+
+func validateSchemaObjectCount(ctx context.Context, db *sql.DB, maximum uint64) error {
+	const statement = "SELECT count(*) FROM (SELECT 1 FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%' LIMIT ?)"
+	_, err := boundedRowCount(ctx, db, statement, maximum)
+	return err
+}
+
+func schemaObjectMap(ctx context.Context, source *sql.DB, capacity uint64) (result map[string]schemaObject, err error) {
 	db := source
 	if db == nil {
 		db, err = sql.Open("sqlite", ":memory:")
@@ -264,7 +286,7 @@ func schemaObjectMap(ctx context.Context, source *sql.DB) (result map[string]sch
 		return nil, err
 	}
 	defer func() { err = errors.Join(err, rows.Close()) }()
-	result = make(map[string]schemaObject)
+	result = make(map[string]schemaObject, capacity)
 	for rows.Next() {
 		var name, kind, statement string
 		if err := rows.Scan(&name, &kind, &statement); err != nil {
@@ -336,8 +358,8 @@ type streamTable struct {
 }
 
 func readSnapshotDB(ctx context.Context, db *sql.DB, expected Snapshot) (string, bool, tableBounds, error) { //nolint:funlen,gocognit,gocyclo // Keeping the exact table order together makes digest auditing direct.
-	tables := streamingTables()
 	expectedTables := logicalTables(expected)
+	tables := streamingTables(expectedTables)
 	counts := make(tableBounds, len(tables))
 	for _, table := range tables {
 		count, err := preflightTable(ctx, db, table)
@@ -396,18 +418,19 @@ func readSnapshotDB(ctx context.Context, db *sql.DB, expected Snapshot) (string,
 	return fmt.Sprintf("sha256:%x", hash.Sum(nil)), divergent, counts, nil
 }
 
-func streamingTables() []streamTable { //nolint:funlen // SQL and typed scanners stay adjacent so digest column order remains auditable.
+func streamingTables(expected []logicalTable) []streamTable { //nolint:funlen // SQL and typed scanners stay adjacent so digest column order remains auditable.
 	textLimit := func(columns string) string { return "SELECT coalesce(max(" + columns + "),0) FROM %s" }
+	maximumRows := func(index int) uint64 { return uint64(expected[index].count) } //nolint:gosec // logicalTable.count comes from slice length and is nonnegative.
 	return []streamTable{
-		{name: "index_meta", query: "SELECT key,value FROM index_meta ORDER BY key", textLengthQuery: fmt.Sprintf(textLimit("length(key)+length(value)"), "index_meta"), maximumRows: uint64(len(metadataKeys)), scan: func(rows *sql.Rows) ([]any, error) {
+		{name: "index_meta", query: "SELECT key,value FROM index_meta ORDER BY key", textLengthQuery: fmt.Sprintf(textLimit("octet_length(key)+octet_length(value)"), "index_meta"), maximumRows: maximumRows(0), scan: func(rows *sql.Rows) ([]any, error) {
 			var key, value string
 			if err := rows.Scan(&key, &value); err != nil {
 				return nil, err
 			}
 			return []any{key, value}, nil
 		}},
-		{name: "objects", query: "SELECT object_id,object_type,namespace,body_digest,actor_key_id,actor_label,observed_at,integrity_state,structure_state,authenticity_state,completeness_state FROM objects ORDER BY object_id", textLengthQuery: fmt.Sprintf(textLimit("length(object_id)+length(object_type)+length(namespace)+length(body_digest)+length(actor_key_id)+length(actor_label)+length(observed_at)+length(integrity_state)+length(structure_state)+length(authenticity_state)+length(completeness_state)"), "objects"), maximumRows: ledger.Phase2Limits.Objects, scan: scanObjectRow},
-		{name: "commits", query: "SELECT commit_id,event_count FROM commits ORDER BY commit_id", textLengthQuery: fmt.Sprintf(textLimit("length(commit_id)"), "commits"), maximumRows: ledger.Phase2Limits.Objects, scan: func(rows *sql.Rows) ([]any, error) {
+		{name: "objects", query: "SELECT object_id,object_type,namespace,body_digest,actor_key_id,actor_label,observed_at,integrity_state,structure_state,authenticity_state,completeness_state FROM objects ORDER BY object_id", textLengthQuery: fmt.Sprintf(textLimit("octet_length(object_id)+octet_length(object_type)+octet_length(namespace)+octet_length(body_digest)+octet_length(actor_key_id)+octet_length(actor_label)+octet_length(observed_at)+octet_length(integrity_state)+octet_length(structure_state)+octet_length(authenticity_state)+octet_length(completeness_state)"), "objects"), maximumRows: maximumRows(1), scan: scanObjectRow},
+		{name: "commits", query: "SELECT commit_id,event_count FROM commits ORDER BY commit_id", textLengthQuery: fmt.Sprintf(textLimit("octet_length(commit_id)"), "commits"), maximumRows: maximumRows(2), scan: func(rows *sql.Rows) ([]any, error) {
 			var id string
 			var count uint64
 			if err := rows.Scan(&id, &count); err != nil {
@@ -415,23 +438,27 @@ func streamingTables() []streamTable { //nolint:funlen // SQL and typed scanners
 			}
 			return []any{id, count}, nil
 		}},
-		{name: "parent_edges", query: "SELECT child_id,parent_id,resolved FROM parent_edges ORDER BY child_id,parent_id", textLengthQuery: fmt.Sprintf(textLimit("length(child_id)+length(parent_id)"), "parent_edges"), maximumRows: ledger.Phase2Limits.GraphEdges, scan: scanParentEdgeRow},
-		{name: "events", query: "SELECT event_ref,commit_id,local_id,kind,event_type,subject,schema_ref,causal_batch,causal_status FROM events ORDER BY event_ref", textLengthQuery: fmt.Sprintf(textLimit("length(event_ref)+length(commit_id)+length(local_id)+length(kind)+length(event_type)+length(subject)+length(schema_ref)+length(causal_status)"), "events"), maximumRows: ledger.Phase2Limits.Events, scan: scanEventRow},
-		{name: "event_tags", query: "SELECT event_ref,tag FROM event_tags ORDER BY event_ref,tag", textLengthQuery: fmt.Sprintf(textLimit("length(event_ref)+length(tag)"), "event_tags"), maximumRows: ledger.Phase2Limits.CanonicalBytes, scan: scanTwoStrings},
-		{name: "event_links", query: "SELECT source_ref,relation,target_ref,resolved FROM event_links ORDER BY source_ref,relation,target_ref", textLengthQuery: fmt.Sprintf(textLimit("length(source_ref)+length(relation)+length(target_ref)"), "event_links"), maximumRows: ledger.Phase2Limits.GraphEdges, scan: scanThreeStringsAndInteger},
-		{name: "checkpoints", query: "SELECT checkpoint_id,scope,policy_ref,authority_epoch,previous_checkpoint FROM checkpoints ORDER BY checkpoint_id", textLengthQuery: fmt.Sprintf(textLimit("length(checkpoint_id)+length(scope)+length(policy_ref)+coalesce(length(previous_checkpoint),0)"), "checkpoints"), maximumRows: ledger.Phase2Limits.Objects, scan: scanCheckpointRow},
-		{name: "checkpoint_schema_refs", query: "SELECT checkpoint_id,schema_ref FROM checkpoint_schema_refs ORDER BY checkpoint_id,schema_ref", textLengthQuery: fmt.Sprintf(textLimit("length(checkpoint_id)+length(schema_ref)"), "checkpoint_schema_refs"), maximumRows: ledger.Phase2Limits.CanonicalBytes, scan: scanTwoStrings},
-		{name: "checkpoint_frontier", query: "SELECT checkpoint_id,namespace,head_id,resolved FROM checkpoint_frontier ORDER BY checkpoint_id,namespace,head_id", textLengthQuery: fmt.Sprintf(textLimit("length(checkpoint_id)+length(namespace)+length(head_id)"), "checkpoint_frontier"), maximumRows: ledger.Phase2Limits.GraphEdges, scan: scanThreeStringsAndInteger},
-		{name: "heads", query: "SELECT namespace,commit_id FROM heads ORDER BY namespace,commit_id", textLengthQuery: fmt.Sprintf(textLimit("length(namespace)+length(commit_id)"), "heads"), maximumRows: ledger.Phase2Limits.Objects, scan: scanTwoStrings},
-		{name: "completeness_blockers", query: "SELECT source_id,code,field,missing_ref FROM completeness_blockers ORDER BY source_id,code,field,missing_ref", textLengthQuery: fmt.Sprintf(textLimit("length(source_id)+length(code)+length(field)+length(missing_ref)"), "completeness_blockers"), maximumRows: ledger.Phase2Limits.GraphEdges, scan: scanFourStrings},
+		{name: "parent_edges", query: "SELECT child_id,parent_id,resolved FROM parent_edges ORDER BY child_id,parent_id", textLengthQuery: fmt.Sprintf(textLimit("octet_length(child_id)+octet_length(parent_id)"), "parent_edges"), maximumRows: maximumRows(3), scan: scanParentEdgeRow},
+		{name: "events", query: "SELECT event_ref,commit_id,local_id,kind,event_type,subject,schema_ref,causal_batch,causal_status FROM events ORDER BY event_ref", textLengthQuery: fmt.Sprintf(textLimit("octet_length(event_ref)+octet_length(commit_id)+octet_length(local_id)+octet_length(kind)+octet_length(event_type)+octet_length(subject)+octet_length(schema_ref)+octet_length(causal_status)"), "events"), maximumRows: maximumRows(4), scan: scanEventRow},
+		{name: "event_tags", query: "SELECT event_ref,tag FROM event_tags ORDER BY event_ref,tag", textLengthQuery: fmt.Sprintf(textLimit("octet_length(event_ref)+octet_length(tag)"), "event_tags"), maximumRows: maximumRows(5), scan: scanTwoStrings},
+		{name: "event_links", query: "SELECT source_ref,relation,target_ref,resolved FROM event_links ORDER BY source_ref,relation,target_ref", textLengthQuery: fmt.Sprintf(textLimit("octet_length(source_ref)+octet_length(relation)+octet_length(target_ref)"), "event_links"), maximumRows: maximumRows(6), scan: scanThreeStringsAndInteger},
+		{name: "checkpoints", query: "SELECT checkpoint_id,scope,policy_ref,authority_epoch,previous_checkpoint FROM checkpoints ORDER BY checkpoint_id", textLengthQuery: fmt.Sprintf(textLimit("octet_length(checkpoint_id)+octet_length(scope)+octet_length(policy_ref)+coalesce(octet_length(previous_checkpoint),0)"), "checkpoints"), maximumRows: maximumRows(7), scan: scanCheckpointRow},
+		{name: "checkpoint_schema_refs", query: "SELECT checkpoint_id,schema_ref FROM checkpoint_schema_refs ORDER BY checkpoint_id,schema_ref", textLengthQuery: fmt.Sprintf(textLimit("octet_length(checkpoint_id)+octet_length(schema_ref)"), "checkpoint_schema_refs"), maximumRows: maximumRows(8), scan: scanTwoStrings},
+		{name: "checkpoint_frontier", query: "SELECT checkpoint_id,namespace,head_id,resolved FROM checkpoint_frontier ORDER BY checkpoint_id,namespace,head_id", textLengthQuery: fmt.Sprintf(textLimit("octet_length(checkpoint_id)+octet_length(namespace)+octet_length(head_id)"), "checkpoint_frontier"), maximumRows: maximumRows(9), scan: scanThreeStringsAndInteger},
+		{name: "heads", query: "SELECT namespace,commit_id FROM heads ORDER BY namespace,commit_id", textLengthQuery: fmt.Sprintf(textLimit("octet_length(namespace)+octet_length(commit_id)"), "heads"), maximumRows: maximumRows(10), scan: scanTwoStrings},
+		{name: "completeness_blockers", query: "SELECT source_id,code,field,missing_ref FROM completeness_blockers ORDER BY source_id,code,field,missing_ref", textLengthQuery: fmt.Sprintf(textLimit("octet_length(source_id)+octet_length(code)+octet_length(field)+octet_length(missing_ref)"), "completeness_blockers"), maximumRows: maximumRows(11), scan: scanFourStrings},
 	}
 }
 
 func preflightTable(ctx context.Context, db *sql.DB, table streamTable) (uint64, error) {
+	count, err := queryRowCount(ctx, db, table.name, table.maximumRows)
+	if err != nil {
+		return 0, err
+	}
 	if err := validateTextLengthQuery(ctx, db, table.textLengthQuery); err != nil {
 		return 0, fmt.Errorf("validate %s text bounds: %w", table.name, err)
 	}
-	return queryRowCount(ctx, db, table.name, table.maximumRows)
+	return count, nil
 }
 
 func validateTextLengthQuery(ctx context.Context, db *sql.DB, statement string) error {
@@ -462,8 +489,13 @@ func validateRowCountQuery(ctx context.Context, db *sql.DB, table string, maximu
 }
 
 func queryRowCount(ctx context.Context, db *sql.DB, table string, maximum uint64) (uint64, error) {
+	statement := "SELECT count(*) FROM (SELECT 1 FROM " + table + " LIMIT ?)" //nolint:gosec // table is selected only from fixed schema names.
+	return boundedRowCount(ctx, db, statement, maximum)
+}
+
+func boundedRowCount(ctx context.Context, db *sql.DB, statement string, maximum uint64) (uint64, error) {
 	var count uint64
-	if err := db.QueryRowContext(ctx, "SELECT count(*) FROM "+table).Scan(&count); err != nil { //nolint:gosec // table is selected only from fixed schema names.
+	if err := db.QueryRowContext(ctx, statement, maximum+1).Scan(&count); err != nil {
 		return 0, fmt.Errorf("read index row count: %w", err)
 	}
 	if err := validateRowCount(count, maximum); err != nil {

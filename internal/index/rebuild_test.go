@@ -349,6 +349,90 @@ func TestRebuildPreparedExecFailurePreservesCauseAndOldBytes(t *testing.T) {
 	}
 }
 
+func TestIndexRowWriteErrorsHideDriverTextAndPreserveCause(t *testing.T) {
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	t.Run("actual prepare failure", func(t *testing.T) {
+		tx, err := db.BeginTx(context.Background(), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer tx.Rollback()
+		err = insertRows(context.Background(), tx, "INSERT SQL DSN", 0, func(int) []any { return nil })
+		assertSafeIndexWriteError(t, err)
+		if errors.Unwrap(err) == nil {
+			t.Fatal("prepare failure lost its modernc cause")
+		}
+	})
+
+	t.Run("custom execution failure", func(t *testing.T) {
+		resetIndexFailureSeams(t)
+		tx, err := db.BeginTx(context.Background(), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer tx.Rollback()
+		fault := errors.New("INSERT secret SQL from file:dsn?token=private")
+		execPreparedIndexRow = func(context.Context, *sql.Stmt, ...any) (sql.Result, error) { return nil, fault }
+		err = insertRows(context.Background(), tx, "SELECT ?", 1, func(int) []any { return []any{"safe"} })
+		assertSafeIndexWriteError(t, err)
+		if !errors.Is(err, fault) {
+			t.Fatalf("insertRows() error = %v, want preserved cause", err)
+		}
+	})
+
+	t.Run("context remains exact", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		tx, err := db.BeginTx(context.Background(), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer tx.Rollback()
+		assertDirectContextError(t, insertRows(ctx, tx, "SELECT ?", 1, func(int) []any { return []any{"safe"} }), context.Canceled)
+	})
+
+	t.Run("deadline remains exact", func(t *testing.T) {
+		ctx, cancel := context.WithDeadline(context.Background(), time.Unix(0, 0))
+		defer cancel()
+		tx, err := db.BeginTx(context.Background(), nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer tx.Rollback()
+		assertDirectContextError(t, insertRows(ctx, tx, "SELECT ?", 1, func(int) []any { return []any{"safe"} }), context.DeadlineExceeded)
+	})
+}
+
+func assertDirectContextError(t *testing.T, got, want error) {
+	t.Helper()
+	if !errors.Is(got, want) {
+		t.Fatalf("insertRows() error = %#v, want %v", got, want)
+	}
+	if _, wrapped := got.(interface{ Unwrap() error }); wrapped {
+		t.Fatalf("insertRows() error = %#v, want direct context sentinel", got)
+	}
+	if _, joined := got.(interface{ Unwrap() []error }); joined {
+		t.Fatalf("insertRows() error = %#v, want direct context sentinel", got)
+	}
+}
+
+func assertSafeIndexWriteError(t *testing.T, err error) {
+	t.Helper()
+	if err == nil {
+		t.Fatal("insertRows() error = nil")
+	}
+	upper := strings.ToUpper(err.Error())
+	for _, fragment := range []string{"INSERT", " SQL", "DSN"} {
+		if strings.Contains(upper, fragment) {
+			t.Fatalf("insertRows() error leaked %q: %q", fragment, err)
+		}
+	}
+}
+
 func TestRebuildCancellationAfterSyncPreventsRename(t *testing.T) {
 	fixture := signedPartialScanFixture(t)
 	manager := New(fixture.store)
