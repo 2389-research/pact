@@ -2,7 +2,9 @@
 # ABOUTME: Canonical source, docs, schemas, and conformance fixtures stay tracked.
 
 /.private-journal/
+/.scratch/
 /.superpowers/
+/.worktrees/
 /bin/
 /coverage/
 /dist/

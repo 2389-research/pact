@@ -16,6 +16,9 @@
 - Doctor Biz's product order is tool-first: build a usable `pact` CLI against
   the bundled Python behavior, then use the tool to refine its own contract.
   Do not block the MVP on completing every later protocol decision.
+- Doctor Biz prefers Omakase for feature builds: compare distinct approaches
+  in isolated worktrees, run one scenario contract, and keep the tested winner
+  unless Doctor Biz asks for a different workflow.
 - The Go module path is `pact` until a real hosting location exists. Do not
   invent a remote import path; change it once publication is concrete.
 - The v1 filesystem boundary blocks static symlink mistakes. It does not claim
