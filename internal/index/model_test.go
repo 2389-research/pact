@@ -27,6 +27,7 @@ const (
 
 type signedFixture struct {
 	scan                  ledger.ScanResult
+	store                 *store.Store
 	key                   *identity.KeyFile
 	presentParent         ledger.CommitResult
 	missingParent         ledger.CommitResult
@@ -374,7 +375,7 @@ func signedPartialScanFixture(t *testing.T) signedFixture {
 		t.Fatal(err)
 	}
 	return signedFixture{
-		scan: scan, key: key, presentParent: present, missingParent: missing, child: child,
+		scan: scan, store: st, key: key, presentParent: present, missingParent: missing, child: child,
 		chainCommit: chainCommit, supersedesCommit: supersedesCommit, missingHeadCommit: missingHeadCommit, missingHeadCheckpoint: missingHeadCheckpoint,
 		missingPrevious: missingPrevious, latestCheckpoint: latest, missingSupersedes: missingSupersedes,
 	}

@@ -156,17 +156,24 @@ func createSchema(ctx context.Context, db *sql.DB) (err error) {
 			_ = transaction.Rollback()
 		}
 	}()
-	if _, err = transaction.ExecContext(ctx, schemaDDL); err != nil {
-		return fmt.Errorf("create schema objects: %w", err)
-	}
-	if _, err = transaction.ExecContext(ctx, "PRAGMA application_id = 1346454356"); err != nil {
-		return fmt.Errorf("set schema application ID: %w", err)
-	}
-	if _, err = transaction.ExecContext(ctx, "PRAGMA user_version = 1"); err != nil {
-		return fmt.Errorf("set schema user version: %w", err)
+	if err = createSchemaInTransaction(ctx, transaction); err != nil {
+		return err
 	}
 	if err = transaction.Commit(); err != nil {
 		return fmt.Errorf("commit schema transaction: %w", err)
+	}
+	return nil
+}
+
+func createSchemaInTransaction(ctx context.Context, transaction *sql.Tx) error {
+	if _, err := transaction.ExecContext(ctx, schemaDDL); err != nil {
+		return fmt.Errorf("create schema objects: %w", err)
+	}
+	if _, err := transaction.ExecContext(ctx, "PRAGMA application_id = 1346454356"); err != nil {
+		return fmt.Errorf("set schema application ID: %w", err)
+	}
+	if _, err := transaction.ExecContext(ctx, "PRAGMA user_version = 1"); err != nil {
+		return fmt.Errorf("set schema user version: %w", err)
 	}
 	return nil
 }
