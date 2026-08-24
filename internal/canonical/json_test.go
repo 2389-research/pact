@@ -9,7 +9,20 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
+
+func TestParseBoundsAttackerControlledObjectKeyDiagnostics(t *testing.T) {
+	key := strings.Repeat("é", 2_000)
+	raw := []byte("{\"" + key + "\":1,\"" + key + "\":2}")
+	_, err := Parse(raw)
+	if err == nil {
+		t.Fatal("Parse() error = nil, want duplicate-key rejection")
+	}
+	if len(err.Error()) > 512 || !utf8.ValidString(err.Error()) {
+		t.Fatalf("Parse() error length = %d, valid UTF-8 = %t", len(err.Error()), utf8.ValidString(err.Error()))
+	}
+}
 
 func TestVectors(t *testing.T) {
 	t.Parallel()

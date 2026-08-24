@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"sort"
@@ -158,11 +159,11 @@ func parseObject(decoder *json.Decoder) (map[string]any, error) {
 			return nil, fmt.Errorf("JSON object key is not a string")
 		}
 		if _, exists := rawKeys[rawKey]; exists {
-			return nil, fmt.Errorf("duplicate JSON object key: %q", rawKey)
+			return nil, boundedObjectKeyError("duplicate JSON object key: ", rawKey)
 		}
 		normalizedKey := norm.NFC.String(rawKey)
 		if _, exists := normalizedKeys[normalizedKey]; exists {
-			return nil, fmt.Errorf("JSON object keys collide after Unicode normalization: %q", rawKey)
+			return nil, boundedObjectKeyError("JSON object keys collide after Unicode normalization: ", rawKey)
 		}
 		value, err := parseValue(decoder)
 		if err != nil {
@@ -180,6 +181,37 @@ func parseObject(decoder *json.Decoder) (map[string]any, error) {
 		return nil, fmt.Errorf("invalid JSON object")
 	}
 	return object, nil
+}
+
+const canonicalDiagnosticBytes = 512
+
+func boundedObjectKeyError(prefix, key string) error {
+	message := make([]byte, 0, canonicalDiagnosticBytes)
+	message = append(message, prefix...)
+	if len(message) < canonicalDiagnosticBytes {
+		message = append(message, '"')
+	}
+keyRunes:
+	for len(key) != 0 && len(message) < canonicalDiagnosticBytes-1 {
+		runeValue, width := utf8.DecodeRuneInString(key)
+		encoded := key[:width]
+		switch {
+		case runeValue == '"' || runeValue == '\\':
+			if len(message)+2 > canonicalDiagnosticBytes-1 {
+				break keyRunes
+			}
+			message = append(message, '\\', encoded[0])
+		case len(message)+len(encoded) <= canonicalDiagnosticBytes-1:
+			message = append(message, encoded...)
+		default:
+			break keyRunes
+		}
+		key = key[width:]
+	}
+	if len(message) < canonicalDiagnosticBytes {
+		message = append(message, '"')
+	}
+	return errors.New(string(message))
 }
 
 func parseArray(decoder *json.Decoder) ([]any, error) {

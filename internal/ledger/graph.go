@@ -38,6 +38,8 @@ const (
 	finishNode
 )
 
+var afterGraphFrontierAppend = func(int) {}
+
 const (
 	gateEdge uint8 = iota
 	parentEdge
@@ -285,7 +287,9 @@ func kahnBatches(ctx context.Context, nodes map[string]*graphNode, unresolved ma
 		}
 		initialIndex++
 		if node.indegree == 0 {
-			frontier = append(frontier, key)
+			if err := appendGraphFrontier(&frontier, key, limits); err != nil {
+				return 0, err
+			}
 		}
 	}
 	processed := uint64(0)
@@ -293,9 +297,6 @@ func kahnBatches(ctx context.Context, nodes map[string]*graphNode, unresolved ma
 	for len(frontier) != 0 {
 		if err := ctx.Err(); err != nil {
 			return 0, err
-		}
-		if uint64(len(frontier)) > limits.FrontierNodes {
-			return 0, limitError("frontier_nodes", limits.FrontierNodes)
 		}
 		var err error
 		frontier, err = sortOwnedStringsByContext(ctx, frontier, func(left, right string) bool { return graphNodeLess(nodes[left], nodes[right]) })
@@ -337,9 +338,20 @@ func processGraphNode(ctx context.Context, key string, node *graphNode, nodes ma
 		}
 		target.indegree--
 		if target.indegree == 0 {
-			*next = append(*next, edge.target)
+			if err := appendGraphFrontier(next, edge.target, limits); err != nil {
+				return err
+			}
 		}
 	}
+	return nil
+}
+
+func appendGraphFrontier(frontier *[]string, key string, limits Limits) error {
+	if uint64(len(*frontier)) == limits.FrontierNodes {
+		return limitError("frontier_nodes", limits.FrontierNodes)
+	}
+	*frontier = append(*frontier, key)
+	afterGraphFrontierAppend(len(*frontier))
 	return nil
 }
 

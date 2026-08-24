@@ -30,6 +30,46 @@ func TestEventReferenceNormalizationHonorsMidLoopCancellation(t *testing.T) {
 	}
 }
 
+func TestExactKeyValidationHonorsMidLoopCancellation(t *testing.T) {
+	value := make(map[string]any, 256)
+	for index := range 256 {
+		value[fmt.Sprintf("extra-%03d", index)] = index
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	original := afterLedgerWorkPoll
+	polls := 0
+	afterLedgerWorkPoll = func() {
+		polls++
+		if polls == 2 {
+			cancel()
+		}
+	}
+	t.Cleanup(func() { afterLedgerWorkPoll = original })
+	if err := exactKeysContext(ctx, value, nil, nil, "$"); !errors.Is(err, context.Canceled) {
+		t.Fatalf("exactKeysContext() error = %v, want context canceled", err)
+	}
+}
+
+func TestCanonicalObjectNormalizationHonorsMidLoopCancellation(t *testing.T) {
+	value := make(map[string]any, 256)
+	for index := range 256 {
+		value[fmt.Sprintf("field-%03d", index)] = index
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	original := afterLedgerWorkPoll
+	polls := 0
+	afterLedgerWorkPoll = func() {
+		polls++
+		if polls == 2 {
+			cancel()
+		}
+	}
+	t.Cleanup(func() { afterLedgerWorkPoll = original })
+	if _, err := normalizeObjectContext(ctx, value); !errors.Is(err, context.Canceled) {
+		t.Fatalf("normalizeObjectContext() error = %v, want context canceled", err)
+	}
+}
+
 func TestNormalizeEventBatchAdmitsExactEventLimitAndRejectsFirstExcess(t *testing.T) {
 	for _, count := range []int{1_024, 1_025} {
 		t.Run(fmt.Sprintf("%d events", count), func(t *testing.T) {

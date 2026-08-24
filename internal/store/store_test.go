@@ -364,6 +364,27 @@ func TestObjectPathOrderingHonorsMidSortCancellation(t *testing.T) {
 	}
 }
 
+func TestObjectPathOrderingChecksCancellationBeforeFullBufferAllocation(t *testing.T) {
+	files := make([]ObjectFile, 512)
+	for index := range files {
+		files[index].ID = fmt.Sprintf("sha256:%064x", len(files)-index)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	originalBefore := beforeObjectFileMergeBufferAllocation
+	originalAfter := afterObjectFileMergeBufferAllocation
+	allocated := false
+	beforeObjectFileMergeBufferAllocation = cancel
+	afterObjectFileMergeBufferAllocation = func() { allocated = true }
+	t.Cleanup(func() {
+		beforeObjectFileMergeBufferAllocation = originalBefore
+		afterObjectFileMergeBufferAllocation = originalAfter
+	})
+	result, err := sortObjectFilesContext(ctx, files)
+	if err != context.Canceled || result != nil || allocated { //nolint:errorlint // The store returns the exact context sentinel.
+		t.Fatalf("sortObjectFilesContext() = (%#v, %v), allocated = %t; want pre-allocation cancellation", result, err, allocated)
+	}
+}
+
 func TestGetBoundedRejectsOversizeBeforeRead(t *testing.T) {
 	st := testStore(t)
 	raw := []byte(`{"kind":"` + strings.Repeat("x", 1024) + `"}`)

@@ -42,16 +42,18 @@ var (
 	// ErrObjectDigestMismatch marks canonical bytes whose content does not match their object path.
 	ErrObjectDigestMismatch = errors.New("object digest mismatch")
 
-	linkFile                  = os.Link
-	afterLink                 = func(string) error { return nil }
-	beforePublish             = func(_, _ string) error { return nil }
-	syncDirectoryFile         = syncDirectory
-	readCanonicalFile         = os.ReadFile
-	unlockLockFile            = func(lock *os.File) error { return syscall.Flock(int(lock.Fd()), syscall.LOCK_UN) }
-	closeLockFile             = func(lock *os.File) error { return lock.Close() }
-	afterGetBoundedStat       = func(string) error { return nil }
-	afterObjectDirectoryBatch = func() {}
-	afterObjectFileSortChunk  = func() {}
+	linkFile                              = os.Link
+	afterLink                             = func(string) error { return nil }
+	beforePublish                         = func(_, _ string) error { return nil }
+	syncDirectoryFile                     = syncDirectory
+	readCanonicalFile                     = os.ReadFile
+	unlockLockFile                        = func(lock *os.File) error { return syscall.Flock(int(lock.Fd()), syscall.LOCK_UN) }
+	closeLockFile                         = func(lock *os.File) error { return lock.Close() }
+	afterGetBoundedStat                   = func(string) error { return nil }
+	afterObjectDirectoryBatch             = func() {}
+	afterObjectFileSortChunk              = func() {}
+	beforeObjectFileMergeBufferAllocation = func() {}
+	afterObjectFileMergeBufferAllocation  = func() {}
 )
 
 // ObjectCountLimitError reports the fixed maximum reached during object enumeration.
@@ -560,7 +562,15 @@ func sortObjectFilesContext(ctx context.Context, files []ObjectFile) ([]ObjectFi
 		sort.Slice(files[start:end], func(i, j int) bool { return files[start+i].ID < files[start+j].ID })
 		afterObjectFileSortChunk()
 	}
+	if len(files) <= objectFileSortChunkSize {
+		return files, nil
+	}
+	beforeObjectFileMergeBufferAllocation()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	buffer := make([]ObjectFile, len(files))
+	afterObjectFileMergeBufferAllocation()
 	for width := objectFileSortChunkSize; width < len(files); width *= 2 {
 		for start := 0; start < len(files); start += 2 * width {
 			middle := min(start+width, len(files))

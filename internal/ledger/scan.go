@@ -21,7 +21,11 @@ import (
 
 const sourceFingerprintDomain = "PACT-OBJECT-SET-FINGERPRINT-V1\x00"
 
-var afterLedgerWorkPoll = func() {}
+var (
+	afterLedgerWorkPoll               = func() {}
+	beforeLedgerMergeBufferAllocation = func() {}
+	afterLedgerMergeBufferAllocation  = func() {}
+)
 
 // Blocker identifies one absent immutable dependency in the local object set.
 type Blocker struct{ Code, SourceID, Field, MissingRef string }
@@ -292,7 +296,7 @@ func buildScanRecords(ctx context.Context, collected collectedObjects, result *S
 	}
 	for _, id := range checkpointIDs {
 		checkpoint := collected.checkpoints[id]
-		record, recordErr := recordForCheckpoint(id, collected.objects[id], checkpoint)
+		record, recordErr := recordForCheckpointContext(ctx, id, collected.objects[id], checkpoint)
 		if recordErr != nil {
 			return recordErr
 		}
@@ -501,7 +505,7 @@ func recordsForCommit(id string, verification ObjectVerification, commit storedC
 	return record, events, nil
 }
 
-func recordForCheckpoint(id string, verification ObjectVerification, checkpoint storedCheckpoint) (CheckpointRecord, error) {
+func recordForCheckpointContext(ctx context.Context, id string, verification ObjectVerification, checkpoint storedCheckpoint) (CheckpointRecord, error) {
 	body, err := requiredObjectField(verification.object, "body")
 	if err != nil {
 		return CheckpointRecord{}, err
@@ -521,9 +525,9 @@ func recordForCheckpoint(id string, verification ObjectVerification, checkpoint 
 	if err := errors.Join(scopeErr, policyErr, epochErr, actorIDErr, labelErr, observedErr, digestErr, schemaErr); err != nil {
 		return CheckpointRecord{}, fmt.Errorf("validated checkpoint %s projection: %w", id, err)
 	}
-	frontier := make([]CheckpointFrontier, len(checkpoint.frontier))
-	for index, entry := range checkpoint.frontier {
-		frontier[index] = CheckpointFrontier{Namespace: entry.Namespace, Heads: append([]string(nil), entry.Heads...)}
+	frontier, err := cloneCheckpointFrontierContext(ctx, checkpoint.frontier)
+	if err != nil {
+		return CheckpointRecord{}, err
 	}
 	return CheckpointRecord{
 		ID: id, Scope: scope, PolicyRef: policyRef, AuthorityEpoch: authorityEpoch, PreviousCheckpoint: checkpoint.previous,
@@ -531,6 +535,30 @@ func recordForCheckpoint(id string, verification ObjectVerification, checkpoint 
 		SchemaRefs: schemaRefs, Frontier: frontier,
 		Integrity: "valid", Structure: "valid", Authenticity: "valid", Completeness: "complete",
 	}, nil
+}
+
+func cloneCheckpointFrontierContext(ctx context.Context, source []CheckpointFrontier) ([]CheckpointFrontier, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	result := make([]CheckpointFrontier, len(source))
+	work := 0
+	for index, entry := range source {
+		if err := pollContext(ctx, work); err != nil {
+			return nil, err
+		}
+		work++
+		heads := make([]string, len(entry.Heads))
+		for headIndex, head := range entry.Heads {
+			if err := pollContext(ctx, work); err != nil {
+				return nil, err
+			}
+			work++
+			heads[headIndex] = head
+		}
+		result[index] = CheckpointFrontier{Namespace: entry.Namespace, Heads: heads}
+	}
+	return result, nil
 }
 
 func sourceFingerprint(ids []string) string {
@@ -725,7 +753,15 @@ func sortOwnedStringsByContext(ctx context.Context, values []string, less func(s
 		end := min(start+contextSortChunkSize, len(values))
 		sort.Slice(values[start:end], func(left, right int) bool { return less(values[start+left], values[start+right]) })
 	}
+	if len(values) <= contextSortChunkSize {
+		return values, nil
+	}
+	beforeLedgerMergeBufferAllocation()
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	buffer := make([]string, len(values))
+	afterLedgerMergeBufferAllocation()
 	for width := contextSortChunkSize; width < len(values); width *= 2 {
 		for start := 0; start < len(values); start += 2 * width {
 			middle := min(start+width, len(values))

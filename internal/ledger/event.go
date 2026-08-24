@@ -64,7 +64,7 @@ func normalizeEventBatchContext(ctx context.Context, value map[string]any) (Even
 	if err := ctx.Err(); err != nil {
 		return EventBatch{}, err
 	}
-	if err := exactKeys(value, []string{"events"}, []string{"namespace", "observed_at", "correlation_id", "metadata"}, "$"); err != nil {
+	if err := exactKeysContext(ctx, value, []string{"events"}, []string{"namespace", "observed_at", "correlation_id", "metadata"}, "$"); err != nil {
 		return EventBatch{}, err
 	}
 	eventsRaw, ok := value["events"].([]any)
@@ -91,7 +91,7 @@ func normalizeEventBatchContext(ctx context.Context, value map[string]any) (Even
 		return EventBatch{}, err
 	}
 	result := EventBatch{Events: events, Metadata: map[string]any{}}
-	if err := normalizeBatchFields(value, &result); err != nil {
+	if err := normalizeBatchFieldsContext(ctx, value, &result); err != nil {
 		return EventBatch{}, err
 	}
 	return result, nil
@@ -144,7 +144,7 @@ func validateLocalCausesContext(ctx context.Context, events []Event, localIDs ma
 	return nil
 }
 
-func normalizeBatchFields(value map[string]any, result *EventBatch) error {
+func normalizeBatchFieldsContext(ctx context.Context, value map[string]any, result *EventBatch) error {
 	if namespace, exists := value["namespace"]; exists {
 		text, ok := namespace.(string)
 		if !ok {
@@ -174,7 +174,7 @@ func normalizeBatchFields(value map[string]any, result *EventBatch) error {
 		if !ok {
 			return fmt.Errorf("metadata must be an object")
 		}
-		normalized, err := normalizeObject(object)
+		normalized, err := normalizeObjectContext(ctx, object)
 		if err != nil {
 			return fmt.Errorf("$.metadata: %w", err)
 		}
@@ -188,7 +188,7 @@ func normalizeEventContext(ctx context.Context, value map[string]any, path strin
 		return Event{}, err
 	}
 	required := []string{"local_id", "kind", "type", "subject", "schema_ref", "payload", "evidence", "caused_by", "supersedes", "tags"}
-	if err := exactKeys(value, required, nil, path); err != nil {
+	if err := exactKeysContext(ctx, value, required, nil, path); err != nil {
 		return Event{}, err
 	}
 	result, err := normalizeEventIdentity(value, path, localIDs)
@@ -199,7 +199,7 @@ func normalizeEventContext(ctx context.Context, value map[string]any, path strin
 	if !ok {
 		return Event{}, fmt.Errorf("%s.payload: payload must be an object", path)
 	}
-	result.Payload, err = normalizeObject(payload)
+	result.Payload, err = normalizeObjectContext(ctx, payload)
 	if err != nil {
 		return Event{}, fmt.Errorf("%s.payload: %w", path, err)
 	}
@@ -247,16 +247,25 @@ func normalizeEventIdentity(value map[string]any, path string, localIDs map[stri
 	return Event{LocalID: localID, Kind: kind, Type: eventType, Subject: norm.NFC.String(subject), SchemaRef: schemaRef}, nil
 }
 
-func exactKeys(value map[string]any, required, optional []string, path string) error {
+func exactKeysContext(ctx context.Context, value map[string]any, required, optional []string, path string) error {
 	allowed := map[string]bool{}
 	missing := make([]string, 0)
+	work := 0
 	for _, key := range required {
+		if err := pollContext(ctx, work); err != nil {
+			return err
+		}
+		work++
 		allowed[key] = true
 		if _, found := value[key]; !found {
 			missing = append(missing, key)
 		}
 	}
 	for _, key := range optional {
+		if err := pollContext(ctx, work); err != nil {
+			return err
+		}
+		work++
 		allowed[key] = true
 	}
 	sort.Strings(missing)
@@ -264,14 +273,20 @@ func exactKeys(value map[string]any, required, optional []string, path string) e
 		return fmt.Errorf("%s: missing required fields: %s", path, strings.Join(missing, ", "))
 	}
 	extra := make([]string, 0, maximumDiagnosticSamples)
+	extraCount := 0
 	for key := range value {
+		if err := pollContext(ctx, work); err != nil {
+			return err
+		}
+		work++
 		if !allowed[key] {
+			extraCount++
 			extra = insertBoundedSortedString(extra, key, maximumDiagnosticSamples)
 		}
 	}
 	if len(extra) != 0 {
 		message, truncated := boundedDiagnosticJoin(path+": unsupported fields: ", extra, ", ", Phase2Limits.DiagnosticTextBytes)
-		return &validationDiagnosticError{message: message, truncated: truncated}
+		return &validationDiagnosticError{message: message, truncated: truncated || extraCount > len(extra)}
 	}
 	return nil
 }
@@ -385,7 +400,7 @@ func normalizeEvidenceContext(ctx context.Context, value any, path string) ([]ma
 		if err := pollContext(ctx, index); err != nil {
 			return nil, err
 		}
-		normalized, err := normalizeEvidenceEntry(item, fmt.Sprintf("%s.evidence[%d]", path, index))
+		normalized, err := normalizeEvidenceEntryContext(ctx, item, fmt.Sprintf("%s.evidence[%d]", path, index))
 		if err != nil {
 			return nil, err
 		}
@@ -394,12 +409,12 @@ func normalizeEvidenceContext(ctx context.Context, value any, path string) ([]ma
 	return result, nil
 }
 
-func normalizeEvidenceEntry(value any, path string) (map[string]any, error) {
+func normalizeEvidenceEntryContext(ctx context.Context, value any, path string) (map[string]any, error) {
 	object, ok := value.(map[string]any)
 	if !ok {
 		return nil, fmt.Errorf("%s: evidence entry must be an object", path)
 	}
-	if err := exactKeys(object, []string{"ref", "digest", "media_type", "role"}, []string{"redacted", "description"}, path); err != nil {
+	if err := exactKeysContext(ctx, object, []string{"ref", "digest", "media_type", "role"}, []string{"redacted", "description"}, path); err != nil {
 		return nil, err
 	}
 	ref, refOK := object["ref"].(string)
@@ -426,13 +441,25 @@ func normalizeEvidenceEntry(value any, path string) (map[string]any, error) {
 	}
 	return normalized, nil
 }
-func normalizeObject(value map[string]any) (map[string]any, error) {
+func normalizeObjectContext(ctx context.Context, value map[string]any) (map[string]any, error) {
+	if err := pollRawStructureContext(ctx, value); err != nil {
+		return nil, err
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	normalized, err := canonical.Marshal(value)
 	if err != nil {
 		return nil, err
 	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	parsed, err := canonical.Parse(normalized)
 	if err != nil {
+		return nil, err
+	}
+	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	object, ok := parsed.(map[string]any)

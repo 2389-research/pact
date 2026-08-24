@@ -127,6 +127,10 @@ func TestCausalDepthAllows4096AndRejects4097SignedEdges(t *testing.T) {
 func TestGraphFrontierAllows4096AndRejects4097Nodes(t *testing.T) {
 	for _, count := range []int{4_096, 4_097} {
 		t.Run(fmt.Sprint(count), func(t *testing.T) {
+			maximumRetained := 0
+			original := afterGraphFrontierAppend
+			afterGraphFrontierAppend = func(size int) { maximumRetained = max(maximumRetained, size) }
+			t.Cleanup(func() { afterGraphFrontierAppend = original })
 			commits := make(map[string]CommitRecord, count)
 			events := make(map[string]EventRecord, count)
 			for index := range count {
@@ -138,10 +142,33 @@ func TestGraphFrontierAllows4096AndRejects4097Nodes(t *testing.T) {
 			_, err := analyzeGraph(context.Background(), commits, events, Phase2Limits)
 			if count == 4_097 {
 				assertLimitError(t, err, "frontier_nodes", 4_096)
+				if maximumRetained != 4_096 {
+					t.Fatalf("maximum retained frontier = %d, want 4096", maximumRetained)
+				}
 			} else if err != nil {
 				t.Fatal(err)
 			}
 		})
+	}
+}
+
+func TestGraphRejectsSubsequentFrontierAtFirstExcessAppend(t *testing.T) {
+	nodes := map[string]*graphNode{"root": {id: "root"}}
+	for index := range 4_097 {
+		key := fmt.Sprintf("target-%04d", index)
+		nodes[key] = &graphNode{id: key, indegree: 1}
+		nodes["root"].outgoing = append(nodes["root"].outgoing, graphEdge{target: key})
+	}
+	maximumRetained := 0
+	original := afterGraphFrontierAppend
+	afterGraphFrontierAppend = func(size int) { maximumRetained = max(maximumRetained, size) }
+	t.Cleanup(func() { afterGraphFrontierAppend = original })
+	limits := Phase2Limits
+	limits.FrontierNodes = 4_096
+	_, err := kahnBatches(context.Background(), nodes, map[string]bool{}, limits, &graphAnalysis{Batches: map[string]uint64{}})
+	assertLimitError(t, err, "frontier_nodes", 4_096)
+	if maximumRetained != 4_096 {
+		t.Fatalf("maximum retained subsequent frontier = %d, want 4096", maximumRetained)
 	}
 }
 

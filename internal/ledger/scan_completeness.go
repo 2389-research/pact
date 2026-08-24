@@ -72,8 +72,7 @@ func addEventCompletenessDependents(ctx context.Context, result *ScanResult, dep
 			return err
 		}
 		event := result.Events[ref]
-		dependencies := append(append([]string(nil), event.CausedBy...), event.Supersedes...)
-		for _, dependency := range dependencies {
+		for _, dependency := range event.CausedBy {
 			if err := pollContext(ctx, *work); err != nil {
 				return err
 			}

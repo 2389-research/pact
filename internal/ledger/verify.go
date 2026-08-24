@@ -643,6 +643,10 @@ func finishCanonicalVerificationContext(ctx context.Context, result ObjectVerifi
 		return ObjectVerification{}, err
 	}
 	if err != nil {
+		var diagnostic *validationDiagnosticError
+		if errors.As(err, &diagnostic) && diagnostic.truncated {
+			result.diagnosticsTruncated = true
+		}
 		result.Errors = append(result.Errors, err.Error())
 		result.Structure = "invalid"
 		return result, nil
@@ -650,7 +654,7 @@ func finishCanonicalVerificationContext(ctx context.Context, result ObjectVerifi
 	result.Type = objectType
 	result.Namespace = namespace
 	result.Structure = "valid"
-	if err := verifySignature(object); err != nil {
+	if err := verifySignatureContext(ctx, object); err != nil {
 		result.Errors = append(result.Errors, err.Error())
 		result.Authenticity = "invalid"
 		return result, nil
@@ -682,7 +686,7 @@ func validateCommitObject(object map[string]any) (string, error) {
 }
 
 func validateCommitObjectContext(ctx context.Context, object map[string]any) (string, error) {
-	if err := exactKeys(object, []string{"format", "body", "body_digest", "signature"}, nil, "$"); err != nil {
+	if err := exactKeysContext(ctx, object, []string{"format", "body", "body_digest", "signature"}, nil, "$"); err != nil {
 		return "", err
 	}
 	if object["format"] != commitFormat {
@@ -692,7 +696,7 @@ func validateCommitObjectContext(ctx context.Context, object map[string]any) (st
 	if !ok {
 		return "", fmt.Errorf("commit body must be an object")
 	}
-	if err := exactKeys(body, []string{"namespace", "parents", "actor", "authority", "observed_at", "metadata", "events"}, []string{"correlation_id"}, "$.body"); err != nil {
+	if err := exactKeysContext(ctx, body, []string{"namespace", "parents", "actor", "authority", "observed_at", "metadata", "events"}, []string{"correlation_id"}, "$.body"); err != nil {
 		return "", err
 	}
 	namespace, ok := body["namespace"].(string)
@@ -705,10 +709,10 @@ func validateCommitObjectContext(ctx context.Context, object map[string]any) (st
 	if err := validateCommitParentsContext(ctx, body["parents"]); err != nil {
 		return "", err
 	}
-	if err := validateSignedActor(body["actor"], "commit"); err != nil {
+	if err := validateSignedActorContext(ctx, body["actor"], "commit"); err != nil {
 		return "", err
 	}
-	if err := validateCommitAuthority(body["authority"]); err != nil {
+	if err := validateCommitAuthorityContext(ctx, body["authority"]); err != nil {
 		return "", err
 	}
 	if err := validateCommitContentContext(ctx, body); err != nil {
@@ -741,12 +745,12 @@ func validateCommitParentsContext(ctx context.Context, value any) error {
 	return nil
 }
 
-func validateSignedActor(value any, objectType string) error {
+func validateSignedActorContext(ctx context.Context, value any, objectType string) error {
 	actor, ok := value.(map[string]any)
 	if !ok {
 		return fmt.Errorf("%s actor must be an object", objectType)
 	}
-	if err := exactKeys(actor, []string{"key_id", "label"}, nil, "$.body.actor"); err != nil {
+	if err := exactKeysContext(ctx, actor, []string{"key_id", "label"}, nil, "$.body.actor"); err != nil {
 		return err
 	}
 	actorID, ok := actor["key_id"].(string)
@@ -760,12 +764,12 @@ func validateSignedActor(value any, objectType string) error {
 	return nil
 }
 
-func validateCommitAuthority(value any) error {
+func validateCommitAuthorityContext(ctx context.Context, value any) error {
 	authority, ok := value.(map[string]any)
 	if !ok {
 		return fmt.Errorf("commit authority must be an object")
 	}
-	if err := exactKeys(authority, []string{"delegation_ref", "epoch", "lease_ref"}, nil, "$.body.authority"); err != nil {
+	if err := exactKeysContext(ctx, authority, []string{"delegation_ref", "epoch", "lease_ref"}, nil, "$.body.authority"); err != nil {
 		return err
 	}
 	for _, field := range []string{"delegation_ref", "lease_ref"} {
@@ -821,7 +825,7 @@ func validateCheckpointObject(object map[string]any) (string, error) {
 }
 
 func validateCheckpointObjectContext(ctx context.Context, object map[string]any) (string, error) {
-	if err := exactKeys(object, []string{"format", "body", "body_digest", "signature"}, nil, "$"); err != nil {
+	if err := exactKeysContext(ctx, object, []string{"format", "body", "body_digest", "signature"}, nil, "$"); err != nil {
 		return "", err
 	}
 	if object["format"] != checkpointFormat {
@@ -831,7 +835,7 @@ func validateCheckpointObjectContext(ctx context.Context, object map[string]any)
 	if !ok {
 		return "", fmt.Errorf("checkpoint body must be an object")
 	}
-	if err := exactKeys(body, []string{"scope", "frontier", "policy_ref", "schema_refs", "authority_epoch", "previous_checkpoint", "actor", "observed_at", "metadata"}, nil, "$.body"); err != nil {
+	if err := exactKeysContext(ctx, body, []string{"scope", "frontier", "policy_ref", "schema_refs", "authority_epoch", "previous_checkpoint", "actor", "observed_at", "metadata"}, nil, "$.body"); err != nil {
 		return "", err
 	}
 	scope, ok := body["scope"].(string)
@@ -847,7 +851,7 @@ func validateCheckpointObjectContext(ctx context.Context, object map[string]any)
 	if err := validateCheckpointReferencesContext(ctx, body); err != nil {
 		return "", err
 	}
-	if err := validateSignedActor(body["actor"], "checkpoint"); err != nil {
+	if err := validateSignedActorContext(ctx, body["actor"], "checkpoint"); err != nil {
 		return "", err
 	}
 	if err := validateCheckpointMetadata(body); err != nil {
@@ -885,7 +889,7 @@ func validateCheckpointFrontierEntry(ctx context.Context, raw any, index int, sc
 	if !ok {
 		return "", fmt.Errorf("checkpoint frontier[%d] must be an object", index)
 	}
-	if err := exactKeys(entry, []string{"namespace", "heads"}, nil, fmt.Sprintf("$.body.frontier[%d]", index)); err != nil {
+	if err := exactKeysContext(ctx, entry, []string{"namespace", "heads"}, nil, fmt.Sprintf("$.body.frontier[%d]", index)); err != nil {
 		return "", err
 	}
 	namespace, ok := entry["namespace"].(string)
@@ -967,11 +971,15 @@ func validateCheckpointMetadata(body map[string]any) error {
 	return nil
 }
 func verifySignature(object map[string]any) error {
+	return verifySignatureContext(context.Background(), object)
+}
+
+func verifySignatureContext(ctx context.Context, object map[string]any) error {
 	signature, ok := object["signature"].(map[string]any)
 	if !ok {
 		return fmt.Errorf("signed object signature is missing or not an object")
 	}
-	if err := exactKeys(signature, []string{"algorithm", "key_id", "public_key", "value"}, nil, "$.signature"); err != nil {
+	if err := exactKeysContext(ctx, signature, []string{"algorithm", "key_id", "public_key", "value"}, nil, "$.signature"); err != nil {
 		return err
 	}
 	if signature["algorithm"] != "ed25519" {

@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"pact/internal/canonical"
 	"pact/internal/identity"
 	"pact/internal/store"
 )
@@ -48,6 +49,46 @@ func TestBoundedSortingStopsBeforeScanningCanceledCollections(t *testing.T) {
 	}
 	if _, err := sourceFingerprintContext(ctx, ids); !errors.Is(err, context.Canceled) {
 		t.Fatalf("sourceFingerprintContext() error = %v, want context canceled", err)
+	}
+}
+
+func TestLedgerMergeSortChecksCancellationBeforeFullBufferAllocation(t *testing.T) {
+	values := make([]string, 512)
+	for index := range values {
+		values[index] = fmt.Sprintf("%08d", len(values)-index)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	originalBefore := beforeLedgerMergeBufferAllocation
+	originalAfter := afterLedgerMergeBufferAllocation
+	allocated := false
+	beforeLedgerMergeBufferAllocation = cancel
+	afterLedgerMergeBufferAllocation = func() { allocated = true }
+	t.Cleanup(func() {
+		beforeLedgerMergeBufferAllocation = originalBefore
+		afterLedgerMergeBufferAllocation = originalAfter
+	})
+	if _, err := sortOwnedStringsContext(ctx, values); !errors.Is(err, context.Canceled) || allocated {
+		t.Fatalf("sortOwnedStringsContext() error = %v, allocated = %t; want pre-allocation cancellation", err, allocated)
+	}
+}
+
+func TestCheckpointProjectionCloneHonorsMidLoopCancellation(t *testing.T) {
+	frontier := make([]CheckpointFrontier, 256)
+	for index := range frontier {
+		frontier[index] = CheckpointFrontier{Namespace: fmt.Sprintf("scope/%03d", index), Heads: []string{fmt.Sprintf("head-%03d", index)}}
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	original := afterLedgerWorkPoll
+	polls := 0
+	afterLedgerWorkPoll = func() {
+		polls++
+		if polls == 2 {
+			cancel()
+		}
+	}
+	t.Cleanup(func() { afterLedgerWorkPoll = original })
+	if _, err := cloneCheckpointFrontierContext(ctx, frontier); !errors.Is(err, context.Canceled) {
+		t.Fatalf("cloneCheckpointFrontierContext() error = %v, want context canceled", err)
 	}
 }
 
@@ -172,11 +213,15 @@ func TestRecordCompletenessPropagatesAcrossPresentDependencyClosure(t *testing.T
 			"c": {ID: "c", Completeness: "complete"},
 			"d": {ID: "d", Completeness: "complete"},
 			"e": {ID: "e", Parents: []string{"d"}, Completeness: "complete"},
+			"f": {ID: "f", Completeness: "complete"},
+			"g": {ID: "g", Completeness: "complete"},
 		},
 		Events: map[string]EventRecord{
 			"event:b": {Ref: "event:b", CommitID: "b"},
 			"event:c": {Ref: "event:c", CommitID: "c", CausedBy: []string{"event:b"}},
 			"event:d": {Ref: "event:d", CommitID: "d", Supersedes: []string{"missing"}},
+			"event:f": {Ref: "event:f", CommitID: "f", CausedBy: []string{"missing"}},
+			"event:g": {Ref: "event:g", CommitID: "g", Supersedes: []string{"event:f"}},
 		},
 		Checkpoints: map[string]CheckpointRecord{
 			"cp1": {ID: "cp1", Frontier: []CheckpointFrontier{{Heads: []string{"b"}}}, Completeness: "complete"},
@@ -185,6 +230,7 @@ func TestRecordCompletenessPropagatesAcrossPresentDependencyClosure(t *testing.T
 		Completeness: Completeness{Blockers: []Blocker{
 			{Code: "missing_parent", SourceID: "a"},
 			{Code: "missing_event_reference", SourceID: "event:d", Field: "supersedes"},
+			{Code: "missing_event_reference", SourceID: "event:f", Field: "caused_by"},
 		}},
 	}
 	if err := applyRecordCompleteness(context.Background(), &result); err != nil {
@@ -194,6 +240,9 @@ func TestRecordCompletenessPropagatesAcrossPresentDependencyClosure(t *testing.T
 		if result.Commits[id].Completeness != "partial" {
 			t.Fatalf("commit %s completeness = %q", id, result.Commits[id].Completeness)
 		}
+	}
+	if result.Commits["f"].Completeness != "partial" || result.Commits["g"].Completeness != "complete" {
+		t.Fatalf("supersedes closure = f:%q g:%q, want partial/complete", result.Commits["f"].Completeness, result.Commits["g"].Completeness)
 	}
 	for _, id := range []string{"cp1", "cp2"} {
 		if result.Checkpoints[id].Completeness != "partial" {
@@ -391,6 +440,43 @@ func TestScanBoundsDiagnosticSamplesAndText(t *testing.T) {
 	}
 	if len(result.Verification.Errors[0]) > 80 || len(result.Verification.Structure.Errors[0]) > 80 {
 		t.Fatalf("diagnostic text exceeds bound: %#v", result.Verification)
+	}
+}
+
+func TestUnsupportedKeySampleOmissionMarksVerificationDiagnosticsTruncated(t *testing.T) {
+	st, key := ledgerStoreAndKey(t)
+	commit := commitOne(t, st, key, "source", nil)
+	raw, err := st.Get(commit.ObjectID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := canonical.Parse(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	object := parsed.(map[string]any)
+	alphabet := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	for index := range 101 {
+		name := string(alphabet[index%len(alphabet)])
+		if index >= len(alphabet) {
+			name = "a" + name
+		}
+		object[name] = index
+	}
+	objectID, _, err := st.PutCanonical(object)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := Scan(context.Background(), st, ScanOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	verification := result.Objects[objectID]
+	if verification.Structure != "invalid" || !result.Verification.DiagnosticsTruncated {
+		t.Fatalf("verification = %#v, diagnostics_truncated = %t", verification, result.Verification.DiagnosticsTruncated)
+	}
+	if len(verification.Errors) != 1 || len(verification.Errors[0]) > 512 {
+		t.Fatalf("bounded validation errors = %#v", verification.Errors)
 	}
 }
 
