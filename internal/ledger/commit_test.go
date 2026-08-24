@@ -3,7 +3,9 @@
 package ledger
 
 import (
+	"errors"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -80,6 +82,75 @@ func TestCommitRejectsUnavailableOrCrossNamespaceParents(t *testing.T) {
 	if _, err := Commit(st, key, batch, CommitOptions{Parents: []string{other.ObjectID}, ObservedAt: "2026-08-23T12:00:00Z"}); err == nil {
 		t.Fatal("Commit() cross namespace parent error = nil")
 	}
+}
+
+func TestCommitPreflightRejectsMutatedBatchBeforePersistence(t *testing.T) {
+	st, key := ledgerStoreAndKey(t)
+	batch, err := NormalizeEventBatch(map[string]any{"events": []any{eventInput("a", []any{}, []any{})}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	batch.Events = nil
+	if _, err := Commit(st, key, batch, CommitOptions{ObservedAt: "2026-08-23T12:00:00Z"}); err == nil {
+		t.Fatal("Commit() error = nil")
+	}
+	files, err := st.ObjectFiles()
+	if err != nil || len(files) != 0 {
+		t.Fatalf("objects after rejected write = %#v, %v", files, err)
+	}
+	batch, err = NormalizeEventBatch(map[string]any{"events": []any{eventInput("a", []any{}, []any{})}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	batch.Events[0].CausedBy = []string{"local:gone"}
+	if _, err := Commit(st, key, batch, CommitOptions{ObservedAt: "2026-08-23T12:00:00Z"}); err == nil {
+		t.Fatal("Commit() local-ref error = nil")
+	}
+	if files, err := st.ObjectFiles(); err != nil || len(files) != 0 {
+		t.Fatalf("objects after invalid ref = %#v, %v", files, err)
+	}
+	if _, err := Commit(st, key, mustBatch(t, "ok"), CommitOptions{ObservedAt: "2026-08-23T12:00:00Z"}); err != nil {
+		t.Fatalf("next valid Commit() = %v", err)
+	}
+}
+
+func TestCommitPreflightRejectsInvalidKeyAndDeduplicatesExplicitParents(t *testing.T) {
+	st, key := ledgerStoreAndKey(t)
+	bad := *key
+	bad.Actor = strings.Repeat("界", 256)
+	if _, err := Commit(st, &bad, mustBatch(t, "a"), CommitOptions{ObservedAt: "2026-08-23T12:00:00Z"}); err == nil {
+		t.Fatal("Commit() actor error = nil")
+	}
+	if files, err := st.ObjectFiles(); err != nil || len(files) != 0 {
+		t.Fatalf("objects after bad key = %#v, %v", files, err)
+	}
+	first := commitOne(t, st, key, "first", nil)
+	result, err := Commit(st, key, mustBatch(t, "second"), CommitOptions{Parents: []string{first.ObjectID, first.ObjectID}, ObservedAt: "2026-08-23T12:00:00Z"})
+	if err != nil || !equalStrings(result.Parents, []string{first.ObjectID}) {
+		t.Fatalf("Commit() = %#v, %v", result, err)
+	}
+}
+
+func TestHeadsAndCommitRefuseInvalidCanonicalHistory(t *testing.T) {
+	st, key := ledgerStoreAndKey(t)
+	if _, _, err := st.PutCanonical(map[string]any{"bad": true}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Heads(st, ""); !errors.Is(err, ErrIntegrity) {
+		t.Fatalf("Heads() error = %v", err)
+	}
+	if _, err := Commit(st, key, mustBatch(t, "a"), CommitOptions{ObservedAt: "2026-08-23T12:00:00Z"}); !errors.Is(err, ErrIntegrity) {
+		t.Fatalf("Commit() error = %v", err)
+	}
+}
+
+func mustBatch(t *testing.T, localID string) EventBatch {
+	t.Helper()
+	batch, err := NormalizeEventBatch(map[string]any{"events": []any{eventInput(localID, []any{}, []any{})}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return batch
 }
 
 func ledgerStoreAndKey(t *testing.T) (*store.Store, *identity.KeyFile) {

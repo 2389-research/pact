@@ -30,6 +30,7 @@ const (
 type commandError struct {
 	code    int
 	message string
+	details map[string]any
 }
 
 func (err *commandError) Error() string { return err.message }
@@ -69,7 +70,11 @@ func run(args []string, stdout, stderr io.Writer) int {
 		if errors.As(err, &expected) {
 			code = expected.code
 		}
-		emitError(stderr, asJSON, &commandError{code: code, message: err.Error()})
+		if expected != nil {
+			emitError(stderr, asJSON, expected)
+		} else {
+			emitError(stderr, asJSON, &commandError{code: code, message: err.Error()})
+		}
 		return code
 	}
 	emitResult(stdout, asJSON, result)
@@ -213,7 +218,11 @@ func emitResult(writer io.Writer, asJSON bool, result map[string]any) {
 
 func emitError(writer io.Writer, asJSON bool, err *commandError) {
 	if asJSON {
-		_ = json.NewEncoder(writer).Encode(map[string]any{"ok": false, "error": err.message, "exit_code": err.code})
+		result := map[string]any{"ok": false, "error": err.message, "exit_code": err.code}
+		if err.details != nil {
+			result["details"] = err.details
+		}
+		_ = json.NewEncoder(writer).Encode(result)
 		return
 	}
 	fprintf(writer, "PACT error: %s\n", err.message)

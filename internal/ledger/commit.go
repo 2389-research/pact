@@ -3,10 +3,12 @@
 package ledger
 
 import (
+	"crypto/ed25519"
 	"encoding/base64"
 	"fmt"
 	"sort"
 	"time"
+	"unicode/utf8"
 
 	"pact/internal/canonical"
 	"pact/internal/identity"
@@ -34,6 +36,7 @@ type CommitResult struct {
 	Authenticity         string
 	Authorization        string
 	AuthorizationReasons []string
+	LeaseStatus          string
 	Path                 string
 }
 
@@ -42,12 +45,20 @@ func Commit(st *store.Store, key *identity.KeyFile, batch EventBatch, options Co
 	if st == nil || key == nil {
 		return CommitResult{}, fmt.Errorf("store and key are required")
 	}
+	rechecked, err := NormalizeEventBatch(batchValue(batch))
+	if err != nil {
+		return CommitResult{}, err
+	}
+	batch = rechecked
+	if err := validateSigningKey(key); err != nil {
+		return CommitResult{}, err
+	}
 	commits, invalid, err := validCommits(st)
 	if err != nil {
 		return CommitResult{}, err
 	}
 	if len(invalid) != 0 {
-		return CommitResult{}, fmt.Errorf("refusing to mutate a store with invalid canonical objects: %s", invalid[0])
+		return CommitResult{}, fmt.Errorf("%w: refusing to mutate a store with invalid canonical objects: %s", ErrIntegrity, invalid[0])
 	}
 	namespace := options.Namespace
 	if namespace == "" {
@@ -69,7 +80,7 @@ func Commit(st *store.Store, key *identity.KeyFile, batch EventBatch, options Co
 	if err := normalizeParents(parents); err != nil {
 		return CommitResult{}, err
 	}
-	sort.Strings(parents)
+	parents = uniqueSorted(parents)
 	for _, parent := range parents {
 		parentObject, found := commits[parent]
 		if !found {
@@ -86,14 +97,14 @@ func Commit(st *store.Store, key *identity.KeyFile, batch EventBatch, options Co
 	if observedAt == "" {
 		observedAt = time.Now().UTC().Format(time.RFC3339)
 	}
-	if len(observedAt) > 64 {
+	if utf8.RuneCountInString(observedAt) > 64 {
 		return CommitResult{}, fmt.Errorf("observed_at must be a short timestamp string")
 	}
 	correlationID := options.CorrelationID
 	if correlationID == "" {
 		correlationID = batch.CorrelationID
 	}
-	if len(correlationID) > 255 {
+	if utf8.RuneCountInString(correlationID) > 255 {
 		return CommitResult{}, fmt.Errorf("correlation ID is too long")
 	}
 	metadata := batch.Metadata
@@ -121,6 +132,12 @@ func Commit(st *store.Store, key *identity.KeyFile, batch EventBatch, options Co
 		return CommitResult{}, err
 	}
 	object := map[string]any{"format": commitFormat, "body": body, "body_digest": bodyDigest, "signature": map[string]any{"algorithm": "ed25519", "key_id": key.KeyID, "public_key": base64.RawURLEncoding.EncodeToString(key.Public), "value": base64.RawURLEncoding.EncodeToString(signature)}}
+	if _, err := validateCommitObject(object); err != nil {
+		return CommitResult{}, fmt.Errorf("commit preflight structure: %w", err)
+	}
+	if err := verifySignature(object); err != nil {
+		return CommitResult{}, fmt.Errorf("commit preflight signature: %w", err)
+	}
 	objectID, created, err := st.PutCanonical(object)
 	if err != nil {
 		return CommitResult{}, err
@@ -136,7 +153,8 @@ func Commit(st *store.Store, key *identity.KeyFile, batch EventBatch, options Co
 	for index, event := range batch.Events {
 		refs[index] = EventRef(objectID, event.LocalID)
 	}
-	return CommitResult{ObjectID: objectID, Created: created, Namespace: namespace, Parents: parents, EventRefs: refs, Integrity: "valid", Authenticity: "valid", Authorization: authorizationFor(st, verified), AuthorizationReasons: authorizationReasons(st, verified), Path: verified.Path}, nil
+	authorization := authorizationForResult(st, verified)
+	return CommitResult{ObjectID: objectID, Created: created, Namespace: namespace, Parents: parents, EventRefs: refs, Integrity: "valid", Authenticity: "valid", Authorization: authorization.Status, AuthorizationReasons: authorization.Reasons, LeaseStatus: authorization.LeaseStatus, Path: verified.Path}, nil
 }
 
 // Heads reports valid local commit heads, optionally limited to a namespace prefix.
@@ -149,9 +167,12 @@ func Heads(st *store.Store, namespacePrefix string) (map[string][]string, error)
 			return nil, err
 		}
 	}
-	commits, _, err := validCommits(st)
+	commits, invalid, err := validCommits(st)
 	if err != nil {
 		return nil, err
+	}
+	if len(invalid) != 0 {
+		return nil, fmt.Errorf("%w: refusing to compute heads with invalid canonical objects: %s", ErrIntegrity, invalid[0])
 	}
 	all := headsFor(commits, "")
 	if namespacePrefix == "" {
@@ -226,15 +247,38 @@ func headsFor(commits map[string]storedCommit, namespace string) map[string][]st
 	return result
 }
 func normalizeParents(parents []string) error {
-	seen := map[string]bool{}
 	for _, parent := range parents {
 		if !digestPattern.MatchString(parent) {
 			return fmt.Errorf("invalid parent ID: %q", parent)
 		}
-		if seen[parent] {
-			return fmt.Errorf("duplicate parent ID: %s", parent)
-		}
-		seen[parent] = true
+	}
+	return nil
+}
+func uniqueSorted(values []string) []string {
+	seen := map[string]bool{}
+	for _, value := range values {
+		seen[value] = true
+	}
+	result := make([]string, 0, len(seen))
+	for value := range seen {
+		result = append(result, value)
+	}
+	sort.Strings(result)
+	return result
+}
+func validateSigningKey(key *identity.KeyFile) error {
+	if utf8.RuneCountInString(key.Actor) == 0 || utf8.RuneCountInString(key.Actor) > 255 {
+		return fmt.Errorf("commit actor label is invalid")
+	}
+	if len(key.Public) != ed25519.PublicKeySize || len(key.Private) != ed25519.PrivateKeySize {
+		return fmt.Errorf("commit signing key is invalid")
+	}
+	expected, err := identity.KeyID(key.Public)
+	if err != nil || expected != key.KeyID {
+		return fmt.Errorf("commit key ID does not match public key")
+	}
+	if !key.Private.Public().(ed25519.PublicKey).Equal(key.Public) {
+		return fmt.Errorf("commit private/public key mismatch")
 	}
 	return nil
 }

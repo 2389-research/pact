@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"unicode/utf8"
 
 	"pact/internal/canonical"
 
@@ -26,7 +27,7 @@ var (
 	jwtPattern         = regexp.MustCompile(`\beyJ[A-Za-z0-9_-]{12,}\.[A-Za-z0-9_-]{12,}\.[A-Za-z0-9_-]{12,}\b`)
 	githubTokenPattern = regexp.MustCompile(`\bgh[pousr]_[A-Za-z0-9]{20,}\b`)
 	awsKeyPattern      = regexp.MustCompile(`\b(?:AKIA|ASIA)[A-Z0-9]{16}\b`)
-	envNamePattern     = regexp.MustCompile(`^[A-Z_][A-Z0-9_]*$`)
+	envNamePattern     = regexp.MustCompile(`^[A-Z][A-Z0-9_]{2,127}$`)
 )
 
 var secretFieldNames = map[string]struct{}{
@@ -99,14 +100,14 @@ func NormalizeEventBatch(value map[string]any) (EventBatch, error) {
 	}
 	if observed, exists := value["observed_at"]; exists {
 		text, ok := observed.(string)
-		if !ok || text == "" || len(text) > 64 {
+		if !ok || text == "" || utf8.RuneCountInString(text) > 64 {
 			return EventBatch{}, fmt.Errorf("observed_at must be a short timestamp string")
 		}
 		result.ObservedAt = norm.NFC.String(text)
 	}
 	if correlation, exists := value["correlation_id"]; exists {
 		text, ok := correlation.(string)
-		if !ok || len(text) > 255 {
+		if !ok || utf8.RuneCountInString(text) > 255 {
 			return EventBatch{}, fmt.Errorf("correlation_id must be a string no longer than 255 characters")
 		}
 		result.CorrelationID = norm.NFC.String(text)
@@ -150,7 +151,7 @@ func normalizeEvent(value map[string]any, path string, localIDs map[string]struc
 		return Event{}, fmt.Errorf("%s.type: invalid event type", path)
 	}
 	subject, ok := value["subject"].(string)
-	if !ok || subject == "" || len(subject) > 512 {
+	if !ok || subject == "" || utf8.RuneCountInString(subject) > 512 {
 		return Event{}, fmt.Errorf("%s.subject: invalid subject", path)
 	}
 	schemaRef, ok := value["schema_ref"].(string)
@@ -252,7 +253,7 @@ func normalizeTags(value any, path string) ([]string, error) {
 	values := map[string]struct{}{}
 	for _, item := range raw {
 		tag, ok := item.(string)
-		if !ok || tag == "" || len(tag) > 128 {
+		if !ok || tag == "" || utf8.RuneCountInString(tag) > 128 {
 			return nil, fmt.Errorf("%s: invalid tag", path)
 		}
 		values[norm.NFC.String(tag)] = struct{}{}
@@ -282,7 +283,7 @@ func normalizeEvidence(value any, path string) ([]map[string]any, error) {
 		digest, digestOK := object["digest"].(string)
 		media, mediaOK := object["media_type"].(string)
 		role, roleOK := object["role"].(string)
-		if !refOK || ref == "" || len(ref) > 2048 || !digestOK || !digestPattern.MatchString(digest) || !mediaOK || media == "" || len(media) > 255 || !roleOK || (role != "primary" && role != "supporting" && role != "derived") {
+		if !refOK || ref == "" || utf8.RuneCountInString(ref) > 2048 || !digestOK || !digestPattern.MatchString(digest) || !mediaOK || media == "" || utf8.RuneCountInString(media) > 255 || !roleOK || (role != "primary" && role != "supporting" && role != "derived") {
 			return nil, fmt.Errorf("%s.evidence[%d]: invalid evidence entry", path, index)
 		}
 		normalized := map[string]any{"ref": norm.NFC.String(ref), "digest": digest, "media_type": norm.NFC.String(media), "role": role}
@@ -295,7 +296,7 @@ func normalizeEvidence(value any, path string) ([]map[string]any, error) {
 		}
 		if description, found := object["description"]; found {
 			text, ok := description.(string)
-			if !ok || len(text) > 512 {
+			if !ok || utf8.RuneCountInString(text) > 512 {
 				return nil, fmt.Errorf("%s.evidence[%d].description: invalid description", path, index)
 			}
 			normalized["description"] = norm.NFC.String(text)

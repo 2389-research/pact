@@ -67,7 +67,7 @@ func runCommit(args []string, stderr io.Writer) (map[string]any, error) {
 	if err != nil {
 		return nil, ledgerCommandError(err)
 	}
-	return map[string]any{"operation": "commit", "object_id": result.ObjectID, "created": result.Created, "namespace": result.Namespace, "parents": result.Parents, "event_refs": result.EventRefs, "integrity": result.Integrity, "authenticity": result.Authenticity, "authorization": result.Authorization, "authorization_reasons": result.AuthorizationReasons, "path": result.Path}, nil
+	return map[string]any{"operation": "commit", "object_id": result.ObjectID, "created": result.Created, "namespace": result.Namespace, "parents": result.Parents, "event_refs": result.EventRefs, "integrity": result.Integrity, "authenticity": result.Authenticity, "authorization": result.Authorization, "authorization_reasons": result.AuthorizationReasons, "lease_status": result.LeaseStatus, "path": result.Path}, nil
 }
 
 func runHeads(args []string, stderr io.Writer) (map[string]any, error) {
@@ -142,12 +142,16 @@ func runVerify(args []string, stderr io.Writer) (map[string]any, error) {
 	}
 	result := verifyMap(verified)
 	if !verified.OK {
-		return nil, &commandError{code: exitIntegrity, message: "PACT verification failed"}
+		return nil, &commandError{code: exitIntegrity, message: "PACT verification failed", details: result}
 	}
 	return result, nil
 }
 func verifyMap(result ledger.VerifyResult) map[string]any {
-	return map[string]any{"operation": "verify", "strict": result.Strict, "ok": result.OK, "counts": map[string]any{"objects": result.Counts.Objects, "commits": result.Counts.Commits, "events": result.Counts.Events, "authorized": result.Counts.Authorized, "unauthorized": result.Counts.Unauthorized, "indeterminate": result.Counts.Indeterminate}, "heads": result.Heads, "errors": result.Errors, "warnings": result.Warnings, "authorization": result.Authorization, "objects": result.Objects}
+	objects := map[string]any{}
+	for id, object := range result.Objects {
+		objects[id] = map[string]any{"type": object.Type, "namespace": object.Namespace, "integrity": object.Integrity, "structure": object.Structure, "authenticity": object.Authenticity, "errors": object.Errors, "warnings": object.Warnings, "path": object.Path}
+	}
+	return map[string]any{"operation": "verify", "repo": result.Repo, "store": result.Store, "strict": result.Strict, "ok": result.OK, "counts": map[string]any{"objects": result.Counts.Objects, "commits": result.Counts.Commits, "events": result.Counts.Events, "integrity": result.Counts.Integrity, "structure": result.Counts.Structure, "authenticity": result.Counts.Authenticity, "dag": result.Counts.DAG, "references": result.Counts.References, "authorized": result.Counts.Authorized, "unauthorized": result.Counts.Unauthorized, "indeterminate": result.Counts.Indeterminate}, "heads": result.Heads, "index_status": result.IndexStatus, "integrity": result.Integrity, "structure": result.Structure, "authenticity": result.Authenticity, "dag": result.DAG, "references": result.References, "errors": result.Errors, "warnings": result.Warnings, "authorization": result.Authorization, "objects": objects}
 }
 func ledgerCommandError(err error) error {
 	if strings.Contains(err.Error(), "secret-like") {

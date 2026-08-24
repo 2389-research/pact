@@ -118,6 +118,31 @@ func TestRunCommitHeadsShowAndVerifyEmitJSON(t *testing.T) {
 	}
 }
 
+func TestRunVerifyFailureIncludesLayeredDetailsAndCommitUsesIntegrityExit(t *testing.T) {
+	repo := t.TempDir()
+	keyPath := filepath.Join(t.TempDir(), "alice.key.json")
+	runJSON(t, []string{"init", "--repo", repo, "--namespace", "org/example/widget", "--json"})
+	runJSON(t, []string{"keygen", "--actor", "Alice", "--out", keyPath, "--json"})
+	batchPath := filepath.Join(t.TempDir(), "events.json")
+	if err := os.WriteFile(batchPath, []byte(`{"events":[{"local_id":"e1","kind":"observation","type":"widget.seen","subject":"widget-1","schema_ref":"pact:core/widget/v1","payload":{},"evidence":[],"caused_by":[],"supersedes":[],"tags":[]}]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	commit := runJSON(t, []string{"commit", "--repo", repo, "--key-file", keyPath, "--events", batchPath, "--json"})
+	hexID := commit["object_id"].(string)[len("sha256:"):]
+	path := filepath.Join(repo, ".pact", "objects", "sha256", hexID[:2], hexID[2:]+".json")
+	if err := os.WriteFile(path, []byte(`{"bad":true}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	result := runErrorJSON(t, []string{"verify", "--repo", repo, "--json"}, 4)
+	if result["details"] == nil || result["details"].(map[string]any)["objects"] == nil || result["details"].(map[string]any)["counts"] == nil {
+		t.Fatalf("verify error JSON = %#v", result)
+	}
+	result = runErrorJSON(t, []string{"commit", "--repo", repo, "--key-file", keyPath, "--events", batchPath, "--json"}, 4)
+	if result["exit_code"] != float64(4) {
+		t.Fatalf("commit error JSON = %#v", result)
+	}
+}
+
 func runJSON(t *testing.T, args []string) map[string]any {
 	t.Helper()
 	var stdout, stderr bytes.Buffer
@@ -127,6 +152,19 @@ func runJSON(t *testing.T, args []string) map[string]any {
 	var result map[string]any
 	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
 		t.Fatalf("decode JSON output %q: %v", stdout.String(), err)
+	}
+	return result
+}
+
+func runErrorJSON(t *testing.T, args []string, wantCode int) map[string]any {
+	t.Helper()
+	var stdout, stderr bytes.Buffer
+	if code := run(args, &stdout, &stderr); code != wantCode {
+		t.Fatalf("run(%q) exit = %d, want %d; stderr=%q", args, code, wantCode, stderr.String())
+	}
+	var result map[string]any
+	if err := json.Unmarshal(stderr.Bytes(), &result); err != nil {
+		t.Fatalf("decode error JSON %q: %v", stderr.String(), err)
 	}
 	return result
 }

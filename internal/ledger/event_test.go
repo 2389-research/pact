@@ -63,6 +63,31 @@ func TestNormalizeEventBatchReportsCredentialBearingURLWithoutValue(t *testing.T
 	}
 }
 
+func TestNormalizeEventBatchSecretEnvironmentPlaceholdersMatchOracle(t *testing.T) {
+	for _, value := range []string{"_", "A", strings.Repeat("A", 129)} {
+		batch := map[string]any{"events": []any{eventInput("a", []any{}, []any{})}}
+		batch["events"].([]any)[0].(map[string]any)["payload"] = map[string]any{"api_key": value}
+		if _, err := NormalizeEventBatch(batch); err == nil || !strings.Contains(err.Error(), "secret-like field value") {
+			t.Fatalf("api_key %q error = %v", value, err)
+		}
+	}
+	for _, value := range []string{"PACT_API_KEY", "$PACT_API_KEY", "${PACT_API_KEY}"} {
+		batch := map[string]any{"events": []any{eventInput("a", []any{}, []any{})}}
+		batch["events"].([]any)[0].(map[string]any)["payload"] = map[string]any{"api_key": value}
+		if _, err := NormalizeEventBatch(batch); err != nil {
+			t.Fatalf("api_key placeholder %q error = %v", value, err)
+		}
+	}
+}
+
+func TestNormalizeEventBatchUsesRuneLimits(t *testing.T) {
+	batch := eventInput("a", []any{strings.Repeat("界", 128)}, []any{})
+	batch["subject"] = strings.Repeat("界", 512)
+	if _, err := NormalizeEventBatch(map[string]any{"observed_at": strings.Repeat("界", 64), "correlation_id": strings.Repeat("界", 255), "events": []any{batch}}); err != nil {
+		t.Fatalf("rune boundaries error = %v", err)
+	}
+}
+
 func eventInput(localID string, tags, causedBy []any) map[string]any {
 	return map[string]any{
 		"local_id": localID, "kind": "observation", "type": "widget.seen", "subject": "widget-1",

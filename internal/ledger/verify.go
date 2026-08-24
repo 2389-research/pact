@@ -8,8 +8,11 @@ import (
 	"encoding/base64"
 	"fmt"
 	"os"
+	"path/filepath"
 	"reflect"
 	"sort"
+	"strings"
+	"unicode/utf8"
 
 	"pact/internal/canonical"
 	"pact/internal/identity"
@@ -23,6 +26,7 @@ type ObjectVerification struct {
 	Type         string         `json:"type"`
 	Namespace    string         `json:"namespace"`
 	Integrity    string         `json:"integrity"`
+	Structure    string         `json:"structure"`
 	Authenticity string         `json:"authenticity"`
 	Errors       []string       `json:"errors"`
 	Warnings     []string       `json:"warnings"`
@@ -36,23 +40,38 @@ func (verification ObjectVerification) Valid() bool {
 
 // AuthorizationResult is deliberately independent from signature authenticity.
 type AuthorizationResult struct {
-	Status  string   `json:"status"`
-	Reasons []string `json:"reasons"`
+	Status      string   `json:"status"`
+	Reasons     []string `json:"reasons"`
+	Chain       []string `json:"chain"`
+	LeaseStatus string   `json:"lease_status"`
+	Depth       int      `json:"depth"`
 }
 
 // VerifyCounts provides separate outcome counts for each verification layer.
-type VerifyCounts struct{ Objects, Commits, Events, Authorized, Unauthorized, Indeterminate int }
+type VerifyCounts struct{ Objects, Commits, Events, Authorized, Unauthorized, Indeterminate, Integrity, Structure, Authenticity, DAG, References int }
+type LayerResult struct {
+	Errors   []string `json:"errors"`
+	Warnings []string `json:"warnings"`
+}
 
 // VerifyResult contains all verification layers without a collapsed validity signal.
 type VerifyResult struct {
 	OK            bool
 	Strict        bool
+	Repo          string
+	Store         string
+	IndexStatus   string
 	Counts        VerifyCounts
 	Heads         map[string][]string
 	Errors        []string
 	Warnings      []string
 	Authorization map[string]AuthorizationResult
 	Objects       map[string]ObjectVerification
+	Integrity     LayerResult
+	Structure     LayerResult
+	Authenticity  LayerResult
+	DAG           LayerResult
+	References    LayerResult
 }
 
 // ShowResult provides an object or event inspection result without evidence retrieval.
@@ -79,7 +98,7 @@ func Verify(st *store.Store, strict bool) (VerifyResult, error) {
 	if err != nil {
 		return VerifyResult{}, err
 	}
-	result := VerifyResult{Strict: strict, Heads: map[string][]string{}, Authorization: map[string]AuthorizationResult{}, Objects: map[string]ObjectVerification{}}
+	result := VerifyResult{Strict: strict, Repo: filepath.Dir(st.Dir()), Store: st.Dir(), IndexStatus: "missing", Heads: map[string][]string{}, Authorization: map[string]AuthorizationResult{}, Objects: map[string]ObjectVerification{}}
 	commits := map[string]storedCommit{}
 	for _, file := range files {
 		verification, err := verifyStoredObject(st, file)
@@ -90,6 +109,16 @@ func Verify(st *store.Store, strict bool) (VerifyResult, error) {
 		result.Counts.Objects++
 		for _, message := range verification.Errors {
 			result.Errors = append(result.Errors, file.ID+": "+message)
+		}
+		if verification.Integrity != "valid" {
+			result.Counts.Integrity++
+			result.Integrity.Errors = append(result.Integrity.Errors, file.ID+": "+strings.Join(verification.Errors, "; "))
+		} else if verification.Structure != "valid" {
+			result.Counts.Structure++
+			result.Structure.Errors = append(result.Structure.Errors, file.ID+": "+strings.Join(verification.Errors, "; "))
+		} else if verification.Authenticity != "valid" {
+			result.Counts.Authenticity++
+			result.Authenticity.Errors = append(result.Authenticity.Errors, file.ID+": "+strings.Join(verification.Errors, "; "))
 		}
 		for _, message := range verification.Warnings {
 			result.Warnings = append(result.Warnings, file.ID+": "+message)
@@ -107,16 +136,22 @@ func Verify(st *store.Store, strict bool) (VerifyResult, error) {
 			parentID := parent.(string)
 			parentCommit, found := commits[parentID]
 			if !found {
-				resultAt(&result, strict, fmt.Sprintf("%s: missing or invalid parent %s", id, parentID))
+				resultDAGAt(&result, strict, fmt.Sprintf("%s: missing or invalid parent %s", id, parentID))
 				continue
 			}
 			if parentCommit.body["namespace"].(string) != namespace {
-				result.Errors = append(result.Errors, fmt.Sprintf("%s: parent %s belongs to different namespace %q", id, parentID, parentCommit.body["namespace"].(string)))
+				message := fmt.Sprintf("%s: parent %s belongs to different namespace %q", id, parentID, parentCommit.body["namespace"].(string))
+				result.Errors = append(result.Errors, message)
+				result.DAG.Errors = append(result.DAG.Errors, message)
+				result.Counts.DAG++
 			}
 		}
 	}
 	for _, cycle := range commitCycles(commits) {
-		result.Errors = append(result.Errors, "commit DAG cycle: "+joinCycle(cycle))
+		message := "commit DAG cycle: " + joinCycle(cycle)
+		result.Errors = append(result.Errors, message)
+		result.DAG.Errors = append(result.DAG.Errors, message)
+		result.Counts.DAG++
 	}
 	events := map[string]bool{}
 	for id, commit := range commits {
@@ -136,7 +171,7 @@ func Verify(st *store.Store, strict bool) (VerifyResult, error) {
 						continue
 					}
 					if !events[ref] {
-						resultAt(&result, strict, fmt.Sprintf("%s: unresolved %s reference %s", source, field, ref))
+						resultReferenceAt(&result, strict, fmt.Sprintf("%s: unresolved %s reference %s", source, field, ref))
 					}
 				}
 			}
@@ -212,7 +247,7 @@ func verificationForID(st *store.Store, id string) (ObjectVerification, error) {
 	return ObjectVerification{}, fmt.Errorf("object not found: %s", id)
 }
 func verifyStoredObject(_ *store.Store, file store.ObjectFile) (ObjectVerification, error) {
-	result := ObjectVerification{ID: file.ID, Path: file.Path, Integrity: "invalid", Authenticity: "unverified"}
+	result := ObjectVerification{ID: file.ID, Path: file.Path, Integrity: "invalid", Structure: "unverified", Authenticity: "unverified"}
 	if file.Path == "" {
 		return result, fmt.Errorf("object path is required")
 	}
@@ -228,6 +263,7 @@ func verifyStoredObject(_ *store.Store, file store.ObjectFile) (ObjectVerificati
 	parsed, err := canonical.Parse(raw)
 	if err != nil {
 		result.Errors = append(result.Errors, err.Error())
+		result.Structure = "invalid"
 		return result, nil
 	}
 	encoded, err := canonical.Marshal(parsed)
@@ -253,6 +289,7 @@ func verifyStoredObject(_ *store.Store, file store.ObjectFile) (ObjectVerificati
 	}
 	result.Type = "commit"
 	result.Namespace = namespace
+	result.Structure = "valid"
 	if err := verifySignature(object); err != nil {
 		result.Errors = append(result.Errors, err.Error())
 		result.Authenticity = "invalid"
@@ -312,7 +349,7 @@ func validateCommitObject(object map[string]any) (string, error) {
 		return "", fmt.Errorf("invalid key ID")
 	}
 	label, ok := actor["label"].(string)
-	if !ok || label == "" || len(label) > 255 {
+	if !ok || label == "" || utf8.RuneCountInString(label) > 255 {
 		return "", fmt.Errorf("commit actor label is invalid")
 	}
 	authority, ok := body["authority"].(map[string]any)
@@ -332,12 +369,12 @@ func validateCommitObject(object map[string]any) (string, error) {
 	}
 	if epoch := authority["epoch"]; epoch != nil {
 		text, ok := epoch.(string)
-		if !ok || text == "" || len(text) > 255 {
+		if !ok || text == "" || utf8.RuneCountInString(text) > 255 {
 			return "", fmt.Errorf("authority epoch must be string or null")
 		}
 	}
 	observed, ok := body["observed_at"].(string)
-	if !ok || observed == "" || len(observed) > 64 {
+	if !ok || observed == "" || utf8.RuneCountInString(observed) > 64 {
 		return "", fmt.Errorf("commit observed_at is invalid")
 	}
 	metadata, ok := body["metadata"].(map[string]any)
@@ -346,7 +383,7 @@ func validateCommitObject(object map[string]any) (string, error) {
 	}
 	if correlation, found := body["correlation_id"]; found {
 		text, ok := correlation.(string)
-		if !ok || len(text) > 255 {
+		if !ok || utf8.RuneCountInString(text) > 255 {
 			return "", fmt.Errorf("commit correlation_id must be a string")
 		}
 	}
@@ -432,12 +469,25 @@ func hasDuplicate(values []string) bool {
 	}
 	return false
 }
-func resultAt(result *VerifyResult, strict bool, message string) {
+func resultDAGAt(result *VerifyResult, strict bool, message string) {
 	if strict {
 		result.Errors = append(result.Errors, message)
+		result.DAG.Errors = append(result.DAG.Errors, message)
 	} else {
 		result.Warnings = append(result.Warnings, message)
+		result.DAG.Warnings = append(result.DAG.Warnings, message)
 	}
+	result.Counts.DAG++
+}
+func resultReferenceAt(result *VerifyResult, strict bool, message string) {
+	if strict {
+		result.Errors = append(result.Errors, message)
+		result.References.Errors = append(result.References.Errors, message)
+	} else {
+		result.Warnings = append(result.Warnings, message)
+		result.References.Warnings = append(result.References.Warnings, message)
+	}
+	result.Counts.References++
 }
 func authorizationFor(st *store.Store, verification ObjectVerification) string {
 	roots, err := Roots(st)
@@ -445,6 +495,13 @@ func authorizationFor(st *store.Store, verification ObjectVerification) string {
 		return "indeterminate"
 	}
 	return authorizationForRoots(roots, verification).Status
+}
+func authorizationForResult(st *store.Store, verification ObjectVerification) AuthorizationResult {
+	roots, err := Roots(st)
+	if err != nil {
+		return AuthorizationResult{Status: "indeterminate", Reasons: []string{"local trust roots are unavailable"}, Chain: []string{}, LeaseStatus: "not_applicable", Depth: 0}
+	}
+	return authorizationForRoots(roots, verification)
 }
 func authorizationReasons(st *store.Store, verification ObjectVerification) []string {
 	roots, err := Roots(st)
@@ -458,12 +515,12 @@ func authorizationForRoots(roots map[string]Root, verification ObjectVerificatio
 	keyID := actor["key_id"].(string)
 	root, found := roots[keyID]
 	if !found {
-		return AuthorizationResult{Status: "indeterminate", Reasons: []string{"signer is not a trusted root and no delegation reference was supplied"}}
+		return AuthorizationResult{Status: "indeterminate", Reasons: []string{"signer is not a trusted root and no delegation reference was supplied"}, Chain: []string{}, LeaseStatus: "not_applicable", Depth: 0}
 	}
 	if root.PublicKey != verification.Object["signature"].(map[string]any)["public_key"].(string) {
-		return AuthorizationResult{Status: "unauthorized", Reasons: []string{"trusted-root key ID has conflicting public bytes"}}
+		return AuthorizationResult{Status: "unauthorized", Reasons: []string{"trusted-root key ID has conflicting public bytes"}, Chain: []string{keyID}, LeaseStatus: "not_applicable", Depth: 0}
 	}
-	return AuthorizationResult{Status: "authorized", Reasons: []string{"signer is a locally bootstrapped trusted root"}}
+	return AuthorizationResult{Status: "authorized", Reasons: []string{"signer is a locally bootstrapped trusted root"}, Chain: []string{keyID}, LeaseStatus: "not_applicable", Depth: 0}
 }
 func commitCycles(commits map[string]storedCommit) [][]string {
 	color := map[string]int{}
