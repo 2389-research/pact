@@ -52,6 +52,14 @@ func run(args []string, stdout, stderr io.Writer) int {
 		result, err = runTrustAdd(commandArgs, stderr)
 	case "hash":
 		result, err = runHash(commandArgs, stderr)
+	case "commit":
+		result, err = runCommit(commandArgs, stderr)
+	case "heads":
+		result, err = runHeads(commandArgs, stderr)
+	case "show":
+		result, err = runShow(commandArgs, stderr)
+	case "verify":
+		result, err = runVerify(commandArgs, stderr)
 	default:
 		err = &commandError{code: exitUsage, message: fmt.Sprintf("unknown command: %s", command)}
 	}

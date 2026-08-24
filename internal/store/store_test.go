@@ -190,6 +190,36 @@ func TestPutCanonicalIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestObjectFilesEnumeratesCanonicalObjectPaths(t *testing.T) {
+	st := testStore(t)
+	first, _, err := st.PutCanonical(map[string]any{"kind": "first"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, _, err := st.PutCanonical(map[string]any{"kind": "second"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	files, err := st.ObjectFiles()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(files) != 2 || files[0].ID >= files[1].ID || (files[0].ID != first && files[1].ID != first) || (files[0].ID != second && files[1].ID != second) {
+		t.Fatalf("ObjectFiles() = %#v, want sorted canonical objects %q and %q", files, first, second)
+	}
+}
+
+func TestObjectFilesRejectsSymlinkedShard(t *testing.T) {
+	st := testStore(t)
+	escaped := t.TempDir()
+	if err := os.Symlink(escaped, filepath.Join(st.Dir(), "objects", "sha256", "aa")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.ObjectFiles(); err == nil || !strings.Contains(err.Error(), "symlink") {
+		t.Fatalf("ObjectFiles() error = %v, want symlink refusal", err)
+	}
+}
+
 func TestPutCanonicalRejectsSymlinkedObjectDirectory(t *testing.T) {
 	st := testStore(t)
 	objects := filepath.Join(st.Dir(), "objects")

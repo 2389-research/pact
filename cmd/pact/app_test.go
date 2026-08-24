@@ -85,6 +85,39 @@ func TestRunRejectsInvalidNamespace(t *testing.T) {
 	}
 }
 
+func TestRunCommitHeadsShowAndVerifyEmitJSON(t *testing.T) {
+	repo := t.TempDir()
+	keyPath := filepath.Join(t.TempDir(), "alice.key.json")
+	runJSON(t, []string{"init", "--repo", repo, "--namespace", "org/example/widget", "--json"})
+	runJSON(t, []string{"keygen", "--actor", "Alice", "--out", keyPath, "--json"})
+	batchPath := filepath.Join(t.TempDir(), "events.json")
+	batch := []byte(`{"observed_at":"2026-08-23T12:00:00Z","events":[{"local_id":"e1","kind":"observation","type":"widget.seen","subject":"widget-1","schema_ref":"pact:core/widget/v1","payload":{},"evidence":[],"caused_by":[],"supersedes":[],"tags":[]}]}`)
+	if err := os.WriteFile(batchPath, batch, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	commit := runJSON(t, []string{"commit", "--repo", repo, "--key-file", keyPath, "--events", batchPath, "--json"})
+	if commit["operation"] != "commit" || commit["integrity"] != "valid" || commit["authenticity"] != "valid" {
+		t.Fatalf("commit JSON = %#v", commit)
+	}
+	heads := runJSON(t, []string{"heads", "--repo", repo, "--namespace", "org/example", "--json"})
+	if heads["operation"] != "heads" || heads["heads"] == nil {
+		t.Fatalf("heads JSON = %#v", heads)
+	}
+	eventRef := commit["event_refs"].([]any)[0].(string)
+	show := runJSON(t, []string{"show", "--repo", repo, eventRef, "--json"})
+	if show["kind"] != "event" || show["event"].(map[string]any)["local_id"] != "e1" {
+		t.Fatalf("show JSON = %#v", show)
+	}
+	verify := runJSON(t, []string{"verify", "--repo", repo, "--json"})
+	if verify["operation"] != "verify" || verify["ok"] != true || verify["counts"] == nil {
+		t.Fatalf("verify JSON = %#v", verify)
+	}
+	authorization := verify["authorization"].(map[string]any)[commit["object_id"].(string)].(map[string]any)
+	if authorization["status"] != "indeterminate" || authorization["Status"] != nil {
+		t.Fatalf("verify authorization JSON = %#v", authorization)
+	}
+}
+
 func runJSON(t *testing.T, args []string) map[string]any {
 	t.Helper()
 	var stdout, stderr bytes.Buffer

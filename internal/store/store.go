@@ -11,6 +11,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"syscall"
 	"time"
@@ -40,6 +41,12 @@ var (
 type Store struct {
 	repo string
 	dir  string
+}
+
+// ObjectFile binds an immutable object path to the ID encoded in that path.
+type ObjectFile struct {
+	ID   string
+	Path string
 }
 
 // Init creates an empty PACT store at repo.
@@ -280,6 +287,55 @@ func (st *Store) Get(objectID string) ([]byte, error) {
 		return nil, fmt.Errorf("object digest mismatch at %s", path)
 	}
 	return raw, nil
+}
+
+// ObjectFiles returns every canonical immutable object path in stable ID order.
+func (st *Store) ObjectFiles() ([]ObjectFile, error) {
+	root := filepath.Join(st.dir, "objects", "sha256")
+	if err := ensureExistingRealDirectory(st.dir); err != nil {
+		return nil, err
+	}
+	if err := ensureExistingRealDirectory(filepath.Join(st.dir, "objects")); err != nil {
+		return nil, err
+	}
+	if err := ensureExistingRealDirectory(root); err != nil {
+		return nil, err
+	}
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return nil, fmt.Errorf("read object directory: %w", err)
+	}
+	result := make([]ObjectFile, 0)
+	for _, entry := range entries {
+		directory := filepath.Join(root, entry.Name())
+		if err := rejectSymlink(directory); err != nil {
+			return nil, err
+		}
+		if !entry.IsDir() || len(entry.Name()) != 2 {
+			continue
+		}
+		files, err := os.ReadDir(directory)
+		if err != nil {
+			return nil, fmt.Errorf("read object shard: %w", err)
+		}
+		for _, file := range files {
+			path := filepath.Join(directory, file.Name())
+			if err := rejectSymlink(path); err != nil {
+				return nil, err
+			}
+			if file.IsDir() || !strings.HasSuffix(file.Name(), ".json") {
+				continue
+			}
+			hexDigest := entry.Name() + strings.TrimSuffix(file.Name(), ".json")
+			objectID := "sha256:" + hexDigest
+			if _, err := st.objectPath(objectID); err != nil {
+				return nil, fmt.Errorf("invalid canonical object path %s: %w", path, err)
+			}
+			result = append(result, ObjectFile{ID: objectID, Path: path})
+		}
+	}
+	sort.Slice(result, func(i, j int) bool { return result[i].ID < result[j].ID })
+	return result, nil
 }
 
 func (st *Store) ensureObjectDirectories(objectID string, createTemp bool) error {
