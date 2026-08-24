@@ -5,6 +5,6 @@
 /.superpowers/
 /bin/
 /coverage/
+/dist/
 /tmp/
 *.prof
-

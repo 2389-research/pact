@@ -1,0 +1,121 @@
+# ABOUTME: golangci-lint (v2 schema) configuration for pact — bug, security,
+# ABOUTME: complexity, and style linters on top of the standard default set.
+
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+  modules-download-mode: readonly
+  allow-parallel-runners: true
+
+linters:
+  # standard = errcheck, govet, ineffassign, staticcheck, unused
+  default: standard
+  enable:
+    # Bug detection
+    - bodyclose # Check HTTP response body is closed
+    - nilerr # Find code that returns nil even if it checks error
+    - nilnil # No simultaneous return of nil error and nil value
+    - errchkjson # Checks types passed to json encoding functions
+    - contextcheck # Check context.Context is passed correctly
+
+    # Performance
+    - prealloc # Find slice declarations that could be preallocated
+    - makezero # Finds slice declarations with non-zero initial length
+
+    # Style
+    - misspell # Finds commonly misspelled English words
+    - whitespace # Detects leading and trailing whitespace
+    - godot # Check if comments end in a period
+
+    # Code complexity
+    - gocyclo # Computes cyclomatic complexity
+    - gocognit # Computes cognitive complexity
+    - nestif # Reports deeply nested if statements
+    - funlen # Detects long functions
+
+    # Security
+    - gosec # Security problems
+    - copyloopvar # Detects unnecessary loop-variable copies
+
+    # Error handling
+    - errorlint # Go 1.13+ error-wrapping mistakes
+
+    # Maintainability
+    - gocritic # Comprehensive static analyzer
+    - unconvert # Remove unnecessary type conversions
+    - unparam # Reports unused function parameters
+    - wastedassign # Finds wasted assignment statements
+
+  settings:
+    errcheck:
+      check-type-assertions: true
+      exclude-functions:
+        # Best-effort writes to stdout and HTTP responses
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+        # Deferred / error-path cleanup where the error has nowhere to go
+        - (io.Closer).Close
+        - (*os.File).Close
+
+    govet:
+      enable-all: true
+      disable:
+        - shadow # Can be too noisy
+        - fieldalignment # Optimizing struct field order is often premature
+
+    gocyclo:
+      min-complexity: 20
+
+    gocognit:
+      min-complexity: 30
+
+    funlen:
+      lines: 100
+      statements: 50
+      ignore-comments: true
+
+    misspell:
+      locale: US
+
+    gosec:
+      excludes:
+        - G404 # Weak RNG — acceptable for non-crypto use
+        - G104 # Unhandled errors — errcheck owns this policy (see its excludes)
+
+    errorlint:
+      errorf: true
+      asserts: true
+      comparison: true
+
+    nestif:
+      min-complexity: 5
+
+    staticcheck:
+      checks:
+        - all
+        - -ST1000 # package comments — house style is ABOUTME file headers
+
+  exclusions:
+    rules:
+      # Relax complexity and hardening linters in tests
+      - path: _test\.go
+        linters:
+          - gocyclo
+          - gocognit
+          - errcheck
+          - funlen
+          - gosec
+
+      # main.go dispatch functions run long by nature
+      - path: cmd/.*main\.go
+        linters:
+          - gocyclo
+          - gocognit
+          - funlen
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
