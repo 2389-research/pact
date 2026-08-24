@@ -406,6 +406,59 @@ func TestGetBoundedRejectsOversizeBeforeRead(t *testing.T) {
 	}
 }
 
+func TestGetBoundedContextHonorsCancellationDuringDigest(t *testing.T) {
+	st := testStore(t)
+	id, _, err := st.PutCanonical(map[string]any{"payload": strings.Repeat("x", 2_048)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := &armedCancelContext{Context: context.Background(), cancelAt: 2}
+	original := beforeGetBoundedDigest
+	beforeGetBoundedDigest = func() { ctx.armed = true }
+	t.Cleanup(func() { beforeGetBoundedDigest = original })
+	if _, err := st.GetBoundedContext(ctx, id, phase2ObjectBytesForTest); err != context.Canceled { //nolint:errorlint // Exact context sentinel is the contract.
+		t.Fatalf("GetBoundedContext() error = %v after %d digest checks, want context canceled", err, ctx.checks)
+	}
+}
+
+func TestGetBoundedContextReturnsReadCancellationUnchanged(t *testing.T) {
+	st := testStore(t)
+	id, _, err := st.PutCanonical(map[string]any{"payload": strings.Repeat("x", 2_048)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := &armedCancelContext{Context: context.Background(), cancelAt: 2}
+	original := afterGetBoundedStat
+	afterGetBoundedStat = func(string) error {
+		ctx.armed = true
+		return nil
+	}
+	t.Cleanup(func() { afterGetBoundedStat = original })
+	if _, err := st.GetBoundedContext(ctx, id, phase2ObjectBytesForTest); err != context.Canceled { //nolint:errorlint // Exact context sentinel is the contract.
+		t.Fatalf("GetBoundedContext() read error = %v, want exact context canceled", err)
+	}
+}
+
+type armedCancelContext struct {
+	context.Context
+	armed    bool
+	checks   int
+	cancelAt int
+}
+
+func (ctx *armedCancelContext) Err() error {
+	if !ctx.armed {
+		return nil
+	}
+	ctx.checks++
+	if ctx.checks >= ctx.cancelAt {
+		return context.Canceled
+	}
+	return nil
+}
+
+const phase2ObjectBytesForTest = 4 * 1024 * 1024
+
 func TestGetBoundedMarksDigestMismatch(t *testing.T) {
 	st := testStore(t)
 	raw := []byte(`{"kind":"stable"}`)

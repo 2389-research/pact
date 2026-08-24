@@ -4,7 +4,10 @@ package ledger
 
 import (
 	"bytes"
+	"context"
 	"crypto/ed25519"
+	"encoding/base64"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -13,6 +16,24 @@ import (
 	"pact/internal/identity"
 	"pact/internal/store"
 )
+
+func TestRootsContextHonorsCancellationDuringCanonicalWork(t *testing.T) {
+	st, key := ledgerStoreAndKey(t)
+	roots := make([]any, 512)
+	for index := range roots {
+		roots[index] = map[string]any{
+			"key_id": key.KeyID, "actor": "Alice", "public_key": base64.RawURLEncoding.EncodeToString(key.Public),
+			"added_at": "2026-08-23T12:00:00Z",
+		}
+	}
+	if err := st.WriteLocalJSON("trust.json", map[string]any{"format": trustFormat, "roots": roots}, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	ctx := &cancelAfterErrChecks{Context: context.Background(), cancelAt: 20}
+	if _, err := RootsContext(ctx, st); !errors.Is(err, context.Canceled) {
+		t.Fatalf("RootsContext() error = %v after %d checks, want context canceled", err, ctx.checks)
+	}
+}
 
 func TestAddRootIsIdempotent(t *testing.T) {
 	st, err := store.Init(t.TempDir(), "org/example/widget", time.Now())

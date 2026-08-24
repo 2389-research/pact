@@ -3,8 +3,10 @@
 package canonical
 
 import (
+	"context"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,15 +14,78 @@ import (
 	"unicode/utf8"
 )
 
+func TestParseContextHonorsCancellationDuringIntegerValidation(t *testing.T) {
+	ctx := &canonicalArmedCancelContext{Context: context.Background(), cancelAt: 2}
+	original := beforeCanonicalIntegerParse
+	beforeCanonicalIntegerParse = func() { ctx.armed = true }
+	t.Cleanup(func() { beforeCanonicalIntegerParse = original })
+	_, err := ParseContext(ctx, []byte(strings.Repeat("1", 4_096)))
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("ParseContext() error = %v after %d integer checks, want context canceled", err, ctx.checks)
+	}
+}
+
+func TestDigestContextHonorsCanceledEmptyInput(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := DigestContext(ctx, nil); !errors.Is(err, context.Canceled) {
+		t.Fatalf("DigestContext() error = %v, want context canceled", err)
+	}
+}
+
+type canonicalArmedCancelContext struct {
+	context.Context
+	armed    bool
+	checks   int
+	cancelAt int
+}
+
+func (ctx *canonicalArmedCancelContext) Err() error {
+	if !ctx.armed {
+		return nil
+	}
+	ctx.checks++
+	if ctx.checks >= ctx.cancelAt {
+		return context.Canceled
+	}
+	return nil
+}
+
 func TestParseBoundsAttackerControlledObjectKeyDiagnostics(t *testing.T) {
-	key := strings.Repeat("é", 2_000)
-	raw := []byte("{\"" + key + "\":1,\"" + key + "\":2}")
-	_, err := Parse(raw)
+	key := strings.Repeat("line\n\x1b\"\\é", 200)
+	quotedRaw, err := json.Marshal(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	quoted := string(quotedRaw)
+	raw := []byte("{" + quoted + ":1," + quoted + ":2}")
+	_, err = Parse(raw)
 	if err == nil {
 		t.Fatal("Parse() error = nil, want duplicate-key rejection")
 	}
 	if len(err.Error()) > 512 || !utf8.ValidString(err.Error()) {
 		t.Fatalf("Parse() error length = %d, valid UTF-8 = %t", len(err.Error()), utf8.ValidString(err.Error()))
+	}
+	for _, control := range []byte{'\n', 0x1b} {
+		if strings.ContainsRune(err.Error(), rune(control)) {
+			t.Fatalf("Parse() error contains raw control %#x: %q", control, err)
+		}
+	}
+	for _, escaped := range []string{`\n`, `\x1b`, `\"`, `\\`, "é"} {
+		if !strings.Contains(err.Error(), escaped) {
+			t.Fatalf("Parse() error = %q, want escaped sample %q", err, escaped)
+		}
+	}
+	var diagnostic interface{ DiagnosticTruncated() bool }
+	if !errors.As(err, &diagnostic) || !diagnostic.DiagnosticTruncated() {
+		t.Fatalf("Parse() diagnostic = %#v, want typed truncation", err)
+	}
+}
+
+func TestParsePreservesOrdinaryDuplicateKeyDiagnostic(t *testing.T) {
+	_, err := Parse([]byte(`{"ordinary":1,"ordinary":2}`))
+	if err == nil || err.Error() != `duplicate JSON object key: "ordinary"` {
+		t.Fatalf("Parse() error = %q", err)
 	}
 }
 

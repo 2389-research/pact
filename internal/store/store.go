@@ -54,6 +54,7 @@ var (
 	afterObjectFileSortChunk              = func() {}
 	beforeObjectFileMergeBufferAllocation = func() {}
 	afterObjectFileMergeBufferAllocation  = func() {}
+	beforeGetBoundedDigest                = func() {}
 )
 
 // ObjectCountLimitError reports the fixed maximum reached during object enumeration.
@@ -222,6 +223,14 @@ func releaseLock(lock *os.File, resultErr *error) {
 
 // ReadLocal reads one named mutable local configuration file.
 func (st *Store) ReadLocal(name string) ([]byte, error) {
+	return st.ReadLocalContext(context.Background(), name)
+}
+
+// ReadLocalContext reads one mutable local file while honoring cancellation during I/O.
+func (st *Store) ReadLocalContext(ctx context.Context, name string) ([]byte, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	path, err := st.localPath(name)
 	if err != nil {
 		return nil, err
@@ -233,8 +242,16 @@ func (st *Store) ReadLocal(name string) ([]byte, error) {
 		return nil, err
 	}
 	// #nosec G304 -- localPath restricts path to a base filename under the checked store directory.
-	raw, err := os.ReadFile(path)
+	file, err := os.Open(path)
 	if err != nil {
+		return nil, fmt.Errorf("read local file %s: %w", path, err)
+	}
+	defer file.Close()
+	raw, err := io.ReadAll(&contextBoundedReader{ctx: ctx, reader: file})
+	if err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return nil, err
+		}
 		return nil, fmt.Errorf("read local file %s: %w", path, err)
 	}
 	return raw, nil
@@ -422,6 +439,14 @@ func (st *Store) Get(objectID string) ([]byte, error) {
 
 // GetBounded returns exact canonical bytes without reading more than maximum bytes.
 func (st *Store) GetBounded(objectID string, maximum uint64) ([]byte, error) {
+	return st.GetBoundedContext(context.Background(), objectID, maximum)
+}
+
+// GetBoundedContext returns exact bounded canonical bytes while honoring cancellation during read and digest work.
+func (st *Store) GetBoundedContext(ctx context.Context, objectID string, maximum uint64) ([]byte, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	path, err := st.objectPath(objectID)
 	if err != nil {
 		return nil, err
@@ -445,17 +470,25 @@ func (st *Store) GetBounded(objectID string, maximum uint64) ([]byte, error) {
 	if err := afterGetBoundedStat(path); err != nil {
 		return nil, fmt.Errorf("prepare bounded object read: %w", err)
 	}
-	raw, err := readBoundedFile(path, maximum)
+	raw, err := readBoundedFileContext(ctx, path, maximum)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, fmt.Errorf("%w: object not found: %s", ErrMissingDependency, objectID)
 	}
 	if err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return nil, err
+		}
 		return nil, fmt.Errorf("read object: %w", err)
 	}
 	if uint64(len(raw)) > maximum {
 		return nil, &ObjectByteLimitError{Maximum: maximum}
 	}
-	if canonical.Digest(raw) != objectID {
+	beforeGetBoundedDigest()
+	digest, err := canonical.DigestContext(ctx, raw)
+	if err != nil {
+		return nil, err
+	}
+	if digest != objectID {
 		return nil, fmt.Errorf("%w: %w at %s", ErrIntegrity, ErrObjectDigestMismatch, path)
 	}
 	return raw, nil
@@ -468,14 +501,29 @@ func fileSizeExceedsLimit(size int64, maximum uint64) bool {
 	return size > int64(maximum)
 }
 
-func readBoundedFile(path string, maximum uint64) ([]byte, error) {
+func readBoundedFileContext(ctx context.Context, path string, maximum uint64) ([]byte, error) {
 	// #nosec G304,G703 -- objectPath derives path from a validated content digest under the checked store.
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
 	defer file.Close()
-	return io.ReadAll(io.LimitReader(file, boundedReadLimit(maximum)))
+	return io.ReadAll(&contextBoundedReader{ctx: ctx, reader: io.LimitReader(file, boundedReadLimit(maximum))})
+}
+
+type contextBoundedReader struct {
+	ctx    context.Context
+	reader io.Reader
+}
+
+func (reader *contextBoundedReader) Read(destination []byte) (int, error) {
+	if err := reader.ctx.Err(); err != nil {
+		return 0, err
+	}
+	if len(destination) > 256 {
+		destination = destination[:256]
+	}
+	return reader.reader.Read(destination)
 }
 
 func boundedReadLimit(maximum uint64) int64 {

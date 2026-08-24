@@ -3,10 +3,13 @@
 package ledger
 
 import (
+	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"sort"
 	"time"
 
@@ -89,15 +92,26 @@ func addRootLocked(st *store.Store, key *identity.KeyFile, now time.Time) (bool,
 
 // Roots returns trusted identities keyed by their stable PACT key IDs.
 func Roots(st *store.Store) (map[string]Root, error) {
+	return RootsContext(context.Background(), st)
+}
+
+// RootsContext returns trusted identities while honoring cancellation during local canonical work.
+func RootsContext(ctx context.Context, st *store.Store) (map[string]Root, error) {
 	if st == nil {
 		return nil, fmt.Errorf("store is required")
 	}
-	loaded, err := loadRoots(st)
+	loaded, err := loadRootsContext(ctx, st)
 	if err != nil {
 		return nil, err
 	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	result := make(map[string]Root, len(loaded))
-	for _, root := range loaded {
+	for index, root := range loaded {
+		if err := pollContext(ctx, index); err != nil {
+			return nil, err
+		}
 		if existing, found := result[root.KeyID]; found && existing.PublicKey != root.PublicKey {
 			return nil, fmt.Errorf("%w: conflicting trusted-root bytes for %s", ErrIntegrity, root.KeyID)
 		}
@@ -105,7 +119,8 @@ func Roots(st *store.Store) (map[string]Root, error) {
 		if err != nil {
 			return nil, fmt.Errorf("%w: invalid trusted root public key", ErrIntegrity)
 		}
-		expectedID, err := identity.KeyID(public)
+		// KeyID hashes exactly 32 admitted bytes; there is no unbounded work to cancel.
+		expectedID, err := identity.KeyID(public) //nolint:contextcheck
 		if err != nil || expectedID != root.KeyID {
 			return nil, fmt.Errorf("%w: trusted root public key mismatch for %s", ErrIntegrity, root.KeyID)
 		}
@@ -115,12 +130,22 @@ func Roots(st *store.Store) (map[string]Root, error) {
 }
 
 func loadRoots(st *store.Store) ([]Root, error) {
-	raw, err := st.ReadLocal("trust.json")
+	return loadRootsContext(context.Background(), st)
+}
+
+func loadRootsContext(ctx context.Context, st *store.Store) ([]Root, error) {
+	raw, err := st.ReadLocalContext(ctx, "trust.json")
 	if err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return nil, err
+		}
 		return nil, fmt.Errorf("%w: %w", ErrStore, err)
 	}
-	value, err := canonical.Parse(raw)
+	value, err := canonical.ParseContext(ctx, raw)
 	if err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return nil, err
+		}
 		return nil, fmt.Errorf("%w: malformed local trust file", ErrStore)
 	}
 	object, ok := value.(map[string]any)
@@ -134,34 +159,63 @@ func loadRoots(st *store.Store) ([]Root, error) {
 	if _, ok := rootsValue.([]any); !ok {
 		return nil, fmt.Errorf("%w: malformed local trust file", ErrStore)
 	}
-	encoded, err := canonical.Marshal(value)
+	encoded, err := canonical.MarshalContext(ctx, value)
 	if err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return nil, err
+		}
 		return nil, fmt.Errorf("%w: malformed local trust file", ErrStore)
 	}
 	var config trustFile
-	if err := json.Unmarshal(encoded, &config); err != nil || config.Format != trustFormat {
+	decoder := json.NewDecoder(&ledgerContextReader{ctx: ctx, reader: bytes.NewReader(encoded)})
+	if err := decoder.Decode(&config); err != nil || config.Format != trustFormat {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return nil, err
+		}
 		return nil, fmt.Errorf("%w: malformed local trust file", ErrStore)
 	}
-	for _, root := range config.Roots {
-		if err := validateRoot(root); err != nil {
+	for index, root := range config.Roots {
+		if err := pollContext(ctx, index); err != nil {
+			return nil, err
+		}
+		if err := validateRootContext(ctx, root); err != nil {
 			return nil, err
 		}
 	}
 	return config.Roots, nil
 }
 
-func validateRoot(root Root) error {
+type ledgerContextReader struct {
+	ctx    context.Context
+	reader io.Reader
+}
+
+func (reader *ledgerContextReader) Read(destination []byte) (int, error) {
+	if err := reader.ctx.Err(); err != nil {
+		return 0, err
+	}
+	if len(destination) > 256 {
+		destination = destination[:256]
+	}
+	return reader.reader.Read(destination)
+}
+
+func validateRootContext(ctx context.Context, root Root) error {
 	if root.Actor == "" || root.AddedAt == "" {
 		return fmt.Errorf("%w: malformed trusted-root entry", ErrIntegrity)
 	}
 	if _, err := time.Parse(time.RFC3339, root.AddedAt); err != nil {
 		return fmt.Errorf("%w: malformed trusted-root entry", ErrIntegrity)
 	}
-	public, err := base64.RawURLEncoding.DecodeString(root.PublicKey)
+	public, err := decodeBase64URLContext(ctx, root.PublicKey, 32)
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return err
+	}
 	if err != nil {
 		return fmt.Errorf("%w: invalid trusted root public key", ErrIntegrity)
 	}
-	expectedID, err := identity.KeyID(public)
+	// KeyID hashes exactly 32 admitted bytes; there is no unbounded work to cancel.
+	expectedID, err := identity.KeyID(public) //nolint:contextcheck
 	if err != nil || expectedID != root.KeyID {
 		return fmt.Errorf("%w: trusted root public key mismatch for %s", ErrIntegrity, root.KeyID)
 	}

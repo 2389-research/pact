@@ -4,14 +4,13 @@ package canonical
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"sort"
 	"strconv"
-	"strings"
 	"unicode/utf8"
 
 	"golang.org/x/text/unicode/norm"
@@ -19,22 +18,65 @@ import (
 
 const maxSafeInteger int64 = 9007199254740991
 
+const canonicalWorkChunk = 256
+
+type contextReader struct {
+	ctx    context.Context
+	reader *bytes.Reader
+}
+
+func (reader *contextReader) Read(destination []byte) (int, error) {
+	if err := reader.ctx.Err(); err != nil {
+		return 0, err
+	}
+	if len(destination) > canonicalWorkChunk {
+		destination = destination[:canonicalWorkChunk]
+	}
+	return reader.reader.Read(destination)
+}
+
+func pollContext(ctx context.Context, work *int) error {
+	if *work%canonicalWorkChunk == 0 {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+	}
+	*work++
+	return nil
+}
+
 // Parse reads one strict JSON value and normalizes its strings and object keys.
 func Parse(raw []byte) (any, error) {
+	return ParseContext(context.Background(), raw)
+}
+
+// ParseContext reads one strict JSON value while honoring cancellation during bounded work chunks.
+func ParseContext(ctx context.Context, raw []byte) (any, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if bytes.HasPrefix(raw, []byte{0xef, 0xbb, 0xbf}) {
 		return nil, fmt.Errorf("UTF-8 BOM is not allowed")
 	}
-	if !utf8.Valid(raw) {
+	work := 0
+	valid, err := validUTF8Context(ctx, raw, &work)
+	if err != nil {
+		return nil, err
+	}
+	if !valid {
 		return nil, fmt.Errorf("JSON is not valid UTF-8")
 	}
-	if err := validateSurrogateEscapes(raw); err != nil {
+	if err := validateSurrogateEscapesContext(ctx, raw, &work); err != nil {
 		return nil, err
 	}
 
-	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder := json.NewDecoder(&contextReader{ctx: ctx, reader: bytes.NewReader(raw)})
 	decoder.UseNumber()
-	value, err := parseValue(decoder)
+	value, err := parseValueContext(ctx, decoder, &work)
 	if err != nil {
+		return nil, err
+	}
+	if err := pollContext(ctx, &work); err != nil {
 		return nil, err
 	}
 	if _, err := decoder.Token(); err != io.EOF {
@@ -46,9 +88,26 @@ func Parse(raw []byte) (any, error) {
 	return value, nil
 }
 
-func validateSurrogateEscapes(raw []byte) error {
+func validUTF8Context(ctx context.Context, raw []byte, work *int) (bool, error) {
+	for len(raw) != 0 {
+		if err := pollContext(ctx, work); err != nil {
+			return false, err
+		}
+		value, width := utf8.DecodeRune(raw)
+		if value == utf8.RuneError && width == 1 {
+			return false, nil
+		}
+		raw = raw[width:]
+	}
+	return true, nil
+}
+
+func validateSurrogateEscapesContext(ctx context.Context, raw []byte, work *int) error {
 	inString := false
 	for index := 0; index < len(raw); index++ {
+		if err := pollContext(ctx, work); err != nil {
+			return err
+		}
 		switch raw[index] {
 		case '"':
 			inString = !inString
@@ -104,21 +163,50 @@ func escapedUTF16(raw []byte, start int) (uint16, bool) {
 
 // Marshal returns the compact pact-json-v1 encoding of a JSON-compatible value.
 func Marshal(value any) ([]byte, error) {
-	normalized, err := normalize(value, "$")
+	return MarshalContext(context.Background(), value)
+}
+
+// MarshalContext returns compact pact-json-v1 bytes while honoring cancellation during canonical work.
+func MarshalContext(ctx context.Context, value any) ([]byte, error) {
+	work := 0
+	normalized, err := normalizeContext(ctx, value, "$", &work)
 	if err != nil {
 		return nil, err
 	}
+	if err := pollContext(ctx, &work); err != nil {
+		return nil, err
+	}
 	encoded := make([]byte, 0, 128)
-	return appendValue(encoded, normalized), nil
+	return appendValueContext(ctx, encoded, normalized, &work)
 }
 
 // Digest returns the PACT SHA-256 identifier for the exact provided bytes.
 func Digest(raw []byte) string {
-	digest := sha256.Sum256(raw)
-	return "sha256:" + fmt.Sprintf("%x", digest)
+	digest, _ := DigestContext(context.Background(), raw)
+	return digest
 }
 
-func parseValue(decoder *json.Decoder) (any, error) {
+// DigestContext returns the PACT SHA-256 identifier while hashing bounded chunks.
+func DigestContext(ctx context.Context, raw []byte) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	hash := sha256.New()
+	for len(raw) != 0 {
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
+		end := min(canonicalWorkChunk, len(raw))
+		_, _ = hash.Write(raw[:end])
+		raw = raw[end:]
+	}
+	return "sha256:" + fmt.Sprintf("%x", hash.Sum(nil)), nil
+}
+
+func parseValueContext(ctx context.Context, decoder *json.Decoder, work *int) (any, error) {
+	if err := pollContext(ctx, work); err != nil {
+		return nil, err
+	}
 	token, err := decoder.Token()
 	if err != nil {
 		return nil, fmt.Errorf("invalid JSON: %w", err)
@@ -128,15 +216,16 @@ func parseValue(decoder *json.Decoder) (any, error) {
 	case nil, bool:
 		return value, nil
 	case string:
-		return norm.NFC.String(value), nil
+		return normalizeStringContext(ctx, value, work)
 	case json.Number:
-		return parseInteger(value.String())
+		beforeCanonicalIntegerParse()
+		return parseIntegerContext(ctx, value.String(), work)
 	case json.Delim:
 		switch value {
 		case '{':
-			return parseObject(decoder)
+			return parseObjectContext(ctx, decoder, work)
 		case '[':
-			return parseArray(decoder)
+			return parseArrayContext(ctx, decoder, work)
 		default:
 			return nil, fmt.Errorf("invalid JSON token %q", value)
 		}
@@ -145,11 +234,17 @@ func parseValue(decoder *json.Decoder) (any, error) {
 	}
 }
 
-func parseObject(decoder *json.Decoder) (map[string]any, error) {
+func parseObjectContext(ctx context.Context, decoder *json.Decoder, work *int) (map[string]any, error) {
+	if err := pollContext(ctx, work); err != nil {
+		return nil, err
+	}
 	object := make(map[string]any)
 	rawKeys := make(map[string]struct{})
 	normalizedKeys := make(map[string]struct{})
 	for decoder.More() {
+		if err := pollContext(ctx, work); err != nil {
+			return nil, err
+		}
 		token, err := decoder.Token()
 		if err != nil {
 			return nil, fmt.Errorf("invalid JSON object key: %w", err)
@@ -161,17 +256,23 @@ func parseObject(decoder *json.Decoder) (map[string]any, error) {
 		if _, exists := rawKeys[rawKey]; exists {
 			return nil, boundedObjectKeyError("duplicate JSON object key: ", rawKey)
 		}
-		normalizedKey := norm.NFC.String(rawKey)
+		normalizedKey, err := normalizeStringContext(ctx, rawKey, work)
+		if err != nil {
+			return nil, err
+		}
 		if _, exists := normalizedKeys[normalizedKey]; exists {
 			return nil, boundedObjectKeyError("JSON object keys collide after Unicode normalization: ", rawKey)
 		}
-		value, err := parseValue(decoder)
+		value, err := parseValueContext(ctx, decoder, work)
 		if err != nil {
 			return nil, err
 		}
 		rawKeys[rawKey] = struct{}{}
 		normalizedKeys[normalizedKey] = struct{}{}
 		object[normalizedKey] = value
+	}
+	if err := pollContext(ctx, work); err != nil {
+		return nil, err
 	}
 	closing, err := decoder.Token()
 	if err != nil {
@@ -185,43 +286,56 @@ func parseObject(decoder *json.Decoder) (map[string]any, error) {
 
 const canonicalDiagnosticBytes = 512
 
+type DiagnosticError struct {
+	message   string
+	truncated bool
+}
+
+func (err *DiagnosticError) Error() string { return err.message }
+
+// DiagnosticTruncated reports whether attacker-controlled diagnostic text was clipped.
+func (err *DiagnosticError) DiagnosticTruncated() bool { return err.truncated }
+
 func boundedObjectKeyError(prefix, key string) error {
 	message := make([]byte, 0, canonicalDiagnosticBytes)
 	message = append(message, prefix...)
 	if len(message) < canonicalDiagnosticBytes {
 		message = append(message, '"')
 	}
+	truncated := false
 keyRunes:
 	for len(key) != 0 && len(message) < canonicalDiagnosticBytes-1 {
 		runeValue, width := utf8.DecodeRuneInString(key)
-		encoded := key[:width]
-		switch {
-		case runeValue == '"' || runeValue == '\\':
-			if len(message)+2 > canonicalDiagnosticBytes-1 {
-				break keyRunes
-			}
-			message = append(message, '\\', encoded[0])
-		case len(message)+len(encoded) <= canonicalDiagnosticBytes-1:
-			message = append(message, encoded...)
-		default:
+		quotedRune := strconv.AppendQuote(nil, string(runeValue))
+		escaped := quotedRune[1 : len(quotedRune)-1]
+		if len(message)+len(escaped) > canonicalDiagnosticBytes-1 {
+			truncated = true
 			break keyRunes
 		}
+		message = append(message, escaped...)
 		key = key[width:]
 	}
+	truncated = truncated || len(key) != 0
 	if len(message) < canonicalDiagnosticBytes {
 		message = append(message, '"')
 	}
-	return errors.New(string(message))
+	return &DiagnosticError{message: string(message), truncated: truncated}
 }
 
-func parseArray(decoder *json.Decoder) ([]any, error) {
+func parseArrayContext(ctx context.Context, decoder *json.Decoder, work *int) ([]any, error) {
 	array := make([]any, 0)
 	for decoder.More() {
-		value, err := parseValue(decoder)
+		value, err := parseValueContext(ctx, decoder, work)
 		if err != nil {
 			return nil, err
 		}
+		if err := pollContext(ctx, work); err != nil {
+			return nil, err
+		}
 		array = append(array, value)
+	}
+	if err := pollContext(ctx, work); err != nil {
+		return nil, err
 	}
 	closing, err := decoder.Token()
 	if err != nil {
@@ -233,9 +347,19 @@ func parseArray(decoder *json.Decoder) ([]any, error) {
 	return array, nil
 }
 
-func parseInteger(value string) (int64, error) {
-	if strings.ContainsAny(value, ".eE") {
-		return 0, fmt.Errorf("floating-point values are forbidden; use a string or scaled integer")
+var beforeCanonicalIntegerParse = func() {}
+
+func parseIntegerContext(ctx context.Context, value string, work *int) (int64, error) {
+	for _, character := range value {
+		if err := pollContext(ctx, work); err != nil {
+			return 0, err
+		}
+		if character == '.' || character == 'e' || character == 'E' {
+			return 0, fmt.Errorf("floating-point values are forbidden; use a string or scaled integer")
+		}
+	}
+	if len(value) > len("-9007199254740991") {
+		return 0, fmt.Errorf("integer outside interoperable PACT range")
 	}
 	integer, err := strconv.ParseInt(value, 10, 64)
 	if err != nil || integer < -maxSafeInteger || integer > maxSafeInteger {
@@ -244,17 +368,35 @@ func parseInteger(value string) (int64, error) {
 	return integer, nil
 }
 
-func normalize(value any, path string) (any, error) {
+func normalizeContext(ctx context.Context, value any, path string, work *int) (any, error) {
+	if err := pollContext(ctx, work); err != nil {
+		return nil, err
+	}
+	switch value := value.(type) {
+	case []any:
+		return normalizeArrayContext(ctx, value, path, work)
+	case map[string]any:
+		return normalizeMapContext(ctx, value, path, work)
+	default:
+		return normalizeScalarContext(ctx, value, path, work)
+	}
+}
+
+func normalizeScalarContext(ctx context.Context, value any, path string, work *int) (any, error) {
 	switch value := value.(type) {
 	case nil, bool:
 		return value, nil
 	case string:
-		if !utf8.ValidString(value) {
+		valid, err := validUTF8Context(ctx, []byte(value), work)
+		if err != nil {
+			return nil, err
+		}
+		if !valid {
 			return nil, fmt.Errorf("%s: string is not valid UTF-8", path)
 		}
-		return norm.NFC.String(value), nil
+		return normalizeStringContext(ctx, value, work)
 	case json.Number:
-		return parseInteger(value.String())
+		return parseIntegerContext(ctx, value.String(), work)
 	case int:
 		return normalizeInteger(int64(value), path)
 	case int8:
@@ -283,19 +425,40 @@ func normalize(value any, path string) (any, error) {
 		return int64(value), nil
 	case float32, float64:
 		return nil, fmt.Errorf("%s: floating-point values are forbidden; use a string or scaled integer", path)
-	case []any:
-		return normalizeArray(value, path)
-	case map[string]any:
-		return normalizeMap(value, path)
 	default:
 		return nil, fmt.Errorf("%s: unsupported JSON value type %T", path, value)
 	}
 }
 
-func normalizeArray(value []any, path string) ([]any, error) {
+func normalizeStringContext(ctx context.Context, value string, work *int) (string, error) {
+	if err := pollContext(ctx, work); err != nil {
+		return "", err
+	}
+	normalized := make([]byte, 0, len(value))
+	for len(value) != 0 {
+		if err := pollContext(ctx, work); err != nil {
+			return "", err
+		}
+		end := min(canonicalWorkChunk, len(value))
+		for end < len(value) && !utf8.RuneStart(value[end]) {
+			end++
+		}
+		normalized = norm.NFC.AppendString(normalized, value[:end])
+		value = value[end:]
+	}
+	return string(normalized), nil
+}
+
+func normalizeArrayContext(ctx context.Context, value []any, path string, work *int) ([]any, error) {
+	if err := pollContext(ctx, work); err != nil {
+		return nil, err
+	}
 	normalized := make([]any, len(value))
 	for index, item := range value {
-		item, err := normalize(item, fmt.Sprintf("%s[%d]", path, index))
+		if err := pollContext(ctx, work); err != nil {
+			return nil, err
+		}
+		item, err := normalizeContext(ctx, item, fmt.Sprintf("%s[%d]", path, index), work)
 		if err != nil {
 			return nil, err
 		}
@@ -304,17 +467,30 @@ func normalizeArray(value []any, path string) ([]any, error) {
 	return normalized, nil
 }
 
-func normalizeMap(value map[string]any, path string) (map[string]any, error) {
+func normalizeMapContext(ctx context.Context, value map[string]any, path string, work *int) (map[string]any, error) {
+	if err := pollContext(ctx, work); err != nil {
+		return nil, err
+	}
 	normalized := make(map[string]any, len(value))
 	for rawKey, rawValue := range value {
-		if !utf8.ValidString(rawKey) {
+		if err := pollContext(ctx, work); err != nil {
+			return nil, err
+		}
+		valid, err := validUTF8Context(ctx, []byte(rawKey), work)
+		if err != nil {
+			return nil, err
+		}
+		if !valid {
 			return nil, fmt.Errorf("%s: object key is not valid UTF-8", path)
 		}
-		key := norm.NFC.String(rawKey)
+		key, err := normalizeStringContext(ctx, rawKey, work)
+		if err != nil {
+			return nil, err
+		}
 		if _, exists := normalized[key]; exists {
 			return nil, fmt.Errorf("%s: duplicate key after Unicode normalization: %q", path, key)
 		}
-		item, err := normalize(rawValue, path+"."+key)
+		item, err := normalizeContext(ctx, rawValue, path+"."+key, work)
 		if err != nil {
 			return nil, err
 		}
@@ -330,49 +506,126 @@ func normalizeInteger(value int64, path string) (int64, error) {
 	return value, nil
 }
 
-func appendValue(dst []byte, value any) []byte {
+func appendValueContext(ctx context.Context, dst []byte, value any, work *int) ([]byte, error) {
+	if err := pollContext(ctx, work); err != nil {
+		return nil, err
+	}
 	switch value := value.(type) {
 	case nil:
-		return append(dst, "null"...)
+		return append(dst, "null"...), nil
 	case bool:
-		return strconv.AppendBool(dst, value)
+		return strconv.AppendBool(dst, value), nil
 	case int64:
-		return strconv.AppendInt(dst, value, 10)
+		return strconv.AppendInt(dst, value, 10), nil
 	case string:
-		return appendJSONString(dst, value)
+		return appendJSONStringContext(ctx, dst, value, work)
 	case []any:
-		dst = append(dst, '[')
-		for index, item := range value {
-			if index > 0 {
-				dst = append(dst, ',')
-			}
-			dst = appendValue(dst, item)
-		}
-		return append(dst, ']')
+		return appendJSONArrayContext(ctx, dst, value, work)
 	case map[string]any:
-		keys := make([]string, 0, len(value))
-		for key := range value {
-			keys = append(keys, key)
-		}
-		sort.Strings(keys)
-		dst = append(dst, '{')
-		for index, key := range keys {
-			if index > 0 {
-				dst = append(dst, ',')
-			}
-			dst = appendJSONString(dst, key)
-			dst = append(dst, ':')
-			dst = appendValue(dst, value[key])
-		}
-		return append(dst, '}')
+		return appendJSONObjectContext(ctx, dst, value, work)
 	default:
 		panic("canonical: unnormalized value")
 	}
 }
 
-func appendJSONString(dst []byte, value string) []byte {
+func appendJSONArrayContext(ctx context.Context, dst []byte, value []any, work *int) ([]byte, error) {
+	dst = append(dst, '[')
+	for index, item := range value {
+		if err := pollContext(ctx, work); err != nil {
+			return nil, err
+		}
+		if index > 0 {
+			dst = append(dst, ',')
+		}
+		var err error
+		dst, err = appendValueContext(ctx, dst, item, work)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return append(dst, ']'), nil
+}
+
+func appendJSONObjectContext(ctx context.Context, dst []byte, value map[string]any, work *int) ([]byte, error) {
+	keys, err := sortedMapKeysContext(ctx, value, work)
+	if err != nil {
+		return nil, err
+	}
+	dst = append(dst, '{')
+	for index, key := range keys {
+		if err := pollContext(ctx, work); err != nil {
+			return nil, err
+		}
+		if index > 0 {
+			dst = append(dst, ',')
+		}
+		dst, err = appendJSONStringContext(ctx, dst, key, work)
+		if err != nil {
+			return nil, err
+		}
+		dst = append(dst, ':')
+		dst, err = appendValueContext(ctx, dst, value[key], work)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return append(dst, '}'), nil
+}
+
+func sortedMapKeysContext(ctx context.Context, value map[string]any, work *int) ([]string, error) {
+	if err := pollContext(ctx, work); err != nil {
+		return nil, err
+	}
+	keys := make([]string, 0, len(value))
+	for key := range value {
+		if err := pollContext(ctx, work); err != nil {
+			return nil, err
+		}
+		keys = append(keys, key)
+	}
+	for start := 0; start < len(keys); start += canonicalWorkChunk {
+		if err := pollContext(ctx, work); err != nil {
+			return nil, err
+		}
+		end := min(start+canonicalWorkChunk, len(keys))
+		sort.Strings(keys[start:end])
+	}
+	if len(keys) <= canonicalWorkChunk {
+		return keys, nil
+	}
+	if err := pollContext(ctx, work); err != nil {
+		return nil, err
+	}
+	buffer := make([]string, len(keys))
+	for width := canonicalWorkChunk; width < len(keys); width *= 2 {
+		for start := 0; start < len(keys); start += 2 * width {
+			middle := min(start+width, len(keys))
+			end := min(start+2*width, len(keys))
+			left, right := start, middle
+			for output := start; output < end; output++ {
+				if err := pollContext(ctx, work); err != nil {
+					return nil, err
+				}
+				if right >= end || left < middle && keys[left] <= keys[right] {
+					buffer[output] = keys[left]
+					left++
+				} else {
+					buffer[output] = keys[right]
+					right++
+				}
+			}
+		}
+		keys, buffer = buffer, keys
+	}
+	return keys, nil
+}
+
+func appendJSONStringContext(ctx context.Context, dst []byte, value string, work *int) ([]byte, error) {
 	dst = append(dst, '"')
 	for _, character := range value {
+		if err := pollContext(ctx, work); err != nil {
+			return nil, err
+		}
 		switch character {
 		case '"':
 			dst = append(dst, '\\', '"')
@@ -393,8 +646,8 @@ func appendJSONString(dst []byte, value string) []byte {
 				dst = append(dst, '\\', 'u', '0', '0', "0123456789abcdef"[character>>4], "0123456789abcdef"[character&0xf])
 				continue
 			}
-			dst = append(dst, string(character)...)
+			dst = utf8.AppendRune(dst, character)
 		}
 	}
-	return append(dst, '"')
+	return append(dst, '"'), nil
 }

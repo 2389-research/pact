@@ -86,7 +86,9 @@ func normalizeEventBatchContext(ctx context.Context, value map[string]any) (Even
 	if err != nil {
 		return EventBatch{}, err
 	}
-	sort.Slice(events, func(i, j int) bool { return events[i].LocalID < events[j].LocalID })
+	if err := sortEventsContext(ctx, events); err != nil {
+		return EventBatch{}, err
+	}
 	if err := validateLocalCausesContext(ctx, events, localIDs); err != nil {
 		return EventBatch{}, err
 	}
@@ -95,6 +97,52 @@ func normalizeEventBatchContext(ctx context.Context, value map[string]any) (Even
 		return EventBatch{}, err
 	}
 	return result, nil
+}
+
+func sortEventsContext(ctx context.Context, events []Event) error {
+	for start := 0; start < len(events); start += contextSortChunkSize {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		end := min(start+contextSortChunkSize, len(events))
+		sort.Slice(events[start:end], func(left, right int) bool { return events[start+left].LocalID < events[start+right].LocalID })
+	}
+	if len(events) <= contextSortChunkSize {
+		return nil
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	buffer := make([]Event, len(events))
+	work := 0
+	for width := contextSortChunkSize; width < len(events); width *= 2 {
+		for start := 0; start < len(events); start += 2 * width {
+			middle := min(start+width, len(events))
+			end := min(start+2*width, len(events))
+			left, right := start, middle
+			for output := start; output < end; output++ {
+				if err := pollContext(ctx, work); err != nil {
+					return err
+				}
+				work++
+				if right >= end || left < middle && events[left].LocalID <= events[right].LocalID {
+					buffer[output] = events[left]
+					left++
+				} else {
+					buffer[output] = events[right]
+					right++
+				}
+			}
+		}
+		for index := range events {
+			if err := pollContext(ctx, work); err != nil {
+				return err
+			}
+			work++
+			events[index] = buffer[index]
+		}
+	}
+	return nil
 }
 
 func normalizeBatchEventsContext(ctx context.Context, value any) ([]Event, map[string]struct{}, error) {
@@ -442,20 +490,11 @@ func normalizeEvidenceEntryContext(ctx context.Context, value any, path string) 
 	return normalized, nil
 }
 func normalizeObjectContext(ctx context.Context, value map[string]any) (map[string]any, error) {
-	if err := pollRawStructureContext(ctx, value); err != nil {
-		return nil, err
-	}
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	normalized, err := canonical.Marshal(value)
+	normalized, err := canonical.MarshalContext(ctx, value)
 	if err != nil {
 		return nil, err
 	}
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	parsed, err := canonical.Parse(normalized)
+	parsed, err := canonical.ParseContext(ctx, normalized)
 	if err != nil {
 		return nil, err
 	}

@@ -5,17 +5,35 @@ package ledger
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"reflect"
 	"sort"
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"pact/internal/canonical"
 	"pact/internal/identity"
 	"pact/internal/store"
 )
+
+type cancelAfterErrChecks struct {
+	context.Context
+	checks   int
+	cancelAt int
+}
+
+func (ctx *cancelAfterErrChecks) Err() error {
+	ctx.checks++
+	if ctx.checks >= ctx.cancelAt {
+		return context.Canceled
+	}
+	return nil
+}
 
 func TestSourceFingerprintExactVectors(t *testing.T) {
 	tests := []struct {
@@ -89,6 +107,130 @@ func TestCheckpointProjectionCloneHonorsMidLoopCancellation(t *testing.T) {
 	t.Cleanup(func() { afterLedgerWorkPoll = original })
 	if _, err := cloneCheckpointFrontierContext(ctx, frontier); !errors.Is(err, context.Canceled) {
 		t.Fatalf("cloneCheckpointFrontierContext() error = %v, want context canceled", err)
+	}
+}
+
+func TestStoredCommitProjectionHonorsMidLoopCancellation(t *testing.T) {
+	events := make([]any, 256)
+	for index := range events {
+		events[index] = eventInput(fmt.Sprintf("event-%03d", index), []any{}, []any{})
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancelOnSecondLedgerPoll(t, cancel)
+	if _, err := storedCommitFromObjectContext(ctx, projectionCommitObject(events)); !errors.Is(err, context.Canceled) {
+		t.Fatalf("storedCommitFromObjectContext() error = %v, want context canceled", err)
+	}
+}
+
+func TestStoredCheckpointProjectionHonorsNestedCancellation(t *testing.T) {
+	heads := make([]any, 256)
+	for index := range heads {
+		heads[index] = fmt.Sprintf("sha256:%064x", index)
+	}
+	object := map[string]any{"body": map[string]any{"frontier": []any{map[string]any{"namespace": "scope", "heads": heads}}, "previous_checkpoint": nil}}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancelOnSecondLedgerPoll(t, cancel)
+	if _, err := storedCheckpointFromObjectContext(ctx, object); !errors.Is(err, context.Canceled) {
+		t.Fatalf("storedCheckpointFromObjectContext() error = %v, want context canceled", err)
+	}
+}
+
+func TestEventRecordProjectionHonorsMidLoopCancellation(t *testing.T) {
+	storedEvents := make([]storedEvent, 256)
+	for index := range storedEvents {
+		object := eventInput(fmt.Sprintf("event-%03d", index), []any{}, []any{})
+		storedEvents[index] = storedEvent{localID: object["local_id"].(string), object: object}
+	}
+	verification := ObjectVerification{object: projectionCommitObject(nil)}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancelOnSecondLedgerPoll(t, cancel)
+	if _, _, err := recordsForCommitContext(ctx, "commit", verification, storedCommit{namespace: "scope", events: storedEvents}); !errors.Is(err, context.Canceled) {
+		t.Fatalf("recordsForCommitContext() error = %v, want context canceled", err)
+	}
+}
+
+func TestEventRecordPublicationHonorsMidLoopCancellation(t *testing.T) {
+	source := make(map[string]EventRecord, 256)
+	for index := range 256 {
+		ref := fmt.Sprintf("event-%03d", index)
+		source[ref] = EventRecord{Ref: ref}
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancelOnSecondLedgerPoll(t, cancel)
+	if err := copyEventRecordsContext(ctx, map[string]EventRecord{}, source); !errors.Is(err, context.Canceled) {
+		t.Fatalf("copyEventRecordsContext() error = %v, want context canceled", err)
+	}
+}
+
+func TestFinalHeadCloneHonorsNestedCancellation(t *testing.T) {
+	heads := make([]string, 256)
+	for index := range heads {
+		heads[index] = fmt.Sprintf("head-%03d", index)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancelOnSecondLedgerPoll(t, cancel)
+	if _, err := cloneStringMapContext(ctx, map[string][]string{"scope": heads}); !errors.Is(err, context.Canceled) {
+		t.Fatalf("cloneStringMapContext() error = %v, want context canceled", err)
+	}
+}
+
+func TestResolveCommitProjectionHonorsMidLoopCancellation(t *testing.T) {
+	st, key := ledgerStoreAndKey(t)
+	batch := mustBatch(t, "event-000")
+	batch.Events = make([]Event, 256)
+	for index := range batch.Events {
+		batch.Events[index] = mustBatch(t, fmt.Sprintf("event-%03d", index)).Events[0]
+	}
+	commit, err := Commit(st, key, batch, CommitOptions{ObservedAt: "2026-08-23T12:00:00Z"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	original := beforeResolveCommitProjection
+	beforeResolveCommitProjection = func() { cancelOnSecondLedgerPoll(t, cancel) }
+	t.Cleanup(func() { beforeResolveCommitProjection = original })
+	if _, err := ResolveCommit(ctx, st, commit.ObjectID, Limits{}); !errors.Is(err, context.Canceled) {
+		t.Fatalf("ResolveCommit() error = %v, want context canceled during projection", err)
+	}
+}
+
+func TestCanonicalConfirmationHonorsCancellationInsideMarshal(t *testing.T) {
+	items := make([]any, 512)
+	for index := range items {
+		items[index] = map[string]any{"index": int64(index), "text": fmt.Sprintf("value-%03d", index)}
+	}
+	object := map[string]any{"items": items}
+	raw, err := canonical.Marshal(object)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := &cancelAfterErrChecks{Context: context.Background(), cancelAt: 16}
+	if _, err := confirmCanonicalBytesContext(ctx, ObjectVerification{object: object}, raw); !errors.Is(err, context.Canceled) {
+		t.Fatalf("confirmCanonicalBytesContext() error = %v after %d checks, want context canceled", err, ctx.checks)
+	}
+}
+
+func cancelOnSecondLedgerPoll(t *testing.T, cancel context.CancelFunc) {
+	t.Helper()
+	original := afterLedgerWorkPoll
+	polls := 0
+	afterLedgerWorkPoll = func() {
+		polls++
+		if polls == 2 {
+			cancel()
+		}
+	}
+	t.Cleanup(func() { afterLedgerWorkPoll = original })
+}
+
+func projectionCommitObject(events []any) map[string]any {
+	return map[string]any{
+		"body": map[string]any{
+			"namespace": "scope", "parents": []any{}, "events": events, "observed_at": "2026-08-23T12:00:00Z",
+			"actor": map[string]any{"key_id": "actor", "label": "Actor"},
+		},
+		"body_digest": "sha256:" + strings.Repeat("a", 64),
+		"signature":   map[string]any{"public_key": "key"},
 	}
 }
 
@@ -477,6 +619,38 @@ func TestUnsupportedKeySampleOmissionMarksVerificationDiagnosticsTruncated(t *te
 	}
 	if len(verification.Errors) != 1 || len(verification.Errors[0]) > 512 {
 		t.Fatalf("bounded validation errors = %#v", verification.Errors)
+	}
+}
+
+func TestCanonicalAttackerKeyTruncationReachesVerification(t *testing.T) {
+	st, _ := ledgerStoreAndKey(t)
+	key := strings.Repeat("line\n\x1b\"\\é", 200)
+	quotedRaw, err := json.Marshal(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	quoted := string(quotedRaw)
+	raw := []byte("{" + quoted + ":1," + quoted + ":2}")
+	id := canonical.Digest(raw)
+	hexID := strings.TrimPrefix(id, "sha256:")
+	path := filepath.Join(st.Dir(), "objects", "sha256", hexID[:2], hexID[2:]+".json")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, raw, 0o444); err != nil {
+		t.Fatal(err)
+	}
+	result, err := Scan(context.Background(), st, ScanOptions{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	verification := result.Objects[id]
+	if !result.Verification.DiagnosticsTruncated || len(verification.Errors) != 1 {
+		t.Fatalf("verification = %#v, diagnostics_truncated = %t", verification, result.Verification.DiagnosticsTruncated)
+	}
+	message := verification.Errors[0]
+	if len(message) > 512 || !utf8.ValidString(message) || strings.ContainsAny(message, "\n\x1b") {
+		t.Fatalf("canonical diagnostic = %q", message)
 	}
 }
 

@@ -130,7 +130,11 @@ type storedCheckpoint struct {
 	previous string
 }
 
-func storedCheckpointFromObject(object map[string]any) (storedCheckpoint, error) {
+func storedCheckpointFromObjectContext(ctx context.Context, object map[string]any) (storedCheckpoint, error) {
+	if err := ctx.Err(); err != nil {
+		return storedCheckpoint{}, err
+	}
+	work := 0
 	body, ok := object["body"].(map[string]any)
 	if !ok {
 		return storedCheckpoint{}, fmt.Errorf("body is not an object")
@@ -139,8 +143,16 @@ func storedCheckpointFromObject(object map[string]any) (storedCheckpoint, error)
 	if !ok {
 		return storedCheckpoint{}, fmt.Errorf("frontier is not an array")
 	}
+	if err := pollContext(ctx, work); err != nil {
+		return storedCheckpoint{}, err
+	}
+	work++
 	frontier := make([]CheckpointFrontier, len(rawFrontier))
 	for index, raw := range rawFrontier {
+		if err := pollContext(ctx, work); err != nil {
+			return storedCheckpoint{}, err
+		}
+		work++
 		entry, ok := raw.(map[string]any)
 		if !ok {
 			return storedCheckpoint{}, fmt.Errorf("frontier %d is not an object", index)
@@ -149,7 +161,7 @@ func storedCheckpointFromObject(object map[string]any) (storedCheckpoint, error)
 		if !ok {
 			return storedCheckpoint{}, fmt.Errorf("frontier %d namespace is not a string", index)
 		}
-		heads, err := stringSlice(entry["heads"])
+		heads, err := stringSliceContext(ctx, entry["heads"], &work)
 		if err != nil {
 			return storedCheckpoint{}, fmt.Errorf("frontier %d heads: %w", index, err)
 		}
@@ -341,8 +353,11 @@ func verifyEventReferenceList(ctx context.Context, result *VerifyResult, strict 
 }
 
 func applyAuthorization(ctx context.Context, st *store.Store, result *VerifyResult, commits map[string]storedCommit) error {
-	roots, rootErr := Roots(st)
+	roots, rootErr := RootsContext(ctx, st)
 	if rootErr != nil {
+		if errors.Is(rootErr, context.Canceled) || errors.Is(rootErr, context.DeadlineExceeded) {
+			return rootErr
+		}
 		appendVerificationDiagnostic(result, &result.Errors, "authority evaluation failed: "+rootErr.Error())
 		return authorityContextStatus(ctx)
 	}
@@ -526,7 +541,10 @@ func verifyCanonicalBytes(file store.ObjectFile, raw []byte) ObjectVerification 
 }
 
 func verifyCanonicalBytesWithPreflight(ctx context.Context, file store.ObjectFile, raw []byte, resources *scanResourceCounts, limits Limits) (ObjectVerification, parsedObjectResources, error) {
-	result := parseCanonicalBytes(file, raw)
+	result, err := parseCanonicalBytesContext(ctx, file, raw)
+	if err != nil {
+		return ObjectVerification{}, parsedObjectResources{}, err
+	}
 	if result.object == nil {
 		return result, parsedObjectResources{}, nil
 	}
@@ -534,66 +552,115 @@ func verifyCanonicalBytesWithPreflight(ctx context.Context, file store.ObjectFil
 	if err != nil {
 		return ObjectVerification{}, parsedObjectResources{}, err
 	}
-	if err := pollRawStructureContext(ctx, result.object); err != nil {
+	result, err = confirmCanonicalBytesContext(ctx, result, raw)
+	if err != nil {
 		return ObjectVerification{}, parsedObjectResources{}, err
 	}
-	result, err = finishCanonicalVerificationContext(ctx, confirmCanonicalBytes(result, raw))
+	result, err = finishCanonicalVerificationContext(ctx, result)
 	return result, parsedResources, err
 }
 
 func parseCanonicalBytes(file store.ObjectFile, raw []byte) ObjectVerification {
+	result, _ := parseCanonicalBytesContext(context.Background(), file, raw)
+	return result
+}
+
+func parseCanonicalBytesContext(ctx context.Context, file store.ObjectFile, raw []byte) (ObjectVerification, error) {
 	result := ObjectVerification{ID: file.ID, Path: file.Path, Integrity: "invalid", Structure: "unverified", Authenticity: "unverified"}
-	if canonical.Digest(raw) != file.ID {
-		result.Errors = append(result.Errors, fmt.Sprintf("object digest mismatch: path says %s, bytes say %s", file.ID, canonical.Digest(raw)))
-		return result
-	}
-	parsed, err := canonical.Parse(raw)
+	digest, err := canonical.DigestContext(ctx, raw)
 	if err != nil {
-		var diagnostic *validationDiagnosticError
-		if errors.As(err, &diagnostic) && diagnostic.truncated {
+		return ObjectVerification{}, err
+	}
+	if digest != file.ID {
+		result.Errors = append(result.Errors, fmt.Sprintf("object digest mismatch: path says %s, bytes say %s", file.ID, digest))
+		return result, nil
+	}
+	parsed, err := canonical.ParseContext(ctx, raw)
+	if err != nil {
+		var diagnostic interface{ DiagnosticTruncated() bool }
+		if errors.As(err, &diagnostic) && diagnostic.DiagnosticTruncated() {
 			result.diagnosticsTruncated = true
 		}
 		result.Errors = append(result.Errors, err.Error())
 		result.Structure = "invalid"
-		return result
+		return result, nil
 	}
 	object, ok := parsed.(map[string]any)
 	if !ok {
-		encoded, marshalErr := canonical.Marshal(parsed)
-		if marshalErr != nil {
-			result.Errors = append(result.Errors, marshalErr.Error())
-			return result
-		}
-		if !bytes.Equal(encoded, raw) {
-			result.Errors = append(result.Errors, "object bytes are not canonical pact-json-v1")
-			return result
-		}
-		result.Integrity = "valid"
-		result.Errors = append(result.Errors, "canonical object must be a JSON object")
-		result.Structure = "invalid"
-		return result
+		return verifyCanonicalNonObjectContext(ctx, result, parsed, raw)
 	}
 	result.object = object
-	return result
+	return result, nil
+}
+
+func verifyCanonicalNonObjectContext(ctx context.Context, result ObjectVerification, parsed any, raw []byte) (ObjectVerification, error) {
+	encoded, err := canonical.MarshalContext(ctx, parsed)
+	if err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return ObjectVerification{}, err
+		}
+		result.Errors = append(result.Errors, err.Error())
+		return result, nil
+	}
+	equal, err := equalBytesContext(ctx, encoded, raw)
+	if err != nil {
+		return ObjectVerification{}, err
+	}
+	if !equal {
+		result.Errors = append(result.Errors, "object bytes are not canonical pact-json-v1")
+		return result, nil
+	}
+	result.Integrity = "valid"
+	result.Errors = append(result.Errors, "canonical object must be a JSON object")
+	result.Structure = "invalid"
+	return result, nil
 }
 
 func confirmCanonicalBytes(result ObjectVerification, raw []byte) ObjectVerification {
+	result, _ = confirmCanonicalBytesContext(context.Background(), result, raw)
+	return result
+}
+
+func confirmCanonicalBytesContext(ctx context.Context, result ObjectVerification, raw []byte) (ObjectVerification, error) {
 	if result.object == nil {
-		return result
+		return result, nil
 	}
-	encoded, err := canonical.Marshal(result.object)
+	encoded, err := canonical.MarshalContext(ctx, result.object)
 	if err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return ObjectVerification{}, err
+		}
 		result.Errors = append(result.Errors, err.Error())
 		result.object = nil
-		return result
+		return result, nil
 	}
-	if !bytes.Equal(encoded, raw) {
+	equal, err := equalBytesContext(ctx, encoded, raw)
+	if err != nil {
+		return ObjectVerification{}, err
+	}
+	if !equal {
 		result.Errors = append(result.Errors, "object bytes are not canonical pact-json-v1")
 		result.object = nil
-		return result
+		return result, nil
 	}
 	result.Integrity = "valid"
-	return result
+	return result, nil
+}
+
+func equalBytesContext(ctx context.Context, left, right []byte) (bool, error) {
+	if len(left) != len(right) {
+		return false, nil
+	}
+	for start := 0; start < len(left); start += 256 {
+		if err := ctx.Err(); err != nil {
+			return false, err
+		}
+		end := min(start+256, len(left))
+		if !bytes.Equal(left[start:end], right[start:end]) {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 func pollRawStructureContext(ctx context.Context, value any) error {
@@ -654,7 +721,11 @@ func finishCanonicalVerificationContext(ctx context.Context, result ObjectVerifi
 	result.Type = objectType
 	result.Namespace = namespace
 	result.Structure = "valid"
+	beforeSignatureVerification()
 	if err := verifySignatureContext(ctx, object); err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return ObjectVerification{}, err
+		}
 		result.Errors = append(result.Errors, err.Error())
 		result.Authenticity = "invalid"
 		return result, nil
@@ -662,6 +733,9 @@ func finishCanonicalVerificationContext(ctx context.Context, result ObjectVerifi
 	result.Authenticity = "valid"
 	return result, ctx.Err()
 }
+
+var beforeSignatureVerification = func() {}
+
 func validateSignedObjectContext(ctx context.Context, object map[string]any) (string, string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", "", err
@@ -985,23 +1059,12 @@ func verifySignatureContext(ctx context.Context, object map[string]any) error {
 	if signature["algorithm"] != "ed25519" {
 		return fmt.Errorf("unsupported or missing signature algorithm")
 	}
-	publicText, ok := signature["public_key"].(string)
-	if !ok {
-		return fmt.Errorf("invalid base64url value")
+	public, signatureBytes, err := decodeSignatureMaterialContext(ctx, signature)
+	if err != nil {
+		return err
 	}
-	valueText, ok := signature["value"].(string)
-	if !ok {
-		return fmt.Errorf("invalid base64url value")
-	}
-	public, err := decodeBase64URL(publicText)
-	if err != nil || len(public) != ed25519.PublicKeySize {
-		return fmt.Errorf("Ed25519 public key is not 32 bytes")
-	}
-	signatureBytes, err := decodeBase64URL(valueText)
-	if err != nil || len(signatureBytes) != ed25519.SignatureSize {
-		return fmt.Errorf("Ed25519 signature is not 64 bytes")
-	}
-	keyID, err := identity.KeyID(ed25519.PublicKey(public))
+	// KeyID hashes exactly 32 admitted bytes; there is no unbounded work to cancel.
+	keyID, err := identity.KeyID(ed25519.PublicKey(public)) //nolint:contextcheck
 	if err != nil {
 		return err
 	}
@@ -1023,20 +1086,62 @@ func verifySignatureContext(ctx context.Context, object map[string]any) error {
 	if !ok || !digestPattern.MatchString(bodyDigest) {
 		return fmt.Errorf("body digest is malformed; signature cannot be checked")
 	}
-	if err := identity.VerifyBody(object["body"], bodyDigest, ed25519.PublicKey(public), signatureBytes); err != nil {
-		return err
-	}
-	return nil
+	return identity.VerifyBodyContext(ctx, object["body"], bodyDigest, ed25519.PublicKey(public), signatureBytes)
 }
-func decodeBase64URL(value string) ([]byte, error) {
+
+func decodeSignatureMaterialContext(ctx context.Context, signature map[string]any) ([]byte, []byte, error) {
+	publicText, ok := signature["public_key"].(string)
+	if !ok {
+		return nil, nil, fmt.Errorf("invalid base64url value")
+	}
+	valueText, ok := signature["value"].(string)
+	if !ok {
+		return nil, nil, fmt.Errorf("invalid base64url value")
+	}
+	if len(publicText) != base64.RawURLEncoding.EncodedLen(ed25519.PublicKeySize) {
+		return nil, nil, fmt.Errorf("Ed25519 public key is not 32 bytes")
+	}
+	public, err := decodeBase64URLContext(ctx, publicText, ed25519.PublicKeySize)
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return nil, nil, err
+	}
+	if err != nil || len(public) != ed25519.PublicKeySize {
+		return nil, nil, fmt.Errorf("Ed25519 public key is not 32 bytes")
+	}
+	if len(valueText) != base64.RawURLEncoding.EncodedLen(ed25519.SignatureSize) {
+		return nil, nil, fmt.Errorf("Ed25519 signature is not 64 bytes")
+	}
+	signatureBytes, err := decodeBase64URLContext(ctx, valueText, ed25519.SignatureSize)
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return nil, nil, err
+	}
+	if err != nil || len(signatureBytes) != ed25519.SignatureSize {
+		return nil, nil, fmt.Errorf("Ed25519 signature is not 64 bytes")
+	}
+	return public, signatureBytes, nil
+}
+
+var beforeSignatureBase64Decode = func() {}
+
+func decodeBase64URLContext(ctx context.Context, value string, decodedLength int) ([]byte, error) {
 	if value == "" {
 		return nil, fmt.Errorf("invalid base64url value")
 	}
-	for _, character := range value {
+	if len(value) != base64.RawURLEncoding.EncodedLen(decodedLength) {
+		return nil, fmt.Errorf("invalid base64url value")
+	}
+	for index, character := range value {
+		if err := pollContext(ctx, index); err != nil {
+			return nil, err
+		}
 		if (character < 'A' || character > 'Z') && (character < 'a' || character > 'z') && (character < '0' || character > '9') && character != '-' && character != '_' {
 			return nil, fmt.Errorf("invalid base64url value")
 		}
 	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	beforeSignatureBase64Decode()
 	return base64.RawURLEncoding.DecodeString(value)
 }
 func isKeyID(value string) bool {

@@ -51,22 +51,25 @@ func TestExactKeyValidationHonorsMidLoopCancellation(t *testing.T) {
 }
 
 func TestCanonicalObjectNormalizationHonorsMidLoopCancellation(t *testing.T) {
-	value := make(map[string]any, 256)
-	for index := range 256 {
+	value := make(map[string]any, 512)
+	for index := range 512 {
 		value[fmt.Sprintf("field-%03d", index)] = index
 	}
-	ctx, cancel := context.WithCancel(context.Background())
-	original := afterLedgerWorkPoll
-	polls := 0
-	afterLedgerWorkPoll = func() {
-		polls++
-		if polls == 2 {
-			cancel()
-		}
-	}
-	t.Cleanup(func() { afterLedgerWorkPoll = original })
+	ctx := &cancelAfterErrChecks{Context: context.Background(), cancelAt: 20}
 	if _, err := normalizeObjectContext(ctx, value); !errors.Is(err, context.Canceled) {
-		t.Fatalf("normalizeObjectContext() error = %v, want context canceled", err)
+		t.Fatalf("normalizeObjectContext() error = %v after %d checks, want cancellation inside canonical round trip", err, ctx.checks)
+	}
+}
+
+func TestEventBatchSortingHonorsMidLoopCancellation(t *testing.T) {
+	events := make([]Event, 512)
+	for index := range events {
+		events[index].LocalID = fmt.Sprintf("event-%03d", len(events)-index)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancelOnSecondLedgerPoll(t, cancel)
+	if err := sortEventsContext(ctx, events); !errors.Is(err, context.Canceled) {
+		t.Fatalf("sortEventsContext() error = %v, want context canceled", err)
 	}
 }
 

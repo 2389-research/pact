@@ -41,6 +41,81 @@ func TestCommitParentStructuralValidationHonorsMidLoopCancellation(t *testing.T)
 	}
 }
 
+func TestSignatureMaterialProcessingHonorsMidLoopCancellation(t *testing.T) {
+	st, key := ledgerStoreAndKey(t)
+	commit := commitOne(t, st, key, "event", nil)
+	raw, err := st.Get(commit.ObjectID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := canonical.Parse(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancelOnSecondLedgerPoll(t, cancel)
+	if err := verifySignatureContext(ctx, parsed.(map[string]any)); !errors.Is(err, context.Canceled) {
+		t.Fatalf("verifySignatureContext() error = %v, want context canceled", err)
+	}
+}
+
+func TestCanonicalVerificationPropagatesSignatureCancellation(t *testing.T) {
+	st, key := ledgerStoreAndKey(t)
+	commit := commitOne(t, st, key, "event", nil)
+	raw, err := st.Get(commit.ObjectID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := canonical.Parse(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	original := beforeSignatureVerification
+	beforeSignatureVerification = func() { cancelOnSecondLedgerPoll(t, cancel) }
+	t.Cleanup(func() { beforeSignatureVerification = original })
+	_, err = finishCanonicalVerificationContext(ctx, ObjectVerification{Integrity: "valid", object: parsed.(map[string]any)})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("finishCanonicalVerificationContext() error = %v, want context canceled", err)
+	}
+}
+
+func TestSignatureBodyCanonicalizationHonorsMidLoopCancellation(t *testing.T) {
+	st, key := ledgerStoreAndKey(t)
+	batch := mustBatch(t, "event")
+	batch.Events[0].Payload = make(map[string]any, 512)
+	for index := range 512 {
+		batch.Events[0].Payload[fmt.Sprintf("field-%03d", index)] = index
+	}
+	commit, err := Commit(st, key, batch, CommitOptions{ObservedAt: "2026-08-23T12:00:00Z"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := st.Get(commit.ObjectID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := canonical.Parse(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := &cancelAfterErrChecks{Context: context.Background(), cancelAt: 20}
+	if err := verifySignatureContext(ctx, parsed.(map[string]any)); !errors.Is(err, context.Canceled) {
+		t.Fatalf("verifySignatureContext() error = %v after %d checks, want body canonicalization cancellation", err, ctx.checks)
+	}
+}
+
+func TestSignatureEncodedLengthRejectsBeforeDecodeAllocation(t *testing.T) {
+	original := beforeSignatureBase64Decode
+	decoded := false
+	beforeSignatureBase64Decode = func() { decoded = true }
+	t.Cleanup(func() { beforeSignatureBase64Decode = original })
+	_, err := decodeBase64URLContext(context.Background(), strings.Repeat("A", 44), 32)
+	if err == nil || decoded {
+		t.Fatalf("decodeBase64URLContext() error = %v, decoded = %t; want pre-allocation length rejection", err, decoded)
+	}
+}
+
 func TestVerifySeparatesAuthorizationFromAuthenticityAndShowExpandsEvent(t *testing.T) {
 	st, key := ledgerStoreAndKey(t)
 	batch, err := NormalizeEventBatch(map[string]any{"events": []any{eventInput("a", []any{}, []any{})}})

@@ -283,6 +283,14 @@ func headsFor(commits map[string]storedCommit, namespace string) map[string][]st
 }
 
 func storedCommitFromObject(object map[string]any) (storedCommit, error) {
+	return storedCommitFromObjectContext(context.Background(), object)
+}
+
+func storedCommitFromObjectContext(ctx context.Context, object map[string]any) (storedCommit, error) {
+	if err := ctx.Err(); err != nil {
+		return storedCommit{}, err
+	}
+	work := 0
 	body, ok := object["body"].(map[string]any)
 	if !ok {
 		return storedCommit{}, fmt.Errorf("body is not an object")
@@ -291,7 +299,7 @@ func storedCommitFromObject(object map[string]any) (storedCommit, error) {
 	if !ok {
 		return storedCommit{}, fmt.Errorf("namespace is not a string")
 	}
-	parents, err := stringSlice(body["parents"])
+	parents, err := stringSliceContext(ctx, body["parents"], &work)
 	if err != nil {
 		return storedCommit{}, fmt.Errorf("parents: %w", err)
 	}
@@ -299,25 +307,9 @@ func storedCommitFromObject(object map[string]any) (storedCommit, error) {
 	if !ok {
 		return storedCommit{}, fmt.Errorf("events are not an array")
 	}
-	events := make([]storedEvent, len(rawEvents))
-	for index, raw := range rawEvents {
-		event, ok := raw.(map[string]any)
-		if !ok {
-			return storedCommit{}, fmt.Errorf("event %d is not an object", index)
-		}
-		localID, ok := event["local_id"].(string)
-		if !ok {
-			return storedCommit{}, fmt.Errorf("event %d local_id is not a string", index)
-		}
-		causedBy, err := stringSlice(event["caused_by"])
-		if err != nil {
-			return storedCommit{}, fmt.Errorf("event %d caused_by: %w", index, err)
-		}
-		supersedes, err := stringSlice(event["supersedes"])
-		if err != nil {
-			return storedCommit{}, fmt.Errorf("event %d supersedes: %w", index, err)
-		}
-		events[index] = storedEvent{localID: localID, causedBy: causedBy, supersedes: supersedes, object: event}
+	events, err := storedEventsFromObjectsContext(ctx, rawEvents, &work)
+	if err != nil {
+		return storedCommit{}, err
 	}
 	actor, ok := body["actor"].(map[string]any)
 	if !ok {
@@ -342,13 +334,53 @@ func storedCommitFromObject(object map[string]any) (storedCommit, error) {
 	return storedCommit{namespace: namespace, parents: parents, events: events, signerID: signerID, publicKey: publicKey, actor: actor, observed: observed}, nil
 }
 
-func stringSlice(value any) ([]string, error) {
+func storedEventsFromObjectsContext(ctx context.Context, rawEvents []any, work *int) ([]storedEvent, error) {
+	if err := pollContext(ctx, *work); err != nil {
+		return nil, err
+	}
+	*work++
+	events := make([]storedEvent, len(rawEvents))
+	for index, raw := range rawEvents {
+		if err := pollContext(ctx, *work); err != nil {
+			return nil, err
+		}
+		*work++
+		event, ok := raw.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("event %d is not an object", index)
+		}
+		localID, ok := event["local_id"].(string)
+		if !ok {
+			return nil, fmt.Errorf("event %d local_id is not a string", index)
+		}
+		causedBy, err := stringSliceContext(ctx, event["caused_by"], work)
+		if err != nil {
+			return nil, fmt.Errorf("event %d caused_by: %w", index, err)
+		}
+		supersedes, err := stringSliceContext(ctx, event["supersedes"], work)
+		if err != nil {
+			return nil, fmt.Errorf("event %d supersedes: %w", index, err)
+		}
+		events[index] = storedEvent{localID: localID, causedBy: causedBy, supersedes: supersedes, object: event}
+	}
+	return events, nil
+}
+
+func stringSliceContext(ctx context.Context, value any, work *int) ([]string, error) {
 	raw, ok := value.([]any)
 	if !ok {
 		return nil, fmt.Errorf("not an array")
 	}
+	if err := pollContext(ctx, *work); err != nil {
+		return nil, err
+	}
+	*work++
 	result := make([]string, len(raw))
 	for index, item := range raw {
+		if err := pollContext(ctx, *work); err != nil {
+			return nil, err
+		}
+		*work++
 		text, ok := item.(string)
 		if !ok {
 			return nil, fmt.Errorf("item %d is not a string", index)

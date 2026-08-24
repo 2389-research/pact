@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"maps"
 	"math"
 	"os"
 	"sort"
@@ -25,6 +24,7 @@ var (
 	afterLedgerWorkPoll               = func() {}
 	beforeLedgerMergeBufferAllocation = func() {}
 	afterLedgerMergeBufferAllocation  = func() {}
+	beforeResolveCommitProjection     = func() {}
 )
 
 // Blocker identifies one absent immutable dependency in the local object set.
@@ -212,7 +212,7 @@ func collectCanonicalObjects(ctx context.Context, st *store.Store, files []store
 		if object.Valid() {
 			resources.acceptValid(parsedResources)
 		}
-		if err := collectScannedObject(file.ID, object, verification, collected.commits, collected.checkpoints); err != nil {
+		if err := collectScannedObject(ctx, file.ID, object, verification, collected.commits, collected.checkpoints); err != nil {
 			return collectedObjects{}, err
 		}
 	}
@@ -225,7 +225,7 @@ func collectCanonicalObjects(ctx context.Context, st *store.Store, files []store
 
 func readScannedObject(ctx context.Context, st *store.Store, file store.ObjectFile, limits Limits, remaining uint64, resources *scanResourceCounts) (ObjectVerification, parsedObjectResources, uint64, error) {
 	readLimit := min(limits.ObjectBytes, remaining)
-	raw, err := st.GetBounded(file.ID, readLimit)
+	raw, err := st.GetBoundedContext(ctx, file.ID, readLimit)
 	if err == nil {
 		object, parsedResources, verifyErr := verifyCanonicalBytesWithPreflight(ctx, file, raw, resources, limits)
 		return object, parsedResources, uint64(len(raw)), verifyErr
@@ -283,12 +283,14 @@ func buildScanRecords(ctx context.Context, collected collectedObjects, result *S
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		record, events, recordErr := recordsForCommit(id, collected.objects[id], commit)
+		record, events, recordErr := recordsForCommitContext(ctx, id, collected.objects[id], commit)
 		if recordErr != nil {
 			return recordErr
 		}
 		result.Commits[id] = record
-		maps.Copy(result.Events, events)
+		if err := copyEventRecordsContext(ctx, result.Events, events); err != nil {
+			return err
+		}
 	}
 	checkpointIDs, err := sortedKeysContext(ctx, collected.checkpoints)
 	if err != nil {
@@ -326,6 +328,18 @@ func setVerificationRecordCounts(verification *VerifyResult, counts ScanCounts, 
 	verification.Counts.Commits = commits
 	verification.Counts.Checkpoints = checkpoints
 	verification.Counts.Events = events
+	return nil
+}
+
+func copyEventRecordsContext(ctx context.Context, destination, source map[string]EventRecord) error {
+	work := 0
+	for key, record := range source {
+		if err := pollContext(ctx, work); err != nil {
+			return err
+		}
+		work++
+		destination[key] = record
+	}
 	return nil
 }
 
@@ -375,7 +389,7 @@ func ResolveCommit(ctx context.Context, st *store.Store, id string, requested Li
 	}
 	limits := effectiveLimits(requested)
 	readLimit := min(limits.ObjectBytes, limits.CanonicalBytes)
-	raw, err := st.GetBounded(id, readLimit)
+	raw, err := st.GetBoundedContext(ctx, id, readLimit)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return CommitRecord{}, fmt.Errorf("%w: object not found: %s", ErrMissingDependency, id)
@@ -400,11 +414,12 @@ func ResolveCommit(ctx context.Context, st *store.Store, id string, requested Li
 		return CommitRecord{}, fmt.Errorf("%w: object is not a valid commit: %s", ErrIntegrity, id)
 	}
 	resources.acceptValid(parsedResources)
-	commit, err := storedCommitFromObject(verification.object)
+	beforeResolveCommitProjection()
+	commit, err := storedCommitFromObjectContext(ctx, verification.object)
 	if err != nil {
 		return CommitRecord{}, fmt.Errorf("%w: validated commit shape: %w", ErrIntegrity, err)
 	}
-	record, _, err := recordsForCommit(id, verification, commit)
+	record, _, err := recordsForCommitContext(ctx, id, verification, commit)
 	if err != nil {
 		return CommitRecord{}, err
 	}
@@ -419,7 +434,7 @@ func emptyScanResult() ScanResult {
 	}
 }
 
-func collectScannedObject(id string, object ObjectVerification, result *VerifyResult, commits map[string]storedCommit, checkpoints map[string]storedCheckpoint) error {
+func collectScannedObject(ctx context.Context, id string, object ObjectVerification, result *VerifyResult, commits map[string]storedCommit, checkpoints map[string]storedCheckpoint) error {
 	object = boundedObjectVerification(result, object)
 	result.Objects[id] = object
 	for _, message := range object.Errors {
@@ -441,13 +456,13 @@ func collectScannedObject(id string, object ObjectVerification, result *VerifyRe
 	}
 	switch object.Type {
 	case "commit":
-		commit, err := storedCommitFromObject(object.object)
+		commit, err := storedCommitFromObjectContext(ctx, object.object)
 		if err != nil {
 			return fmt.Errorf("validated commit %s has inconsistent shape: %w", id, err)
 		}
 		commits[id] = commit
 	case "checkpoint":
-		checkpoint, err := storedCheckpointFromObject(object.object)
+		checkpoint, err := storedCheckpointFromObjectContext(ctx, object.object)
 		if err != nil {
 			return fmt.Errorf("validated checkpoint %s has inconsistent shape: %w", id, err)
 		}
@@ -456,7 +471,11 @@ func collectScannedObject(id string, object ObjectVerification, result *VerifyRe
 	return nil
 }
 
-func recordsForCommit(id string, verification ObjectVerification, commit storedCommit) (CommitRecord, map[string]EventRecord, error) {
+func recordsForCommitContext(ctx context.Context, id string, verification ObjectVerification, commit storedCommit) (CommitRecord, map[string]EventRecord, error) {
+	if err := ctx.Err(); err != nil {
+		return CommitRecord{}, nil, err
+	}
+	work := 0
 	body, err := requiredObjectField(verification.object, "body")
 	if err != nil {
 		return CommitRecord{}, nil, err
@@ -477,14 +496,26 @@ func recordsForCommit(id string, verification ObjectVerification, commit storedC
 	if err != nil {
 		return CommitRecord{}, nil, err
 	}
+	parents, err := cloneStringsContext(ctx, commit.parents, &work)
+	if err != nil {
+		return CommitRecord{}, nil, err
+	}
 	record := CommitRecord{
 		ID: id, Namespace: commit.namespace, ActorID: actorID, ActorLabel: actorLabel,
-		ObservedAt: commit.observed, BodyDigest: bodyDigest, Parents: append([]string(nil), commit.parents...),
+		ObservedAt: commit.observed, BodyDigest: bodyDigest, Parents: parents,
 		Integrity: "valid", Structure: "valid", Authenticity: "valid", Completeness: "complete",
 	}
+	if err := pollContext(ctx, work); err != nil {
+		return CommitRecord{}, nil, err
+	}
+	work++
 	record.EventRefs = make([]string, len(commit.events))
 	events := make(map[string]EventRecord, len(commit.events))
 	for index, stored := range commit.events {
+		if err := pollContext(ctx, work); err != nil {
+			return CommitRecord{}, nil, err
+		}
+		work++
 		ref := EventRef(id, stored.localID)
 		record.EventRefs[index] = ref
 		event := stored.object
@@ -492,20 +523,29 @@ func recordsForCommit(id string, verification ObjectVerification, commit storedC
 		eventType, typeErr := requiredStringField(event, "type")
 		subject, subjectErr := requiredStringField(event, "subject")
 		schemaRef, schemaErr := requiredStringField(event, "schema_ref")
-		tags, tagsErr := stringSlice(event["tags"])
+		tags, tagsErr := stringSliceContext(ctx, event["tags"], &work)
 		if err := errors.Join(kindErr, typeErr, subjectErr, schemaErr, tagsErr); err != nil {
 			return CommitRecord{}, nil, fmt.Errorf("validated event %s projection: %w", ref, err)
+		}
+		causedBy, causedByErr := resolvedEventRefsContext(ctx, id, stored.causedBy, &work)
+		supersedes, supersedesErr := cloneStringsContext(ctx, stored.supersedes, &work)
+		if err := errors.Join(causedByErr, supersedesErr); err != nil {
+			return CommitRecord{}, nil, err
 		}
 		events[ref] = EventRecord{
 			Ref: ref, CommitID: id, LocalID: stored.localID, Namespace: commit.namespace,
 			Kind: kind, Type: eventType, Subject: subject, SchemaRef: schemaRef,
-			CausedBy: resolvedEventRefs(id, stored.causedBy), Supersedes: append([]string(nil), stored.supersedes...), Tags: tags,
+			CausedBy: causedBy, Supersedes: supersedes, Tags: tags,
 		}
 	}
 	return record, events, nil
 }
 
 func recordForCheckpointContext(ctx context.Context, id string, verification ObjectVerification, checkpoint storedCheckpoint) (CheckpointRecord, error) {
+	if err := ctx.Err(); err != nil {
+		return CheckpointRecord{}, err
+	}
+	work := 0
 	body, err := requiredObjectField(verification.object, "body")
 	if err != nil {
 		return CheckpointRecord{}, err
@@ -521,7 +561,7 @@ func recordForCheckpointContext(ctx context.Context, id string, verification Obj
 	actorLabel, labelErr := requiredStringField(actor, "label")
 	observedAt, observedErr := requiredStringField(body, "observed_at")
 	bodyDigest, digestErr := requiredStringField(verification.object, "body_digest")
-	schemaRefs, schemaErr := stringSlice(body["schema_refs"])
+	schemaRefs, schemaErr := stringSliceContext(ctx, body["schema_refs"], &work)
 	if err := errors.Join(scopeErr, policyErr, epochErr, actorIDErr, labelErr, observedErr, digestErr, schemaErr); err != nil {
 		return CheckpointRecord{}, fmt.Errorf("validated checkpoint %s projection: %w", id, err)
 	}
@@ -589,16 +629,40 @@ func sourceFingerprintContext(ctx context.Context, ids []string) (string, error)
 	return fmt.Sprintf("sha256:%x", hash.Sum(nil)), nil
 }
 
-func resolvedEventRefs(commitID string, refs []string) []string {
+func resolvedEventRefsContext(ctx context.Context, commitID string, refs []string, work *int) ([]string, error) {
+	if err := pollContext(ctx, *work); err != nil {
+		return nil, err
+	}
+	*work++
 	result := make([]string, len(refs))
 	for index, ref := range refs {
+		if err := pollContext(ctx, *work); err != nil {
+			return nil, err
+		}
+		*work++
 		if match := localRefPattern.FindStringSubmatch(ref); match != nil {
 			result[index] = EventRef(commitID, match[1])
 		} else {
 			result[index] = ref
 		}
 	}
-	return result
+	return result, nil
+}
+
+func cloneStringsContext(ctx context.Context, source []string, work *int) ([]string, error) {
+	if err := pollContext(ctx, *work); err != nil {
+		return nil, err
+	}
+	*work++
+	result := make([]string, len(source))
+	for index, value := range source {
+		if err := pollContext(ctx, *work); err != nil {
+			return nil, err
+		}
+		*work++
+		result[index] = value
+	}
+	return result, nil
 }
 
 func requiredObjectField(object map[string]any, field string) (map[string]any, error) {
@@ -695,7 +759,11 @@ func cloneStringMapContext(ctx context.Context, source map[string][]string) (map
 			return nil, err
 		}
 		work++
-		result[key] = append([]string(nil), values...)
+		cloned, err := cloneStringsContext(ctx, values, &work)
+		if err != nil {
+			return nil, err
+		}
+		result[key] = cloned
 	}
 	return result, nil
 }
