@@ -18,3 +18,6 @@
   Do not block the MVP on completing every later protocol decision.
 - The Go module path is `pact` until a real hosting location exists. Do not
   invent a remote import path; change it once publication is concrete.
+- The v1 filesystem boundary blocks static symlink mistakes. It does not claim
+  defense against a concurrent local process that can already replace owned
+  path components; operators must protect repo and key directories.
