@@ -283,6 +283,7 @@ func verifyStoredObject(_ *store.Store, file store.ObjectFile) (ObjectVerificati
 	object, ok := parsed.(map[string]any)
 	if !ok {
 		result.Errors = append(result.Errors, "canonical object must be a JSON object")
+		result.Structure = "invalid"
 		return result, nil
 	}
 	result.Object = object

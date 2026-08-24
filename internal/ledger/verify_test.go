@@ -224,6 +224,22 @@ func TestVerifyMarksFailedCommitStructureInvalid(t *testing.T) {
 	}
 }
 
+func TestVerifyMarksCanonicalNonObjectStructureInvalid(t *testing.T) {
+	st, _ := ledgerStoreAndKey(t)
+	if _, _, err := st.PutCanonical([]any{"not", "an", "object"}); err != nil {
+		t.Fatal(err)
+	}
+	result, err := Verify(st, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, object := range result.Objects {
+		if object.Structure != "invalid" || result.Counts.Structure != 1 || len(result.Structure.Errors) != 1 {
+			t.Fatalf("verification = %#v", result)
+		}
+	}
+}
+
 func TestVerifyReportsMissingAndCrossNamespaceParentsInDAGLayer(t *testing.T) {
 	st, key := ledgerStoreAndKey(t)
 	missing := "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
