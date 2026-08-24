@@ -3,7 +3,7 @@
 
 # PACT Phase 2 design
 
-**Status:** Proposed; production implementation requires Doctor Biz's approval.
+**Status:** Approved by Doctor Biz on 2026-08-24; implementation is in progress.
 
 **Dependency evidence:** Official Go module metadata on 2026-08-24 resolves
 `modernc.org/sqlite` to `v1.57.0`. That module declares Go 1.25 and pins
