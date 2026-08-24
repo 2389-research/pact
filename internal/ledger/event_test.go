@@ -88,6 +88,37 @@ func TestNormalizeEventBatchUsesRuneLimits(t *testing.T) {
 	}
 }
 
+func TestNormalizeEventBatchExactKeyErrorsAreSortedAndStable(t *testing.T) {
+	tests := []struct {
+		name  string
+		event func() map[string]any
+		want  string
+	}{
+		{name: "missing", event: func() map[string]any {
+			event := eventInput("a", []any{}, []any{})
+			delete(event, "local_id")
+			delete(event, "kind")
+			return event
+		}, want: "$.events[0]: missing required fields: kind, local_id"},
+		{name: "extra", event: func() map[string]any {
+			event := eventInput("a", []any{}, []any{})
+			event["zeta"] = true
+			event["alpha"] = true
+			return event
+		}, want: "$.events[0]: unsupported fields: alpha, zeta"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			for iteration := 0; iteration < 100; iteration++ {
+				_, err := NormalizeEventBatch(map[string]any{"events": []any{test.event()}})
+				if err == nil || err.Error() != test.want {
+					t.Fatalf("iteration %d error = %v, want %q", iteration, err, test.want)
+				}
+			}
+		})
+	}
+}
+
 func eventInput(localID string, tags, causedBy []any) map[string]any {
 	return map[string]any{
 		"local_id": localID, "kind": "observation", "type": "widget.seen", "subject": "widget-1",

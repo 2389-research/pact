@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -113,6 +114,49 @@ func TestRunCheckpointEmitsCanonicalAuthorizedResult(t *testing.T) {
 	}
 }
 
+func TestRunCheckpointStrictFailureIncludesVerificationDetails(t *testing.T) {
+	repo := t.TempDir()
+	keyPath := filepath.Join(t.TempDir(), "alice.key.json")
+	runJSON(t, []string{"init", "--repo", repo, "--namespace", "org/example/widget", "--json"})
+	runJSON(t, []string{"keygen", "--actor", "Alice", "--out", keyPath, "--json"})
+	runJSON(t, []string{"trust-add", "--repo", repo, "--key-file", keyPath, "--json"})
+	batchPath := filepath.Join(t.TempDir(), "incomplete.json")
+	missing := "pact:event:sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd#gone"
+	batch := []byte(`{"events":[{"local_id":"e1","kind":"observation","type":"widget.seen","subject":"widget-1","schema_ref":"pact:core/widget/v1","payload":{},"evidence":[],"caused_by":[],"supersedes":["` + missing + `"],"tags":[]}]}`)
+	if err := os.WriteFile(batchPath, batch, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runJSON(t, []string{"commit", "--repo", repo, "--key-file", keyPath, "--events", batchPath, "--json"})
+	result := runErrorJSON(t, []string{"checkpoint", "--repo", repo, "--key-file", keyPath, "--scope", "org/example", "--policy-ref", testCLIPolicyRef, "--authority-epoch", "epoch-1", "--json"}, 4)
+	details, ok := result["details"].(map[string]any)
+	if !ok || details["objects"] == nil || details["references"].(map[string]any)["errors"] == nil {
+		t.Fatalf("checkpoint error JSON = %#v", result)
+	}
+	if details["counts"].(map[string]any)["objects"] != float64(1) {
+		t.Fatalf("checkpoint verification counts = %#v", details["counts"])
+	}
+}
+
+func TestRunCheckpointUntrustedSignerUsesAuthorizationExitWithoutPersistence(t *testing.T) {
+	repo := t.TempDir()
+	keyPath := filepath.Join(t.TempDir(), "alice.key.json")
+	runJSON(t, []string{"init", "--repo", repo, "--namespace", "org/example/widget", "--json"})
+	runJSON(t, []string{"keygen", "--actor", "Alice", "--out", keyPath, "--json"})
+	batchPath := filepath.Join(t.TempDir(), "events.json")
+	if err := os.WriteFile(batchPath, []byte(`{"events":[{"local_id":"e1","kind":"observation","type":"widget.seen","subject":"widget-1","schema_ref":"pact:core/widget/v1","payload":{},"evidence":[],"caused_by":[],"supersedes":[],"tags":[]}]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runJSON(t, []string{"commit", "--repo", repo, "--key-file", keyPath, "--events", batchPath, "--json"})
+	before := cliObjectCount(t, repo)
+	result := runErrorJSON(t, []string{"checkpoint", "--repo", repo, "--key-file", keyPath, "--scope", "org/example", "--policy-ref", testCLIPolicyRef, "--authority-epoch", "epoch-1", "--json"}, 5)
+	if !strings.Contains(result["error"].(string), "trusted root") {
+		t.Fatalf("checkpoint authorization error = %#v", result)
+	}
+	if after := cliObjectCount(t, repo); after != before {
+		t.Fatalf("object count after authorization refusal = %d, want %d", after, before)
+	}
+}
+
 func TestRunRejectsInvalidNamespace(t *testing.T) {
 	var stdout, stderr bytes.Buffer
 	if code := run([]string{"init", "--repo", t.TempDir(), "--namespace", "not a namespace"}, &stdout, &stderr); code != 2 {
@@ -202,4 +246,13 @@ func runErrorJSON(t *testing.T, args []string, wantCode int) map[string]any {
 		t.Fatalf("decode error JSON %q: %v", stderr.String(), err)
 	}
 	return result
+}
+
+func cliObjectCount(t *testing.T, repo string) int {
+	t.Helper()
+	objects, err := filepath.Glob(filepath.Join(repo, ".pact", "objects", "sha256", "*", "*.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return len(objects)
 }

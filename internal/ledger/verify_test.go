@@ -280,7 +280,7 @@ func TestVerifyRejectsCheckpointWithMissingOrWrongNamespaceHeads(t *testing.T) {
 		{name: "missing head", namespace: "scope", head: func(CommitResult) string {
 			return "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
 		}, want: "missing checkpoint head"},
-		{name: "wrong namespace", namespace: "different", head: func(commit CommitResult) string { return commit.ObjectID }, want: "namespace mismatch"},
+		{name: "wrong namespace", namespace: "scope/other", head: func(commit CommitResult) string { return commit.ObjectID }, want: "namespace mismatch"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			st, key := ledgerStoreAndKey(t)
@@ -303,6 +303,13 @@ func TestVerifyRejectsUnavailablePreviousCheckpoint(t *testing.T) {
 	commit := commitInNamespace(t, st, key, "scope", "event")
 	missing := "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
 	checkpointID := putSignedCheckpointForVerify(t, st, key, "scope", commit.ObjectID, missing)
+	loose, err := Verify(st, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !loose.OK || len(loose.References.Errors) != 0 || !strings.Contains(strings.Join(loose.References.Warnings, " "), checkpointID+": previous checkpoint is unavailable") {
+		t.Fatalf("loose Verify() = %#v", loose)
+	}
 	result, err := Verify(st, true)
 	if err != nil {
 		t.Fatal(err)
@@ -330,6 +337,19 @@ func TestVerifyRejectsNoncanonicalCheckpointBody(t *testing.T) {
 		t.Fatal(err)
 	}
 	if result.OK || result.Counts.Structure != 1 || !strings.Contains(strings.Join(result.Structure.Errors, " "), "schema_refs are not canonical") {
+		t.Fatalf("Verify() = %#v", result)
+	}
+}
+
+func TestVerifyRejectsCheckpointFrontierOutsideBodyScope(t *testing.T) {
+	st, key := ledgerStoreAndKey(t)
+	commit := commitInNamespace(t, st, key, "outside", "event")
+	putSignedCheckpointForVerify(t, st, key, "outside", commit.ObjectID, "")
+	result, err := Verify(st, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.OK || result.Counts.Structure != 1 || !strings.Contains(strings.Join(result.Structure.Errors, " "), `checkpoint namespace "outside" is outside scope "scope"`) {
 		t.Fatalf("Verify() = %#v", result)
 	}
 }

@@ -4,6 +4,7 @@ package ledger
 
 import (
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"sort"
 	"time"
@@ -16,6 +17,9 @@ import (
 )
 
 const checkpointFormat = "pact/checkpoint/v1"
+
+// ErrCheckpointAuthorization marks refusal to create an official checkpoint.
+var ErrCheckpointAuthorization = errors.New("checkpoint authorization failure")
 
 // CheckpointFrontier binds one namespace to its sorted historical heads.
 type CheckpointFrontier struct {
@@ -50,6 +54,18 @@ type CheckpointResult struct {
 	AuthorizationReasons []string
 	Path                 string
 }
+
+// CheckpointVerificationError preserves the strict verification state that blocked admission.
+type CheckpointVerificationError struct {
+	Result VerifyResult
+}
+
+func (err *CheckpointVerificationError) Error() string {
+	return "cannot checkpoint an invalid or incomplete strict frontier"
+}
+
+// Unwrap classifies strict checkpoint refusal as an integrity failure.
+func (err *CheckpointVerificationError) Unwrap() error { return ErrIntegrity }
 
 // Checkpoint verifies, signs, and persists one official historical frontier.
 func Checkpoint(st *store.Store, key *identity.KeyFile, options CheckpointOptions) (CheckpointResult, error) {
@@ -94,7 +110,7 @@ func Checkpoint(st *store.Store, key *identity.KeyFile, options CheckpointOption
 	root, trusted := roots[key.KeyID]
 	publicKey := base64.RawURLEncoding.EncodeToString(key.Public)
 	if !trusted || root.PublicKey != publicKey {
-		return CheckpointResult{}, fmt.Errorf("checkpoint signer must be a locally trusted root")
+		return CheckpointResult{}, fmt.Errorf("%w: checkpoint signer must be a locally trusted root", ErrCheckpointAuthorization)
 	}
 
 	verified, err := Verify(st, true)
@@ -102,12 +118,12 @@ func Checkpoint(st *store.Store, key *identity.KeyFile, options CheckpointOption
 		return CheckpointResult{}, err
 	}
 	if !verified.OK {
-		return CheckpointResult{}, fmt.Errorf("%w: cannot checkpoint an invalid or incomplete strict frontier", ErrIntegrity)
+		return CheckpointResult{}, &CheckpointVerificationError{Result: verified}
 	}
 
 	frontier := make([]CheckpointFrontier, 0)
 	for namespace, heads := range verified.Heads {
-		if namespace == options.Scope || len(namespace) > len(options.Scope) && namespace[:len(options.Scope)+1] == options.Scope+"/" {
+		if namespaceInScope(namespace, options.Scope) {
 			frontier = append(frontier, CheckpointFrontier{Namespace: namespace, Heads: append([]string(nil), heads...)})
 		}
 	}
@@ -180,6 +196,10 @@ func Checkpoint(st *store.Store, key *identity.KeyFile, options CheckpointOption
 		Authorization: "authorized", AuthorizationReasons: []string{"checkpoint signer is a locally trusted root"},
 		Path: persisted.Path,
 	}, nil
+}
+
+func namespaceInScope(namespace, scope string) bool {
+	return namespace == scope || len(namespace) > len(scope) && namespace[:len(scope)+1] == scope+"/"
 }
 
 func frontierValue(frontier []CheckpointFrontier) []any {

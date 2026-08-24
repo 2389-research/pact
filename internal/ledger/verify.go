@@ -176,7 +176,7 @@ func Verify(st *store.Store, strict bool) (VerifyResult, error) {
 		}
 		if previous := body["previous_checkpoint"]; previous != nil {
 			if _, found := checkpoints[previous.(string)]; !found {
-				resultReferenceError(&result, fmt.Sprintf("%s: previous checkpoint is unavailable: %s", id, previous.(string)))
+				resultReferenceAt(&result, strict, fmt.Sprintf("%s: previous checkpoint is unavailable: %s", id, previous.(string)))
 			}
 		}
 	}
@@ -495,6 +495,9 @@ func validateCheckpointObject(object map[string]any) (string, error) {
 		}
 		if err := validateNamespace(namespace); err != nil {
 			return "", err
+		}
+		if !namespaceInScope(namespace, scope) {
+			return "", fmt.Errorf("checkpoint namespace %q is outside scope %q", namespace, scope)
 		}
 		namespaces[index] = namespace
 		heads, ok := entry["heads"].([]any)

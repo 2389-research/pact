@@ -23,6 +23,7 @@ const (
 	exitUsage           = 2
 	exitStore           = 3
 	exitIntegrity       = 4
+	exitAuthorization   = 5
 	exitSecretSafety    = 7
 	exitUnexpectedError = 10
 )

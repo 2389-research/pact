@@ -204,10 +204,17 @@ func verifyMap(result ledger.VerifyResult) map[string]any {
 	return map[string]any{"operation": "verify", "repo": result.Repo, "store": result.Store, "strict": result.Strict, "ok": result.OK, "counts": map[string]any{"objects": result.Counts.Objects, "commits": result.Counts.Commits, "checkpoints": result.Counts.Checkpoints, "events": result.Counts.Events, "integrity": result.Counts.Integrity, "structure": result.Counts.Structure, "authenticity": result.Counts.Authenticity, "dag": result.Counts.DAG, "references": result.Counts.References, "authorized": result.Counts.Authorized, "unauthorized": result.Counts.Unauthorized, "indeterminate": result.Counts.Indeterminate}, "heads": result.Heads, "index_status": result.IndexStatus, "integrity": result.Integrity, "structure": result.Structure, "authenticity": result.Authenticity, "dag": result.DAG, "references": result.References, "errors": result.Errors, "warnings": result.Warnings, "authorization": result.Authorization, "objects": objects}
 }
 func ledgerCommandError(err error) error {
+	var verificationError *ledger.CheckpointVerificationError
+	if errors.As(err, &verificationError) {
+		return &commandError{code: exitIntegrity, message: err.Error(), details: verifyMap(verificationError.Result)}
+	}
+	if errors.Is(err, ledger.ErrCheckpointAuthorization) {
+		return &commandError{code: exitAuthorization, message: err.Error()}
+	}
 	if strings.Contains(err.Error(), "secret-like") {
 		return &commandError{code: exitSecretSafety, message: err.Error()}
 	}
-	if strings.Contains(err.Error(), "unavailable") || strings.Contains(err.Error(), "not found") || strings.Contains(err.Error(), "trusted root") || strings.Contains(err.Error(), "no commit heads") {
+	if strings.Contains(err.Error(), "unavailable") || strings.Contains(err.Error(), "not found") || strings.Contains(err.Error(), "no commit heads") {
 		return &commandError{code: 9, message: err.Error()}
 	}
 	if errors.Is(err, ledger.ErrIntegrity) {

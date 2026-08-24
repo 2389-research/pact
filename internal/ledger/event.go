@@ -187,19 +187,29 @@ func normalizeEvent(value map[string]any, path string, localIDs map[string]struc
 
 func exactKeys(value map[string]any, required, optional []string, path string) error {
 	allowed := map[string]bool{}
+	missing := make([]string, 0)
 	for _, key := range required {
 		allowed[key] = true
 		if _, found := value[key]; !found {
-			return fmt.Errorf("%s: missing required fields: %s", path, key)
+			missing = append(missing, key)
 		}
 	}
 	for _, key := range optional {
 		allowed[key] = true
 	}
+	sort.Strings(missing)
+	if len(missing) != 0 {
+		return fmt.Errorf("%s: missing required fields: %s", path, strings.Join(missing, ", "))
+	}
+	extra := make([]string, 0)
 	for key := range value {
 		if !allowed[key] {
-			return fmt.Errorf("%s: unsupported fields: %s", path, key)
+			extra = append(extra, key)
 		}
+	}
+	sort.Strings(extra)
+	if len(extra) != 0 {
+		return fmt.Errorf("%s: unsupported fields: %s", path, strings.Join(extra, ", "))
 	}
 	return nil
 }

@@ -3,11 +3,14 @@
 package ledger
 
 import (
+	"crypto/ed25519"
+	"encoding/base64"
 	"errors"
 	"strings"
 	"testing"
 	"time"
 
+	"pact/internal/canonical"
 	"pact/internal/identity"
 	"pact/internal/store"
 )
@@ -66,6 +69,64 @@ func TestCheckpointSelectsCanonicalScopedFrontierAndSchemaRefs(t *testing.T) {
 	metadata := body["metadata"].(map[string]any)
 	if body["scope"] != "scope" || metadata["purpose"] != "release cut" || metadata["producer"] != "pact-reference-cli/0.1.0" {
 		t.Fatalf("checkpoint body = %#v", body)
+	}
+}
+
+func TestCheckpointWireVector(t *testing.T) {
+	fixedTime := time.Date(2026, 8, 23, 12, 0, 0, 0, time.UTC)
+	st, err := store.Init(t.TempDir(), "scope", fixedTime)
+	if err != nil {
+		t.Fatal(err)
+	}
+	seed := make([]byte, ed25519.SeedSize)
+	for index := range seed {
+		seed[index] = byte(index)
+	}
+	private := ed25519.NewKeyFromSeed(seed)
+	public := private.Public().(ed25519.PublicKey)
+	keyID, err := identity.KeyID(public)
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := &identity.KeyFile{Actor: "Vector Signer", KeyID: keyID, Public: public, Private: private, CreatedAt: fixedTime}
+	if _, err := AddRoot(st, key, fixedTime); err != nil {
+		t.Fatal(err)
+	}
+	commitInNamespace(t, st, key, "scope", "vector")
+	result, err := Checkpoint(st, key, CheckpointOptions{
+		Scope: "scope", PolicyRef: testPolicyRef, AuthorityEpoch: "epoch-1",
+		SchemaRefs: []string{testSchemaB, testSchemaA}, Purpose: "wire vector",
+		ObservedAt: "2026-08-23T12:01:00Z",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := st.Get(result.ObjectID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parsed, err := canonical.Parse(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	object := parsed.(map[string]any)
+	bodyDigest := object["body_digest"].(string)
+	signatureText := object["signature"].(map[string]any)["value"].(string)
+	const wantBodyDigest = "sha256:fc13630aefeace3701c90a56e03eeb1a8045e724073f49ca9df2d16103c5b76b"
+	const wantSignature = "KPwyvoHdZprhgx9Lnq9YCRW7z5VRMLOehwHZsPcDaTqx1rSPl7uG5de0N_Q1U9cpzMFw9P7p96EEqq8L6rM3AQ"
+	const wantObjectID = "sha256:93b573cd8fa5ac44c16a1f060c16ff052d57ac4b2aca2e3e6915fc032a53cda5"
+	if bodyDigest != wantBodyDigest || signatureText != wantSignature || result.ObjectID != wantObjectID {
+		t.Fatalf("checkpoint wire vector:\nbody_digest=%q\nsignature=%q\nobject_id=%q", bodyDigest, signatureText, result.ObjectID)
+	}
+	signature, err := base64.RawURLEncoding.DecodeString(signatureText)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := identity.VerifyBody(object["body"], bodyDigest, public, signature); err != nil {
+		t.Fatalf("wire signature: %v", err)
+	}
+	if canonical.Digest(raw) != result.ObjectID {
+		t.Fatalf("wire object digest = %s, want %s", canonical.Digest(raw), result.ObjectID)
 	}
 }
 
@@ -176,7 +237,21 @@ func TestVerifyCheckpointTreatsFrontierAsHistoricalCut(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	commitInNamespace(t, st, key, "scope", "second")
+	heads, err := Heads(st, "scope")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !equalStrings(heads["scope"], []string{first.ObjectID}) {
+		t.Fatalf("heads after checkpoint = %#v", heads)
+	}
+	second := commitInNamespace(t, st, key, "scope", "second")
+	heads, err = Heads(st, "scope")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !equalStrings(heads["scope"], []string{second.ObjectID}) {
+		t.Fatalf("heads after post-checkpoint commit = %#v", heads)
+	}
 	verified, err := Verify(st, true)
 	if err != nil {
 		t.Fatal(err)
@@ -192,9 +267,9 @@ func TestVerifyCheckpointTreatsFrontierAsHistoricalCut(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	heads := shown.Object["body"].(map[string]any)["frontier"].([]any)[0].(map[string]any)["heads"].([]any)
-	if len(heads) != 1 || heads[0] != first.ObjectID {
-		t.Fatalf("historical frontier = %#v", heads)
+	displayedHeads := shown.Object["body"].(map[string]any)["frontier"].([]any)[0].(map[string]any)["heads"].([]any)
+	if len(displayedHeads) != 1 || displayedHeads[0] != first.ObjectID {
+		t.Fatalf("historical frontier = %#v", displayedHeads)
 	}
 }
 

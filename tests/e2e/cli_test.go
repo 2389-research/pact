@@ -84,6 +84,29 @@ func TestCLIProductLifecycle(t *testing.T) {
 	}
 }
 
+func TestREADMEInstallCommandPlacesPactAtDocumentedDestination(t *testing.T) {
+	root := projectRoot(t)
+	readme, err := os.ReadFile(filepath.Join(root, "README.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	commandText := `env -u GOROOT mise exec -- env GOBIN="$HOME/.local/bin" go install ./cmd/pact`
+	if !bytes.Contains(readme, []byte(commandText)) || !bytes.Contains(readme, []byte(`$HOME/.local/bin/pact`)) {
+		t.Fatalf("README does not document the exact install command and destination")
+	}
+	installDir := t.TempDir()
+	install := exec.Command("env", "-u", "GOROOT", "mise", "exec", "--", "env", "GOBIN="+installDir, "go", "install", "./cmd/pact")
+	install.Dir = root
+	if output, err := install.CombinedOutput(); err != nil {
+		t.Fatalf("temporary GOBIN install: %v\n%s", err, output)
+	}
+	installed := filepath.Join(installDir, "pact")
+	info, err := os.Stat(installed)
+	if err != nil || info.Mode()&0o111 == 0 {
+		t.Fatalf("installed binary %s = %#v, %v", installed, info, err)
+	}
+}
+
 func projectRoot(t *testing.T) string {
 	t.Helper()
 	_, file, _, ok := runtime.Caller(0)

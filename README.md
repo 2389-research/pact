@@ -8,6 +8,17 @@ store, create an external Ed25519 identity, trust that identity, append signed
 event commits, inspect local heads and objects, verify the full store, and make
 official signed checkpoints.
 
+## Install
+
+Install `pact` at the exact destination `$HOME/.local/bin/pact`:
+
+```sh
+mkdir -p "$HOME/.local/bin"
+env -u GOROOT mise exec -- env GOBIN="$HOME/.local/bin" go install ./cmd/pact
+```
+
+Add `$HOME/.local/bin` to `PATH` if it is not already present.
+
 ## Build and run an operator lifecycle
 
 The commands below run from this repository and need `mise`, `go`, and `jq`.
