@@ -464,7 +464,10 @@ func (st *Store) GetBoundedContext(ctx context.Context, objectID string, maximum
 	if err != nil {
 		return nil, fmt.Errorf("stat object: %w", err)
 	}
-	if info.Mode().IsRegular() && fileSizeExceedsLimit(info.Size(), maximum) {
+	if !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("%w: invalid canonical object path %s", ErrIntegrity, path)
+	}
+	if fileSizeExceedsLimit(info.Size(), maximum) {
 		return nil, &ObjectByteLimitError{Maximum: maximum}
 	}
 	if err := afterGetBoundedStat(path); err != nil {
@@ -567,16 +570,20 @@ func (st *Store) ObjectFilesBoundedContext(ctx context.Context, maximum uint64) 
 		if err := rejectSymlink(directory); err != nil {
 			return err
 		}
-		if !entry.IsDir() || len(entry.Name()) != 2 {
-			return nil
+		if !entry.IsDir() || len(entry.Name()) != 2 || !isLowerHex(entry.Name()) {
+			return fmt.Errorf("invalid canonical object path %s", directory)
 		}
 		return visitDirectoryEntriesContext(ctx, directory, "object shard", func(file os.DirEntry) error {
 			path := filepath.Join(directory, file.Name())
 			if err := rejectSymlink(path); err != nil {
 				return err
 			}
-			if file.IsDir() || !strings.HasSuffix(file.Name(), ".json") {
-				return nil
+			info, err := file.Info()
+			if err != nil {
+				return fmt.Errorf("inspect canonical object path %s: %w", path, err)
+			}
+			if !info.Mode().IsRegular() || !strings.HasSuffix(file.Name(), ".json") {
+				return fmt.Errorf("invalid canonical object path %s", path)
 			}
 			hexDigest := entry.Name() + strings.TrimSuffix(file.Name(), ".json")
 			objectID := "sha256:" + hexDigest
@@ -710,12 +717,19 @@ func (st *Store) objectPath(objectID string) (string, error) {
 		return "", fmt.Errorf("invalid object ID: %q", objectID)
 	}
 	hexDigest := strings.TrimPrefix(objectID, "sha256:")
-	for _, character := range hexDigest {
-		if (character < '0' || character > '9') && (character < 'a' || character > 'f') {
-			return "", fmt.Errorf("invalid object ID: %q", objectID)
-		}
+	if !isLowerHex(hexDigest) {
+		return "", fmt.Errorf("invalid object ID: %q", objectID)
 	}
 	return filepath.Join(st.dir, "objects", "sha256", hexDigest[:2], hexDigest[2:]+".json"), nil
+}
+
+func isLowerHex(value string) bool {
+	for _, character := range value {
+		if (character < '0' || character > '9') && (character < 'a' || character > 'f') {
+			return false
+		}
+	}
+	return true
 }
 
 func validateNamespace(namespace string) error {

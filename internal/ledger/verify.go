@@ -87,6 +87,7 @@ type VerifyResult struct {
 	DiagnosticsTruncated bool
 	Completeness         Completeness
 	Limits               LimitsStatus
+	AuthorityFailed      bool
 	diagnosticLimits     Limits
 }
 
@@ -359,6 +360,7 @@ func applyAuthorization(ctx context.Context, st *store.Store, result *VerifyResu
 			return rootErr
 		}
 		appendVerificationDiagnostic(result, &result.Errors, "authority evaluation failed: "+rootErr.Error())
+		result.AuthorityFailed = true
 		return authorityContextStatus(ctx)
 	}
 	work := 0

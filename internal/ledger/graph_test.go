@@ -59,6 +59,24 @@ func TestCausalGraphPropagatesMissingParentsAndCausedByButNotSupersedes(t *testi
 	}
 }
 
+func TestCausalGraphAllowsResolvedCrossNamespaceCausedBy(t *testing.T) {
+	commits := map[string]CommitRecord{
+		"target": {ID: "target", Namespace: "org/example/source", EventRefs: []string{"event:target"}},
+		"source": {ID: "source", Namespace: "org/example/dependent", EventRefs: []string{"event:source"}},
+	}
+	events := map[string]EventRecord{
+		"event:target": {Ref: "event:target", CommitID: "target", Namespace: "org/example/source"},
+		"event:source": {Ref: "event:source", CommitID: "source", Namespace: "org/example/dependent", CausedBy: []string{"event:target"}},
+	}
+	result, err := analyzeGraph(context.Background(), commits, events, Phase2Limits)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result.Errors) != 0 || result.Batches["event:target"] >= result.Batches["event:source"] {
+		t.Fatalf("cross-namespace caused_by = %#v, want a valid target-before-source edge", result)
+	}
+}
+
 func TestCausalGraphProcessesWholeSortedFrontierDeterministically(t *testing.T) {
 	commits := map[string]CommitRecord{
 		"z": {ID: "z", Namespace: "scope", EventRefs: []string{"event:z"}},
@@ -79,7 +97,7 @@ func TestCausalGraphProcessesWholeSortedFrontierDeterministically(t *testing.T) 
 	}
 }
 
-func TestCausalGraphReportsParentAndCausedByCyclesAndCrossNamespaceEdges(t *testing.T) {
+func TestCausalGraphReportsParentAndCausedByCycles(t *testing.T) {
 	commits := map[string]CommitRecord{
 		"a": {ID: "a", Namespace: "one", Parents: []string{"b"}, EventRefs: []string{"event:a"}},
 		"b": {ID: "b", Namespace: "two", Parents: []string{"a"}, EventRefs: []string{"event:b"}},
@@ -92,8 +110,8 @@ func TestCausalGraphReportsParentAndCausedByCyclesAndCrossNamespaceEdges(t *test
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(result.Errors) < 3 {
-		t.Fatalf("graph errors = %#v, want cycles and cross-namespace failures", result.Errors)
+	if len(result.Errors) != 2 {
+		t.Fatalf("graph errors = %#v, want only parent and caused_by cycles", result.Errors)
 	}
 	wantParent := "commit DAG cycle: a -> b -> a"
 	wantCausedBy := "caused_by cycle: event:a -> event:b -> event:a"

@@ -42,3 +42,21 @@
 - Canonical files under `.pact/objects/` must not gain a trailing newline; it
   changes their SHA-256 identity. The pre-commit EOF fixer excludes that path.
   Keep the exclusion and rely on PACT's canonical writer and verifier.
+- `.pact/index/pact-v1.sqlite3` is derived and disposable. Missing or unusable
+  index contents never need canonical repair. Restore `.pact/index` as a real
+  directory and remove unsafe live paths or SQLite sidecars when needed, then
+  run an explicit `pact index rebuild`.
+- Every successful commit or checkpoint makes an existing index stale. Indexed
+  reads refuse stale state until an explicit rebuild; `show` and canonical
+  verification remain available.
+- Causal batches encode known local dependency edges as a partial order.
+  `observed_at` is advisory, numeric batch order is not a total order, and
+  local closure never proves global completeness.
+- Namespace rules depend on the relation: commit parents stay in one namespace,
+  resolved `caused_by` references may cross namespaces and add causal order,
+  while `supersedes` never adds a causal edge.
+- Phase 2 queries hash bounded canonical bytes, and rebuild holds the exclusive
+  store lock for its full scan and atomic publication. This O(canonical bytes)
+  cost and writer pause are the accepted fixed-snapshot tradeoff.
+- Keep long goal progress legible through small reviewed green commits. Do not
+  let a broad E2E or documentation gate grow into one large uncommitted batch.

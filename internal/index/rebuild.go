@@ -16,6 +16,7 @@ import (
 	"strings"
 
 	"pact/internal/ledger"
+	"pact/internal/store"
 )
 
 const writerOptions = "_foreign_keys=1&_journal_mode=DELETE&_synchronous=FULL&_busy_timeout=5000"
@@ -61,6 +62,9 @@ func (m *Manager) rebuildLocked(ctx context.Context) (result RebuildResult, err 
 	}
 	scan, err := ledger.Scan(ctx, m.store, ledger.ScanOptions{Limits: ledger.Phase2Limits})
 	if err != nil {
+		if errors.Is(err, ledger.ErrIntegrity) || errors.Is(err, store.ErrIntegrity) {
+			return result, fmt.Errorf("scan rebuild source: %w", &QueryError{Code: "source_invalid"})
+		}
 		return result, fmt.Errorf("scan rebuild source: %w", err)
 	}
 	if !scan.Verification.OK {

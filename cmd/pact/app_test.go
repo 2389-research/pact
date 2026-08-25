@@ -136,7 +136,11 @@ func TestRunCheckpointStrictFailureIncludesVerificationDetails(t *testing.T) {
 		t.Fatal(err)
 	}
 	runJSON(t, []string{"commit", "--repo", repo, "--key-file", keyPath, "--events", batchPath, "--json"})
-	result := runErrorJSON(t, []string{"checkpoint", "--repo", repo, "--key-file", keyPath, "--scope", "org/example", "--policy-ref", testCLIPolicyRef, "--authority-epoch", "epoch-1", "--json"}, 4)
+	verify := runErrorJSON(t, []string{"verify", "--repo", repo, "--strict", "--json"}, 9)
+	if verify["details"].(map[string]any)["completeness"].(map[string]any)["status"] != "incomplete" {
+		t.Fatalf("strict incomplete verification = %#v", verify)
+	}
+	result := runErrorJSON(t, []string{"checkpoint", "--repo", repo, "--key-file", keyPath, "--scope", "org/example", "--policy-ref", testCLIPolicyRef, "--authority-epoch", "epoch-1", "--json"}, 9)
 	details, ok := result["details"].(map[string]any)
 	if !ok || details["objects"] == nil || details["references"].(map[string]any)["errors"] == nil {
 		t.Fatalf("checkpoint error JSON = %#v", result)
@@ -163,6 +167,73 @@ func TestRunCheckpointUntrustedSignerUsesAuthorizationExitWithoutPersistence(t *
 	}
 	if after := cliObjectCount(t, repo); after != before {
 		t.Fatalf("object count after authorization refusal = %d, want %d", after, before)
+	}
+}
+
+func TestVerificationFailureExitCodeFailsClosedForHardAndUnknownFailures(t *testing.T) {
+	tests := []struct {
+		name   string
+		result ledger.VerifyResult
+		want   int
+	}{
+		{
+			name:   "missing parent only",
+			result: ledger.VerifyResult{Completeness: ledger.Completeness{Status: "incomplete", Blockers: []ledger.Blocker{{Code: "missing_parent"}}}, Counts: ledger.VerifyCounts{DAG: 1}},
+			want:   exitMissingDependency,
+		},
+		{
+			name:   "missing event reference only",
+			result: ledger.VerifyResult{Completeness: ledger.Completeness{Status: "incomplete", Blockers: []ledger.Blocker{{Code: "missing_event_reference"}}}, Counts: ledger.VerifyCounts{References: 1}},
+			want:   exitMissingDependency,
+		},
+		{
+			name:   "cycle plus missing reference",
+			result: ledger.VerifyResult{Completeness: ledger.Completeness{Status: "incomplete", Blockers: []ledger.Blocker{{Code: "missing_event_reference"}}}, Counts: ledger.VerifyCounts{DAG: 1, References: 1}},
+			want:   exitIntegrity,
+		},
+		{
+			name:   "hard reference plus missing reference",
+			result: ledger.VerifyResult{Completeness: ledger.Completeness{Status: "incomplete", Blockers: []ledger.Blocker{{Code: "missing_event_reference"}}}, Counts: ledger.VerifyCounts{References: 2}},
+			want:   exitIntegrity,
+		},
+		{
+			name:   "canonical invalid plus missing reference",
+			result: ledger.VerifyResult{Completeness: ledger.Completeness{Status: "incomplete", Blockers: []ledger.Blocker{{Code: "missing_event_reference"}}}, Counts: ledger.VerifyCounts{Integrity: 1, References: 1}},
+			want:   exitIntegrity,
+		},
+		{
+			name:   "unknown blocker",
+			result: ledger.VerifyResult{Completeness: ledger.Completeness{Status: "incomplete", Blockers: []ledger.Blocker{{Code: "future_blocker"}}}, Counts: ledger.VerifyCounts{References: 1}},
+			want:   exitIntegrity,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := verificationFailureExitCode(test.result); got != test.want {
+				t.Fatalf("verificationFailureExitCode() = %d, want %d", got, test.want)
+			}
+		})
+	}
+}
+
+func TestRunVerifyMixedIncompleteAndMalformedTrustUsesIntegrityExit(t *testing.T) {
+	repo := t.TempDir()
+	keyPath := filepath.Join(t.TempDir(), "alice.key.json")
+	runJSON(t, []string{"init", "--repo", repo, "--namespace", "org/example/widget", "--json"})
+	runJSON(t, []string{"keygen", "--actor", "Alice", "--out", keyPath, "--json"})
+	batchPath := filepath.Join(t.TempDir(), "incomplete.json")
+	missing := "pact:event:sha256:" + strings.Repeat("d", 64) + "#gone"
+	batch := []byte(`{"events":[{"local_id":"e1","kind":"observation","type":"widget.seen","subject":"widget-1","schema_ref":"pact:core/widget/v1","payload":{},"evidence":[],"caused_by":["` + missing + `"],"supersedes":[],"tags":[]}]}`)
+	if err := os.WriteFile(batchPath, batch, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runJSON(t, []string{"commit", "--repo", repo, "--key-file", keyPath, "--events", batchPath, "--json"})
+	if err := os.WriteFile(filepath.Join(repo, ".pact", "trust.json"), []byte(`{"format":"wrong","roots":[]}`+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	result := runErrorJSON(t, []string{"verify", "--repo", repo, "--strict", "--json"}, exitIntegrity)
+	if result["details"].(map[string]any)["completeness"].(map[string]any)["status"] != "incomplete" {
+		t.Fatalf("mixed incomplete and malformed-trust verification = %#v", result)
 	}
 }
 
@@ -396,14 +467,24 @@ func TestRunVerifyFailureIncludesLayeredDetailsAndCommitUsesIntegrityExit(t *tes
 		t.Fatal(err)
 	}
 	commit := runJSON(t, []string{"commit", "--repo", repo, "--key-file", keyPath, "--events", batchPath, "--json"})
+	incompleteBatchPath := filepath.Join(t.TempDir(), "incomplete.json")
+	missing := "pact:event:sha256:" + strings.Repeat("d", 64) + "#gone"
+	incompleteBatch := []byte(`{"events":[{"local_id":"missing","kind":"observation","type":"widget.missing","subject":"widget-missing","schema_ref":"pact:core/widget/v1","payload":{},"evidence":[],"caused_by":["` + missing + `"],"supersedes":[],"tags":[]}]}`)
+	if err := os.WriteFile(incompleteBatchPath, incompleteBatch, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runJSON(t, []string{"commit", "--repo", repo, "--key-file", keyPath, "--events", incompleteBatchPath, "--namespace", "org/example/incomplete", "--json"})
 	hexID := commit["object_id"].(string)[len("sha256:"):]
 	path := filepath.Join(repo, ".pact", "objects", "sha256", hexID[:2], hexID[2:]+".json")
 	if err := os.WriteFile(path, []byte(`{"bad":true}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	result := runErrorJSON(t, []string{"verify", "--repo", repo, "--json"}, 4)
+	result := runErrorJSON(t, []string{"verify", "--repo", repo, "--strict", "--json"}, 4)
 	if result["details"] == nil || result["details"].(map[string]any)["objects"] == nil || result["details"].(map[string]any)["counts"] == nil {
 		t.Fatalf("verify error JSON = %#v", result)
+	}
+	if result["details"].(map[string]any)["completeness"].(map[string]any)["status"] != "incomplete" {
+		t.Fatalf("mixed invalid and incomplete verification = %#v", result)
 	}
 	result = runErrorJSON(t, []string{"commit", "--repo", repo, "--key-file", keyPath, "--events", batchPath, "--json"}, 4)
 	if result["exit_code"] != float64(4) {

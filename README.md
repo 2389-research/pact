@@ -1,15 +1,16 @@
-<!-- ABOUTME: Explains how operators build, use, and verify the PACT MVP tool. -->
-<!-- ABOUTME: Defines the external-key rule, official checkpoint gate, and MVP limits. -->
+<!-- ABOUTME: Explains how operators build, index, query, and verify the PACT tool. -->
+<!-- ABOUTME: Defines external-key, recovery, completeness, cursor, and resource contracts. -->
 
 # PACT
 
-PACT is a local, append-only signed ledger CLI. This Go MVP can initialize a
-store, create an external Ed25519 identity, trust that identity, append signed
-event commits, inspect local heads and objects, verify the full store, and make
-official signed checkpoints.
+PACT is a local, append-only signed ledger CLI. This Go tool initializes a
+store, creates an external Ed25519 identity, trusts that identity, appends
+signed event commits, inspects local heads and objects, verifies the full
+store, makes official signed checkpoints, and queries a disposable SQLite
+index in deterministic causal batches.
 
-The Phase 0 contract and Phase 1 single-replica core are verified and now
-dogfood this repository. The setup wrapper is deferred; use the explicit
+The Phase 0 contract, Phase 1 single-replica core, and Phase 2 bounded index and
+query surface are implemented. The setup wrapper is deferred; use the explicit
 bootstrap commands below. See the
 [Phase 0 and Phase 1 status](docs/status/phase-0-1-dogfood.md) for exact gate,
 ledger, checkpoint, recovery, and setup-review evidence.
@@ -79,6 +80,17 @@ JSON
   --events "$work_dir/second.json" \
   --json
 
+"$pact" index status --repo "$repo" --json
+"$pact" index rebuild --repo "$repo" --json
+"$pact" log --repo "$repo" --namespace org/example --limit 100 --json
+"$pact" query \
+  --repo "$repo" \
+  --namespace org/example \
+  --type build.test.executed \
+  --tag ci \
+  --limit 100 \
+  --json
+
 "$pact" show --repo "$repo" "$first_id" --json
 "$pact" show --repo "$repo" "$first_event" --json
 "$pact" heads --repo "$repo" --namespace org/example --json
@@ -110,17 +122,131 @@ root with `trust-add`. Unknown signers cannot create a checkpoint, even when
 their signature would be authentic. PACT performs this authorization check and
 a full strict store verification before it persists checkpoint bytes.
 
-## MVP limits
+## Index and query operations
 
-This cut supports `init`, `keygen`, `trust-add`, `hash`, `commit`, `heads`,
-`show`, `verify`, and `checkpoint`. It uses one local filesystem store and
-computes heads from canonical object bytes. It has no SQLite reindex command,
-network or directory sync, delegated checkpoint authority, policy execution,
+The shipped command inventory is `init`, `keygen`, `trust-add`, `hash`,
+`commit`, `heads`, `show`, `verify`, `checkpoint`, `index status`,
+`index rebuild`, `log`, and `query`.
+
+The live SQLite file is `.pact/index/pact-v1.sqlite3`. It is derived,
+disposable, and never canonical ledger history. Removing it does not remove an
+event, trust root, head, or checkpoint. Read commands never repair it as a side
+effect. Inspect the state, then rebuild after the derived filesystem shape is
+safe:
+
+```sh
+pact index status --repo /path/to/project --json
+pact index rebuild --repo /path/to/project --json
+```
+
+`missing`, `stale`, `corrupt`, `incompatible`, and `partial-build` all require
+operator action. `index rebuild` repairs an absent live file or unusable regular
+database when `.pact/index` is a real directory with no SQLite sidecars. If
+`.pact/index` is missing or unsafe, recreate it as a real directory. Remove or
+repair unsafe live paths and SQLite sidecars before rebuilding. A successful
+canonical write makes an existing index stale; this is expected. Rebuild scans
+and verifies canonical bytes, creates and validates a same-directory temporary
+SQLite file, then replaces the live file. Log and query refuse every state
+except `current`. `show` and canonical verification do not need a usable index.
+
+`log` accepts repeated `--namespace` and `--actor` filters. `query` requires at
+least one filter and accepts repeated `--namespace`, `--type`, `--kind`,
+`--subject`, `--actor`, `--tag`, `--schema-ref`, `--event-ref`, `--caused-by`,
+and `--supersedes` filters. Repeated values in one family are OR; different
+families are AND. Namespace prefixes match the exact namespace or a
+slash-delimited descendant, so `org/example` does not match `org/example2`.
+Other filters are exact and case-sensitive after validation and field
+normalization. Subject and tag values use Unicode NFC normalization.
+
+```sh
+pact log \
+  --repo /path/to/project \
+  --namespace org/example \
+  --namespace org/another-team \
+  --limit 100 \
+  --json
+
+pact query \
+  --repo /path/to/project \
+  --type build.test.executed \
+  --type build.package.created \
+  --tag ci \
+  --actor ed25519:sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef \
+  --limit 100 \
+  --json
+```
+
+The query means “either listed type, and tag `ci`, and that actor.” Results use
+stored causal batches based on known local dependency edges. `observed_at` is
+advisory metadata and never sorts results. A batch is part of a partial order,
+not a total sequence; a lower batch number does not prove a path to every later
+batch.
+
+Replica status separates local closure from global knowledge. `locally_closed`
+means all dependencies named by the local object set are present. It does not
+mean no other object exists elsewhere. Missing dependencies yield stable
+blockers and local completeness `incomplete`; global completeness always
+remains `unknown`. A valid current index built from that incomplete replica has
+`coverage=partial`. An unavailable index has `coverage=unavailable`, while
+`partial-build` means SQLite diverges from its own declared source and cannot
+answer queries. Strict verification and official checkpoints refuse
+completeness blockers.
+
+Pagination uses an opaque cursor bound to the command, normalized filters,
+page limit, schema, source fingerprint, logical digest, and causal order.
+Cursors survive process restart and a deterministic same-source rebuild. A
+changed query fails with `cursor_query_mismatch`. When canonical source changes,
+the old index first fails as `index_stale`; after rebuilding against the changed
+source, an old cursor fails with `cursor_stale`. A page may split a causal batch,
+in which case each affected page reports `complete_in_page=false`. Unresolved
+events remain a separate transport group and do not claim to occur later.
+
+## Phase 2 limits
+
+The fixed profile is `pact/resource-limits/phase2-v1`.
+
+| Resource | Maximum |
+|---|---:|
+| One canonical object | 4,194,304 bytes |
+| Canonical objects per scan | 100,000 |
+| Canonical bytes per scan | 1,073,741,824 bytes |
+| Events per commit | 1,024 |
+| Events per scan | 250,000 |
+| Parents per commit | 64 |
+| Longest known causal path | 4,096 signed dependency edges |
+| Graph frontier | 4,096 nodes |
+| Total graph edges | 1,000,000 |
+| Query results per page | default 100; maximum 1,000 |
+| Values in one filter family | 64 |
+| Values across filter families | 256 |
+| Encoded cursor | 4,096 bytes |
+| Decoded cursor | 3,072 bytes |
+| Encoded JSON result | 16,777,216 bytes |
+| Stored SQLite file | 2,147,483,648 bytes |
+| Diagnostic samples per axis | 100 |
+| One diagnostic text field | 512 UTF-8 bytes |
+
+Exact-bound inputs pass. With `--json`, the first excess fails safely with a
+bounded, machine-readable diagnostic instead of truncating authoritative
+results. The code names the input contract: graph, scan, and filter excesses use
+`resource_limit`; an invalid page limit is a usage error; an oversized or
+malformed cursor is `cursor_invalid`; and an oversized stored index is
+`corrupt`.
+
+Every query hashes the bounded canonical object set and verifies selected
+canonical commits. Rebuild scans all bounded canonical bytes and holds the
+exclusive store lock through publication, so large repositories make queries
+costly and pause writers during rebuild. This simple fixed-snapshot tradeoff is
+intentional for the local Phase 2 scope.
+
+Phase 3 payload and schema meaning, setup automation, network sync, policy
+execution, and delegated authority remain out of scope. PACT also has no
 trusted timestamps, hardware key service, or global completeness claim.
 
 ## Repository gate
 
-Run the full Go gate and all 17 bundled Python reference tests with:
+Run the full Go gate, compiled scratch index lifecycle, and bundled Python
+reference suite with:
 
 ```sh
 env -u GOROOT mise exec -- ./scripts/check

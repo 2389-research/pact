@@ -152,7 +152,7 @@ func runVerify(args []string, stderr io.Writer) (map[string]any, error) {
 	}
 	result := verifyMap(verified)
 	if !verified.OK {
-		return nil, &commandError{code: exitIntegrity, message: "PACT verification failed", details: result}
+		return nil, &commandError{code: verificationFailureExitCode(verified), message: "PACT verification failed", details: result}
 	}
 	return result, nil
 }
@@ -226,12 +226,34 @@ func ledgerCommandError(err error) error {
 		}}
 	}
 	if verificationError, ok := errors.AsType[*ledger.CheckpointVerificationError](err); ok {
-		return &commandError{code: exitIntegrity, message: err.Error(), details: verifyMap(verificationError.Result)}
+		return &commandError{code: verificationFailureExitCode(verificationError.Result), message: err.Error(), details: verifyMap(verificationError.Result)}
 	}
 	if errors.Is(err, ledger.ErrCheckpointAuthorization) {
 		return &commandError{code: exitAuthorization, message: err.Error()}
 	}
 	return commandErrorFor(err, exitUsage)
+}
+
+func verificationFailureExitCode(result ledger.VerifyResult) int {
+	if result.Completeness.Status != "incomplete" || len(result.Completeness.Blockers) == 0 ||
+		result.Counts.Integrity != 0 || result.Counts.Structure != 0 || result.Counts.Authenticity != 0 || result.AuthorityFailed {
+		return exitIntegrity
+	}
+	missingDAG, missingReferences := 0, 0
+	for _, blocker := range result.Completeness.Blockers {
+		switch blocker.Code {
+		case "missing_parent":
+			missingDAG++
+		case "missing_event_reference", "missing_checkpoint_head", "missing_previous_checkpoint":
+			missingReferences++
+		default:
+			return exitIntegrity
+		}
+	}
+	if result.Counts.DAG != missingDAG || result.Counts.References != missingReferences {
+		return exitIntegrity
+	}
+	return exitMissingDependency
 }
 
 type repeatFlag []string

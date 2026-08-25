@@ -1,80 +1,81 @@
-<!-- ABOUTME: Audits the Phase 0 and Phase 1 operator and dogfood documentation. -->
-<!-- ABOUTME: Records verified claims, corrected drift, and reviewed acceptance judgments. -->
+<!-- ABOUTME: Audits the current operator README and historical Phase 0/1 dogfood status. -->
+<!-- ABOUTME: Records verified claims, corrected drift, pattern expansion, and inventory checks. -->
 
 # Documentation Audit Report
 
-Generated: 2026-08-24 | Code revision: `9428ad1`
+Generated: 2026-08-24 | Base revision: `e66f333` plus the Task 7 working tree
 
 ## Executive summary
 
 | Metric | Count |
 |---|---:|
 | Documents scanned | 2 |
-| Claims checked | 98 |
-| Verified true | 90 |
-| Verified false | 0 |
-| Manually reviewed | 8 |
+| Claim groups checked | 33 |
+| Verified without correction | 25 |
+| Corrected during audit | 8 |
+| Remaining Critical findings | 0 |
+| Remaining Important findings | 0 |
 
 The audit covered `README.md` and
-`docs/status/phase-0-1-dogfood.md` in the live dogfood worktree. It checked
-paths, command inventory, flags, digests, object IDs, counts, permissions,
-negative capability claims, and current store behavior against source and real
-commands.
+`docs/status/phase-0-1-dogfood.md`. Two independent read-only reviewers checked
+operator commands, flags, paths, state transitions, limits, historic IDs,
+counts, permissions, negative capability claims, and recovery statements
+against current source, compiled command behavior, tests, Git history, and a
+clean replay of the historical revision where needed.
 
 ## Corrections made during audit
 
-One initial status sentence said all parent directories of the external key
-were mode `0700`. The key and PACT-owned `pact` and `keys` directories have the
-documented `0600`, `0700`, and `0700` modes; the higher-level `~/.config`
-directory is mode `0755`. The status page now names only the PACT-owned
-directories.
+The README no longer says every unavailable index state can recover through a
+bare rebuild. Rebuild repairs derived database contents only after the index
+directory, live path, and SQLite sidecar shape are safe. The guide now also
+separates replica incompleteness from unavailable index coverage, describes the
+`index_stale` to rebuild to `cursor_stale` transition, and names the distinct
+machine-readable outcomes for resource, usage, cursor, and oversized-index
+failures. It records NFC normalization for subject and tag filters.
 
-The status page also now sends its standalone build check to
-`.scratch/pact-build-check`. A bare `go build ./cmd/pact` passes but leaves a
-root-level binary. The canonical `scripts/check` was already correct and builds
-under a temporary directory with cleanup.
-
-Detailed setup-history counts that were not all preserved on the core branch
-were removed. The remaining setup claims point to the durable rejected review
-on `setup-cli/omakase/setup-service`.
+The Phase 0/1 status page now labels itself as a historical snapshot. Its Phase
+2 exclusions are tied to revision `9428ad1`, its recovery procedure is clearly
+recorded evidence from the original run, and its former “next milestone” text
+now acknowledges that Phase 2 began after that snapshot.
 
 ## Verified inventory
 
-- All nine documented Phase 1 commands exist: `init`, `keygen`, `trust-add`,
-  `hash`, `commit`, `heads`, `show`, `verify`, and `checkpoint`.
-- Every documented long flag exists and was either invoked successfully or
-  checked against its command adapter.
-- All referenced source, schema, plan, status, and setup-branch files exist.
-- The live store contains the documented commit and checkpoint IDs, and strict
-  verification reports the documented counts and head.
-- The policy and schema references equal the SHA-256 digests of their named
-  checked-in files.
-- The external key permissions and exact private-byte absence claim match the
-  live filesystem.
-- The README's Python test count is 17, matching the canonical gate.
-- No setup, SQLite query/index, network, projection, hardware-key, or other
-  later-phase command is present in the shipped command inventory.
+- The README lists all 13 shipped command shapes: `init`, `keygen`, `trust-add`,
+  `hash`, `commit`, `heads`, `show`, `verify`, `checkpoint`, `index status`,
+  `index rebuild`, `log`, and `query`.
+- The documented log and query flags match the command adapters. Query exposes
+  ten fixed filter families; it has no raw SQL surface.
+- The five unusable index states, current complete and partial coverage, and
+  explicit recovery boundary match the validator and rebuild code.
+- Causal batches never use `observed_at`; cursor binding and failure transitions
+  match the cursor and hydration code plus compiled restart tests.
+- Every numeric value in `pact/resource-limits/phase2-v1` matches the production
+  profile. Boundary behavior maps to compiled, integration, or focused
+  algorithm tests without claiming giant duplicate E2E fixtures.
+- The historical store still contains the documented Phase 0/1 commit and
+  checkpoint IDs. Current read-only verification reproduces the documented
+  counts and head, and a clean `9428ad1` export passes its historical gate with
+  17 Python tests.
+- Setup remains absent from the production dispatcher and preserved only on its
+  named review branch. Phase 3, network sync, policy execution, hardware-key
+  service, trusted timestamps, and global completeness remain unshipped.
 
 ## Reviewed acceptance and historical claims
 
-Eight claims needed direct review because they express product decisions or
-describe actions rather than static files:
-
-- The Phase 0/Phase 1 naming, gate acceptance, setup deferral, and Phase 2 as
-  the next planning goal come from the approved dogfood goal and canonical
-  production plan.
-- The Phase 1 recovery claim was observed directly during this goal: strict
-  verification passed twice with `.pact/index` and `.pact/refs` moved aside;
-  the two JSON results were byte-identical; canonical object hashes were
-  unchanged; and the empty directories were restored.
-
-These claims are accepted. No false, unresolved, Critical, or Important
+Historical action claims need a narrower standard than live operator claims.
+The Phase 0/1 object IDs, counts, modes, branch artifacts, and historical gate
+are reproducible. Repository history preserves the recovery procedure as
+recorded evidence, not as a reconstructable transcript of every shell action.
+The status page now says so. No false, unresolved, Critical, or Important
 documentation finding remains.
 
 ## Pattern expansion and gap detection
 
-The second pass expanded every path and flag pattern found in either document,
-compared the README command list with the command dispatcher, checked numeric
-test and object counts, and compared MVP exclusions with the production file
-inventory. It found no additional dead reference, unsupported flag, incorrect
-count, or undocumented shipped command.
+Pass 2A expanded every enumerated and negative claim: command lists, filter
+families, index-state lists, limit rows, scope exclusions, setup artifacts, and
+historical counts. It found no remaining false variant after the corrections.
+
+Pass 2B compared the dispatcher and index subcommands with the README inventory,
+then compared every accepted flag with the operator examples and prose. No
+shipped command is missing from the inventory, no documented flag is absent,
+and no raw SQL, setup, or Phase 3 command is present.

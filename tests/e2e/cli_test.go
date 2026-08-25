@@ -111,6 +111,35 @@ func TestREADMEInstallCommandPlacesPactAtDocumentedDestination(t *testing.T) {
 	}
 }
 
+func TestCanonicalCheckRunsRealIndexLifecycle(t *testing.T) {
+	script, err := os.ReadFile(filepath.Join(projectRoot(t), "scripts", "check"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, fragment := range []string{
+		`"$check_pact" init`,
+		`"$check_pact" keygen`,
+		`"$check_pact" trust-add`,
+		`"$check_pact" commit`,
+		`"$check_pact" index status`,
+		`"$check_pact" index rebuild`,
+		`"$check_pact" log`,
+		`"$check_pact" query`,
+		`"$check_pact" verify`,
+		`rm "$check_index"`,
+		`cmp "$check_query_before" "$check_query_after"`,
+		`"private_key"`,
+		`uv run -`,
+	} {
+		if !bytes.Contains(script, []byte(fragment)) {
+			t.Fatalf("scripts/check lacks %q", fragment)
+		}
+	}
+	if bytes.Contains(script, []byte("python3")) {
+		t.Fatal("scripts/check bypasses the managed uv Python boundary")
+	}
+}
+
 func TestCLIReviewSecurityAndResolvedPathContract(t *testing.T) {
 	root := projectRoot(t)
 	workspace := t.TempDir()
@@ -403,6 +432,9 @@ func runJSON(t *testing.T, binary string, args ...string) map[string]any {
 	if err := command.Run(); err != nil {
 		t.Fatalf("%s %s: %v\nstdout: %s\nstderr: %s", binary, strings.Join(args, " "), err, stdout.String(), stderr.String())
 	}
+	if stderr.Len() != 0 {
+		t.Fatalf("%s %s wrote unexpected stderr: %q", binary, strings.Join(args, " "), stderr.String())
+	}
 	return decodeJSON(t, stdout.Bytes())
 }
 
@@ -415,10 +447,19 @@ func runErrorJSON(t *testing.T, exitCode int, binary string, args ...string) map
 	err := command.Run()
 	exitError := &exec.ExitError{}
 	ok := errors.As(err, &exitError)
-	if !ok || exitError.ExitCode() != exitCode {
+	if !ok || exitError.ExitCode() != exitCode || stdout.Len() != 0 {
 		t.Fatalf("%s %s exit = %v, want %d\nstdout: %s\nstderr: %s", binary, strings.Join(args, " "), err, exitCode, stdout.String(), stderr.String())
 	}
-	return decodeJSON(t, stderr.Bytes())
+	decoder := json.NewDecoder(&stderr)
+	var result map[string]any
+	if err := decoder.Decode(&result); err != nil {
+		t.Fatalf("decode error JSON %q: %v", stderr.String(), err)
+	}
+	var extra any
+	if err := decoder.Decode(&extra); err != io.EOF {
+		t.Fatalf("error output contains more than one JSON value: %q", stderr.String())
+	}
+	return result
 }
 
 func decodeJSON(t *testing.T, raw []byte) map[string]any {

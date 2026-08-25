@@ -15,7 +15,65 @@ go test ./...
 
 check_tmp="$(mktemp -d)"
 trap 'rm -rf "$check_tmp"' EXIT HUP INT TERM
-go build -o "$check_tmp/pact" ./cmd/pact
+check_pact="$check_tmp/pact"
+check_repo="$check_tmp/repo"
+check_key="$check_tmp/operator.key.json"
+check_events="$check_tmp/events.json"
+check_index="$check_repo/.pact/index/pact-v1.sqlite3"
+check_status="$check_tmp/status.json"
+check_rebuild_before="$check_tmp/rebuild-before.json"
+check_rebuild_after="$check_tmp/rebuild-after.json"
+check_log="$check_tmp/log.json"
+check_query_before="$check_tmp/query-before.json"
+check_query_after="$check_tmp/query-after.json"
+check_verify="$check_tmp/verify.json"
+
+go build -o "$check_pact" ./cmd/pact
+mkdir -p "$check_repo"
+printf '%s\n' '{"events":[{"local_id":"check","kind":"observation","type":"build.check.executed","subject":"pact/scripts/check","schema_ref":"pact:core/generic-object/v1","payload":{},"evidence":[],"caused_by":[],"supersedes":[],"tags":["check"]}]}' >"$check_events"
+
+"$check_pact" init --repo "$check_repo" --namespace org/pact/check --json >/dev/null
+"$check_pact" keygen --actor scripts/check --out "$check_key" --json >/dev/null
+"$check_pact" trust-add --repo "$check_repo" --key-file "$check_key" --json >/dev/null
+"$check_pact" commit --repo "$check_repo" --key-file "$check_key" --events "$check_events" --json >"$check_tmp/commit.json"
+"$check_pact" index status --repo "$check_repo" --json >"$check_status"
+"$check_pact" index rebuild --repo "$check_repo" --json >"$check_rebuild_before"
+"$check_pact" log --repo "$check_repo" --namespace org/pact/check --json >"$check_log"
+"$check_pact" query --repo "$check_repo" --type build.check.executed --json >"$check_query_before"
+"$check_pact" verify --repo "$check_repo" --strict --json >"$check_verify"
+
+uv run - "$check_tmp/commit.json" "$check_status" "$check_rebuild_before" "$check_log" "$check_query_before" "$check_verify" <<'PY'
+import json
+import sys
+
+commit, status, rebuild, log, query, verify = [json.load(open(path, encoding="utf-8")) for path in sys.argv[1:]]
+event_ref = commit["event_refs"][0]
+assert status["index"]["state"] == "missing"
+assert rebuild["index"]["state"] == "current"
+assert rebuild["index"]["coverage"] == "complete"
+assert [item["event_ref"] for batch in log["batches"] for item in batch["items"]] == [event_ref]
+assert [item["event_ref"] for batch in query["batches"] for item in batch["items"]] == [event_ref]
+assert verify["ok"] is True and verify["index_status"] == "current"
+PY
+
+rm "$check_index"
+"$check_pact" index rebuild --repo "$check_repo" --json >"$check_rebuild_after"
+"$check_pact" query --repo "$check_repo" --type build.check.executed --json >"$check_query_after"
+cmp "$check_query_before" "$check_query_after"
+uv run - "$check_rebuild_before" "$check_rebuild_after" <<'PY'
+import json
+import sys
+
+before, after = [json.load(open(path, encoding="utf-8")) for path in sys.argv[1:]]
+assert before["index"]["logical_digest"] == after["index"]["logical_digest"]
+assert after["index"]["state"] == "current"
+PY
+
+if grep -R -l '"private_key"' "$check_repo" >"$check_tmp/private-key-files"; then
+	printf '%s\n' "Private key field found under scratch repository:" >&2
+	cat "$check_tmp/private-key-files" >&2
+	exit 1
+fi
 
 (
 	cd docs/pact-ledger

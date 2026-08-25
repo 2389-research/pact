@@ -240,13 +240,10 @@ func (builder *graphBuilder) addEventDependencies(ctx context.Context, ref strin
 		if err := pollContext(ctx, index); err != nil {
 			return err
 		}
-		target, found := events[dependency]
+		_, found := events[dependency]
 		if !found {
 			builder.unresolved[source] = true
 			continue
-		}
-		if target.Namespace != event.Namespace {
-			appendBoundedGraphError(builder.result, builder.limits, ref, ": caused_by ", dependency, " crosses namespace \"", target.Namespace, "\" to \"", event.Namespace, "\"")
 		}
 		builder.addEdge(graphNodeKey(eventNode, dependency), source, 1, causedByEdge)
 	}
@@ -492,22 +489,6 @@ func appendGraphError(result *graphAnalysis, limits Limits, message string) {
 		result.DiagnosticsTruncated = true
 	}
 	result.Errors = append(result.Errors, message)
-}
-
-func appendBoundedGraphError(result *graphAnalysis, limits Limits, parts ...string) {
-	result.ErrorCount++
-	if uint64(len(result.Errors)) >= limits.DiagnosticSamples {
-		result.DiagnosticsTruncated = true
-		return
-	}
-	builder := newBoundedDiagnosticBuilder(limits.DiagnosticTextBytes)
-	for _, part := range parts {
-		builder.write(part)
-	}
-	if builder.truncated {
-		result.DiagnosticsTruncated = true
-	}
-	result.Errors = append(result.Errors, builder.String())
 }
 
 type boundedDiagnosticBuilder struct {

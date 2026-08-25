@@ -9,9 +9,9 @@ The Phase 0 contract and Phase 1 single-replica core passed their product gate
 and were dogfooded on this repository on 2026-08-24. The verified code revision
 was `9428ad1` on `wip/phase-0-1-core`.
 
-This is not “phase 0.1.” Phase 0 freezes the v1 contract. Phase 1 implements the
-local immutable core. The MVP does not claim the Phase 2 index, query, or graph
-resource limits.
+This historical snapshot is not “phase 0.1.” Phase 0 froze the v1 contract, and
+Phase 1 implemented the local immutable core. At revision `9428ad1`, the MVP did
+not yet claim the later Phase 2 index, query, or graph resource limits.
 
 ## Gate evidence
 
@@ -85,10 +85,10 @@ Both object and event inspection returned valid integrity and authenticity.
 The checkpoint frontier contains the expected head. Two consecutive read-only
 strict verifications produced byte-identical JSON.
 
-The real-store recovery check moved `.pact/index` and `.pact/refs` aside,
-verified strictly twice, compared every canonical object hash, and restored the
-empty directories. Verification stayed valid and canonical hashes did not
-change.
+The original dogfood run recorded a real-store recovery check that moved
+`.pact/index` and `.pact/refs` aside, verified strictly twice, compared every
+canonical object hash, and restored the empty directories. Verification stayed
+valid and canonical hashes did not change.
 
 The external key file is mode `0600`; the PACT-owned `pact` and `keys`
 directories above it are mode `0700`. An exact private-key-byte scan found no
@@ -111,9 +111,11 @@ design, plan, and review are preserved on branch
 Use `init`, `keygen`, and `trust-add` until setup receives a new bounded goal
 and an approved plan.
 
-## Next milestone
+## Later milestone
 
-Phase 2 planning is the next bounded goal. It must cover the remaining DAG,
-SQLite index/rebuild, query, partial-replica diagnostics, and resource-limit
-contract in `docs/pact-ledger/references/implementation-plan.md`. This dogfood
-goal does not begin that work.
+At this snapshot, Phase 2 was the next bounded goal. Its planned scope was the
+remaining DAG, SQLite index/rebuild, query, partial-replica diagnostics, and
+resource-limit contract in
+`docs/pact-ledger/references/implementation-plan.md`. Phase 2 work began after
+this recorded Phase 0/1 gate; the repository README describes the current
+operator surface.

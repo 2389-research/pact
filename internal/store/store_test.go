@@ -281,10 +281,120 @@ func TestObjectFilesEnumeratesCanonicalObjectPaths(t *testing.T) {
 	}
 }
 
+func TestObjectFilesRejectsMalformedCanonicalTreeEntries(t *testing.T) {
+	tests := []struct {
+		name  string
+		build func(*testing.T, string)
+	}{
+		{name: "malformed shard directory", build: func(t *testing.T, root string) {
+			if err := os.Mkdir(filepath.Join(root, "not-a-shard"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{name: "uppercase shard directory", build: func(t *testing.T, root string) {
+			if err := os.Mkdir(filepath.Join(root, "AA"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{name: "non-directory shard entry", build: func(t *testing.T, root string) {
+			if err := os.WriteFile(filepath.Join(root, "aa"), []byte("unexpected"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{name: "nested object directory", build: func(t *testing.T, root string) {
+			if err := os.MkdirAll(filepath.Join(root, "aa", "nested"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+		}},
+		{name: "non-json object entry", build: func(t *testing.T, root string) {
+			if err := os.MkdirAll(filepath.Join(root, "aa"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(root, "aa", "unexpected.txt"), []byte("unexpected"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			st := testStore(t)
+			root := filepath.Join(st.Dir(), "objects", "sha256")
+			test.build(t, root)
+			files, err := st.ObjectFiles()
+			if err == nil || files != nil || !errors.Is(err, ErrIntegrity) || !strings.Contains(err.Error(), "invalid canonical object path") {
+				t.Fatalf("ObjectFiles() = (%#v, %v), want integrity-wrapped malformed path refusal", files, err)
+			}
+		})
+	}
+}
+
+func TestObjectFilesAllowsEmptyLowerHexShard(t *testing.T) {
+	st := testStore(t)
+	if err := os.Mkdir(filepath.Join(st.Dir(), "objects", "sha256", "af"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	files, err := st.ObjectFiles()
+	if err != nil || len(files) != 0 {
+		t.Fatalf("ObjectFiles() = (%#v, %v), want empty valid shard", files, err)
+	}
+}
+
+func TestObjectFilesRejectsCanonicalFIFO(t *testing.T) {
+	st := testStore(t)
+	objectID := "sha256:" + strings.Repeat("a", 64)
+	path := objectFile(st, objectID)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := syscall.Mkfifo(path, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	files, err := st.ObjectFiles()
+	if err == nil || files != nil || !errors.Is(err, ErrIntegrity) {
+		t.Fatalf("ObjectFiles() = (%#v, %v), want FIFO integrity refusal", files, err)
+	}
+}
+
+func TestGetBoundedRejectsCanonicalFIFOBeforeOpen(t *testing.T) {
+	st := testStore(t)
+	objectID := "sha256:" + strings.Repeat("b", 64)
+	path := objectFile(st, objectID)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := syscall.Mkfifo(path, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	type result struct {
+		raw []byte
+		err error
+	}
+	done := make(chan result, 1)
+	go func() {
+		raw, err := st.GetBounded(objectID, 4_096)
+		done <- result{raw: raw, err: err}
+	}()
+	select {
+	case got := <-done:
+		if got.raw != nil || !errors.Is(got.err, ErrIntegrity) {
+			t.Fatalf("GetBounded() = (%q, %v), want FIFO integrity refusal", got.raw, got.err)
+		}
+	case <-time.After(200 * time.Millisecond):
+		writer, err := syscall.Open(path, syscall.O_WRONLY|syscall.O_NONBLOCK, 0)
+		if err == nil {
+			_, _ = syscall.Write(writer, []byte("{}"))
+			_ = syscall.Close(writer)
+		}
+		<-done
+		t.Fatal("GetBounded blocked opening a canonical FIFO")
+	}
+}
+
 func TestWithReadLockBlocksCanonicalPublication(t *testing.T) {
 	st := testStore(t)
-	helper := startStoreLockHelper(t, st, "publish")
+	var helper storeLockHelper
 	if err := st.WithReadLock(func() error {
+		helper = startStoreLockHelper(t, st, "publish")
 		waitForStoreLockHelper(t, helper.started)
 		assertStoreLockHelperBlocked(t, helper.acquired)
 		return nil
@@ -298,8 +408,9 @@ func TestWithReadLockBlocksCanonicalPublication(t *testing.T) {
 
 func TestMutationLockBlocksReadLock(t *testing.T) {
 	st := testStore(t)
-	helper := startStoreLockHelper(t, st, "read")
+	var helper storeLockHelper
 	if err := st.WithMutationLock(func() error {
+		helper = startStoreLockHelper(t, st, "read")
 		waitForStoreLockHelper(t, helper.started)
 		assertStoreLockHelperBlocked(t, helper.acquired)
 		return nil
