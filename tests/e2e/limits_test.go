@@ -189,7 +189,19 @@ func TestCLIConcurrentAndInterruptedIndexOperations(t *testing.T) { //nolint:fun
 			if result.exitCode != 0 || len(result.stderr) != 0 {
 				t.Fatalf("concurrent command %v = exit %d stdout=%q stderr=%q", commands[index], result.exitCode, result.stdout, result.stderr)
 			}
-			decodeOneJSON(t, result.stdout)
+			decoded := decodeOneJSON(t, result.stdout)
+			switch index {
+			case 0:
+				if decoded["operation"] != "query" || queryReturned(decoded) != 1 || len(eventRefsInPage(t, decoded)) != 1 {
+					t.Fatalf("concurrent query contract = %#v", decoded)
+				}
+				assertIndexState(t, decoded, "current", "complete", false)
+			case 1:
+				if decoded["operation"] != "index-rebuild" {
+					t.Fatalf("concurrent rebuild operation = %#v", decoded)
+				}
+				assertIndexState(t, decoded, "current", "complete", false)
+			}
 		}
 	})
 
@@ -208,7 +220,23 @@ func TestCLIConcurrentAndInterruptedIndexOperations(t *testing.T) { //nolint:fun
 				if len(result.stderr) != 0 {
 					t.Fatalf("successful concurrent command %v wrote stderr %q", commands[index], result.stderr)
 				}
-				decodeOneJSON(t, result.stdout)
+				decoded := decodeOneJSON(t, result.stdout)
+				switch index {
+				case 0:
+					if decoded["operation"] != "commit" || len(decoded["event_refs"].([]any)) != 1 {
+						t.Fatalf("concurrent commit contract = %#v", decoded)
+					}
+				case 1:
+					if decoded["operation"] != "index-rebuild" {
+						t.Fatalf("concurrent rebuild operation = %#v", decoded)
+					}
+					assertIndexState(t, decoded, "current", "complete", false)
+				case 2:
+					if decoded["operation"] != "query" || queryReturned(decoded) != 1 || len(eventRefsInPage(t, decoded)) != 1 {
+						t.Fatalf("concurrent query contract = %#v", decoded)
+					}
+					assertIndexState(t, decoded, "current", "complete", false)
+				}
 				continue
 			}
 			if index != 2 || result.exitCode != 9 || len(result.stdout) != 0 {
@@ -219,7 +247,11 @@ func TestCLIConcurrentAndInterruptedIndexOperations(t *testing.T) { //nolint:fun
 				t.Fatalf("concurrent query refusal = %#v", diagnostic)
 			}
 		}
-		runJSON(t, binary, "index", "rebuild", "--repo", repo, "--json")
+		rebuilt := runJSON(t, binary, "index", "rebuild", "--repo", repo, "--json")
+		if rebuilt["operation"] != "index-rebuild" {
+			t.Fatalf("final race rebuild operation = %#v", rebuilt)
+		}
+		assertIndexState(t, rebuilt, "current", "complete", false)
 		if verify := runJSON(t, binary, "verify", "--repo", repo, "--strict", "--json"); verify["ok"] != true || verify["index_status"] != "current" {
 			t.Fatalf("final race verify = %#v", verify)
 		}
@@ -240,6 +272,7 @@ func TestCLIConcurrentAndInterruptedIndexOperations(t *testing.T) { //nolint:fun
 			}
 			commitEvents(t, binary, fixture, repo, keyPath, fmt.Sprintf("bulk-%d.json", batchIndex), "org/example/state", fmt.Sprintf("2026-08-24T14:%02d:00Z", batchIndex), nil, events...)
 		}
+		protectedBefore := protectedRepositoryDigest(t, repo)
 		command := exec.Command(binary, "index", "rebuild", "--repo", repo, "--json")
 		var stdout, stderr bytes.Buffer
 		command.Stdout, command.Stderr = &stdout, &stderr
@@ -268,10 +301,23 @@ func TestCLIConcurrentAndInterruptedIndexOperations(t *testing.T) { //nolint:fun
 		if !bytes.Equal(liveBefore, liveAfter) {
 			t.Fatal("interrupted rebuild replaced prior live bytes")
 		}
+		if protectedAfter := protectedRepositoryDigest(t, repo); !reflect.DeepEqual(protectedAfter, protectedBefore) {
+			t.Fatalf("interrupted rebuild mutated protected bytes\nbefore=%#v\nafter=%#v", protectedBefore, protectedAfter)
+		}
 		status := runJSON(t, binary, "index", "status", "--repo", repo, "--json")
 		assertIndexState(t, status, "stale", "unavailable", true)
-		runJSON(t, binary, "index", "rebuild", "--repo", repo, "--json")
+		rebuilt := runJSON(t, binary, "index", "rebuild", "--repo", repo, "--json")
+		if rebuilt["operation"] != "index-rebuild" {
+			t.Fatalf("recovery rebuild operation = %#v", rebuilt)
+		}
+		assertIndexState(t, rebuilt, "current", "complete", false)
 		assertIndexState(t, runJSON(t, binary, "index", "status", "--repo", repo, "--json"), "current", "complete", false)
+		if verify := runJSON(t, binary, "verify", "--repo", repo, "--strict", "--json"); verify["ok"] != true || verify["index_status"] != "current" {
+			t.Fatalf("strict verify after interrupted rebuild recovery = %#v", verify)
+		}
+		if protectedAfter := protectedRepositoryDigest(t, repo); !reflect.DeepEqual(protectedAfter, protectedBefore) {
+			t.Fatalf("recovery rebuild mutated protected bytes\nbefore=%#v\nafter=%#v", protectedBefore, protectedAfter)
+		}
 	})
 }
 

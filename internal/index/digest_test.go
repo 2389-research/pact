@@ -3,9 +3,11 @@
 package index
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"reflect"
@@ -23,19 +25,19 @@ func TestLogicalDigestFixedVectors(t *testing.T) {
 	}{
 		{
 			name:     "empty scan",
-			snapshot: func() Snapshot { return Project(emptyScanFixture(t)) },
+			snapshot: func() Snapshot { return mustProject(t, emptyScanFixture(t)) },
 			want:     "sha256:03f03e8a64cabe2cf76aad5d5f0ba934f63efc7aac6b03526922bc8207b3d481",
 		},
 		{
 			name:     "signed partial replica",
-			snapshot: func() Snapshot { return Project(signedPartialScanFixture(t).scan) },
+			snapshot: func() Snapshot { return mustProject(t, signedPartialScanFixture(t).scan) },
 			want:     "sha256:5996aa26d41a908d1a0a06993fa6b406cd6506ea7cfe9b3320dfd879b80b21a1",
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			snapshot := test.snapshot()
-			got, err := LogicalDigest(snapshot)
+			got, err := LogicalDigest(context.Background(), snapshot)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -99,15 +101,15 @@ func independentlyDerivedDigest(t *testing.T, snapshot Snapshot) string {
 }
 
 func TestLogicalDigestChangesWithOneLogicalValue(t *testing.T) {
-	snapshot := Project(signedPartialScanFixture(t).scan)
-	before, err := LogicalDigest(snapshot)
+	snapshot := mustProject(t, signedPartialScanFixture(t).scan)
+	before, err := LogicalDigest(context.Background(), snapshot)
 	if err != nil {
 		t.Fatal(err)
 	}
 	changed := snapshot
 	changed.Objects = append([]ObjectRow(nil), snapshot.Objects...)
 	changed.Objects[0].ActorLabel += " changed"
-	after, err := LogicalDigest(changed)
+	after, err := LogicalDigest(context.Background(), changed)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,10 +119,10 @@ func TestLogicalDigestChangesWithOneLogicalValue(t *testing.T) {
 }
 
 func TestLogicalDigestRejectsInvalidCanonicalRowValue(t *testing.T) {
-	snapshot := Project(ledger.ScanResult{})
+	snapshot := mustProject(t, ledger.ScanResult{})
 	snapshot.IndexMeta = append([]IndexMetaRow(nil), snapshot.IndexMeta...)
 	snapshot.IndexMeta[0].Value = string([]byte{0xff})
-	if _, err := LogicalDigest(snapshot); err == nil {
+	if _, err := LogicalDigest(context.Background(), snapshot); err == nil {
 		t.Fatal("LogicalDigest() error = nil, want invalid UTF-8 rejection")
 	}
 }
@@ -128,5 +130,25 @@ func TestLogicalDigestRejectsInvalidCanonicalRowValue(t *testing.T) {
 func TestLogicalDigestRejectsTableNameFramingOverflow(t *testing.T) {
 	if err := writeTableHeader(io.Discard, strings.Repeat("x", 1<<16), 0); err == nil {
 		t.Fatal("writeTableHeader() error = nil, want uint16 framing overflow")
+	}
+}
+
+func TestLogicalDigestHonorsMidDigestCancellation(t *testing.T) {
+	snapshot := Snapshot{Objects: make([]ObjectRow, 2_048)}
+	for index := range snapshot.Objects {
+		snapshot.Objects[index].ObjectID = fmt.Sprintf("sha256:%064x", index)
+	}
+	oldPoll := afterIndexWorkPoll
+	t.Cleanup(func() { afterIndexWorkPoll = oldPoll })
+	ctx, cancel := context.WithCancel(context.Background())
+	polls := 0
+	afterIndexWorkPoll = func() {
+		polls++
+		if polls == 5 {
+			cancel()
+		}
+	}
+	if digest, err := LogicalDigest(ctx, snapshot); !errors.Is(err, context.Canceled) || digest != "" {
+		t.Fatalf("LogicalDigest() = (%q, %v) after %d polls, want empty digest and context canceled", digest, err, polls)
 	}
 }

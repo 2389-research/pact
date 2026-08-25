@@ -4,11 +4,9 @@ package index
 
 import (
 	"context"
-	"crypto/sha256"
 	"database/sql"
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"net/url"
 	"os"
@@ -62,6 +60,9 @@ func (m *Manager) rebuildLocked(ctx context.Context) (result RebuildResult, err 
 	}
 	scan, err := ledger.Scan(ctx, m.store, ledger.ScanOptions{Limits: ledger.Phase2Limits})
 	if err != nil {
+		if contextError(err) {
+			return result, err
+		}
 		if errors.Is(err, ledger.ErrIntegrity) || errors.Is(err, store.ErrIntegrity) {
 			return result, fmt.Errorf("scan rebuild source: %w", &QueryError{Code: "source_invalid"})
 		}
@@ -69,10 +70,6 @@ func (m *Manager) rebuildLocked(ctx context.Context) (result RebuildResult, err 
 	}
 	if !scan.Verification.OK {
 		return result, fmt.Errorf("scan rebuild source: %w", &QueryError{Code: "source_invalid"})
-	}
-	protectedBefore, err := snapshotProtectedState(ctx, m.store.Dir())
-	if err != nil {
-		return result, fmt.Errorf("snapshot protected state before rebuild: %w", err)
 	}
 	_, liveStatErr := os.Lstat(livePath)
 	replaced := liveStatErr == nil
@@ -87,7 +84,9 @@ func (m *Manager) rebuildLocked(ctx context.Context) (result RebuildResult, err 
 	cleanupTemp := true
 	defer func() {
 		if cleanupTemp {
-			err = errors.Join(err, cleanupCurrentBuild(tempPath))
+			if cleanupErr := cleanupCurrentBuild(tempPath); cleanupErr != nil {
+				err = errors.Join(err, cleanupErr)
+			}
 		}
 	}()
 	if err := tempFile.Chmod(0o600); err != nil {
@@ -99,8 +98,13 @@ func (m *Manager) rebuildLocked(ctx context.Context) (result RebuildResult, err 
 	if err := validateBuildFile(tempPath); err != nil {
 		return result, err
 	}
-	// Project has a fixed in-memory API; the bounded scan above already honored ctx.
-	snapshot := Project(scan) //nolint:contextcheck
+	snapshot, err := Project(ctx, scan)
+	if err != nil {
+		if contextError(err) {
+			return result, err
+		}
+		return result, fmt.Errorf("project rebuild source: %w", err)
+	}
 	if err := writeSnapshot(ctx, tempPath, snapshot); err != nil {
 		return result, err
 	}
@@ -112,6 +116,9 @@ func (m *Manager) rebuildLocked(ctx context.Context) (result RebuildResult, err 
 	}
 	info, err := validateIndex(ctx, tempPath, scan)
 	if err != nil {
+		if contextError(err) {
+			return result, err
+		}
 		return result, fmt.Errorf("validate built index: %w", err)
 	}
 	if info.State != "current" {
@@ -147,20 +154,33 @@ func (m *Manager) rebuildLocked(ctx context.Context) (result RebuildResult, err 
 	}
 	info, err = validateIndex(ctx, livePath, scan)
 	if err != nil {
+		if contextError(err) {
+			return result, err
+		}
 		return result, fmt.Errorf("validate published index: %w", err)
 	}
 	if info.State != "current" {
 		return result, fmt.Errorf("validate published index: %w", &QueryError{Code: "index_" + strings.ReplaceAll(info.State, "-", "_")})
 	}
-	protectedAfter, err := snapshotProtectedState(ctx, m.store.Dir())
-	if err != nil {
-		return result, fmt.Errorf("snapshot protected state after rebuild: %w", err)
-	}
-	if protectedBefore != protectedAfter {
-		return result, fmt.Errorf("validate protected state after rebuild: %w", &QueryError{Code: "source_changed"})
+	if err := proveCanonicalSourceUnchanged(ctx, m.store, scan.SourceFingerprint); err != nil {
+		return result, fmt.Errorf("validate canonical source after rebuild: %w", err)
 	}
 	status := Status{Index: info, Replica: replicaInfo(scan), Counts: sourceCounts(scan.Counts), Limits: LimitsInfo{Profile: ledger.LimitsProfile, Status: "within_limits"}}
 	return RebuildResult{Status: status, Created: !replaced, Replaced: replaced}, nil
+}
+
+func proveCanonicalSourceUnchanged(ctx context.Context, st *store.Store, sourceFingerprint string) error {
+	after, err := ledger.Scan(ctx, st, ledger.ScanOptions{Limits: ledger.Phase2Limits})
+	if err != nil {
+		if contextError(err) {
+			return err
+		}
+		return fmt.Errorf("%w: %w", &QueryError{Code: "source_changed"}, err)
+	}
+	if !after.Verification.OK || after.SourceFingerprint != sourceFingerprint {
+		return &QueryError{Code: "source_changed"}
+	}
+	return nil
 }
 
 func validateIndexPaths(storeDirectory, indexDirectory, livePath string) error {
@@ -239,7 +259,8 @@ func validateBuildFile(path string) error {
 	if info.Mode()&fs.ModeSymlink != 0 || !info.Mode().IsRegular() || info.Mode().Perm() != 0o600 {
 		return fmt.Errorf("index build file is not regular non-symlink mode 0600")
 	}
-	if info.Size() < 0 || info.Size() > maximumSQLiteFileSize {
+	// #nosec G115 -- the preceding negative-size branch guards the conversion.
+	if info.Size() < 0 || uint64(info.Size()) > ledger.Phase2Limits.SQLiteBytes {
 		return fmt.Errorf("index build exceeds resource limit")
 	}
 	return nil
@@ -457,90 +478,4 @@ func syncRealIndexDirectory(path string) (err error) {
 		return err
 	}
 	return nil
-}
-
-func snapshotProtectedState(ctx context.Context, storeDirectory string) (string, error) {
-	hash := sha256.New()
-	for _, relative := range []string{"objects", "refs", "trust.json"} {
-		path := filepath.Join(storeDirectory, relative)
-		info, err := os.Lstat(path)
-		if err != nil {
-			return "", err
-		}
-		if info.Mode()&fs.ModeSymlink != 0 {
-			return "", fmt.Errorf("protected path is a symlink")
-		}
-		if info.IsDir() {
-			if err := hashProtectedDirectory(ctx, hash, storeDirectory, path); err != nil {
-				return "", err
-			}
-			continue
-		}
-		if !info.Mode().IsRegular() {
-			return "", fmt.Errorf("protected path is not regular")
-		}
-		if err := hashProtectedFile(ctx, hash, storeDirectory, path); err != nil {
-			return "", err
-		}
-	}
-	return fmt.Sprintf("sha256:%x", hash.Sum(nil)), nil
-}
-
-func hashProtectedDirectory(ctx context.Context, hash io.Writer, root, directory string) error {
-	return filepath.WalkDir(directory, func(path string, entry fs.DirEntry, walkErr error) error {
-		if walkErr != nil {
-			return walkErr
-		}
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		info, err := os.Lstat(path)
-		if err != nil {
-			return err
-		}
-		if info.Mode()&fs.ModeSymlink != 0 {
-			return fmt.Errorf("protected path is a symlink")
-		}
-		if entry.IsDir() {
-			return nil
-		}
-		if !info.Mode().IsRegular() {
-			return fmt.Errorf("protected path is not regular")
-		}
-		return hashProtectedFile(ctx, hash, root, path)
-	})
-}
-
-func hashProtectedFile(ctx context.Context, hash io.Writer, root, path string) (err error) {
-	relative, err := filepath.Rel(root, path)
-	if err != nil {
-		return err
-	}
-	if _, err := io.WriteString(hash, relative+"\x00"); err != nil {
-		return err
-	}
-	// #nosec G304 -- path comes only from WalkDir below the fixed, Lstat-checked store paths.
-	file, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	defer func() { err = errors.Join(err, file.Close()) }()
-	buffer := make([]byte, 32*1024)
-	for {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		read, readErr := file.Read(buffer)
-		if read > 0 {
-			if _, err := hash.Write(buffer[:read]); err != nil {
-				return err
-			}
-		}
-		if errors.Is(readErr, io.EOF) {
-			return nil
-		}
-		if readErr != nil {
-			return readErr
-		}
-	}
 }

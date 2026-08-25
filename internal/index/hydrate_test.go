@@ -3,10 +3,12 @@
 package index
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"reflect"
 	"slices"
@@ -371,14 +373,222 @@ func TestPageJSONOmitsForbiddenFieldsAndEnforcesEncodedLimit(t *testing.T) {
 		}
 	}
 
-	original := queryPageJSONSize
-	queryPageJSONSize = func(QueryPage) (uint64, error) { return ledger.Phase2Limits.JSONResultBytes + 1, nil }
-	t.Cleanup(func() { queryPageJSONSize = original })
-	_, err = manager.Query(context.Background(), QueryRequest{Filters: Filters{EventRef: []string{fixture.child.EventRefs[0]}}})
-	var limit *ledger.LimitError
-	if !errors.As(err, &limit) || limit.Resource != "json_result_bytes" || limit.Maximum != ledger.Phase2Limits.JSONResultBytes {
-		t.Fatalf("encoded page error = %#v", err)
+	var streamed bytes.Buffer
+	if err := WriteQueryPageJSON(context.Background(), &streamed, page); err != nil {
+		t.Fatal(err)
 	}
+	var encoded bytes.Buffer
+	if err := json.NewEncoder(&encoded).Encode(page); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(streamed.Bytes(), encoded.Bytes()) || !bytes.HasSuffix(streamed.Bytes(), []byte{'\n'}) {
+		t.Fatalf("streamed query JSON differs from encoder\nstreamed=%q\nencoded=%q", streamed.Bytes(), encoded.Bytes())
+	}
+}
+
+func TestQueryPageStreamingJSONExactBoundPassesAndFirstExcessFails(t *testing.T) {
+	fixture := signedPartialScanFixture(t)
+	manager := New(fixture.store)
+	if _, err := manager.Rebuild(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	pages := make([]QueryPage, 0, 2)
+	queryPage, err := manager.Query(context.Background(), QueryRequest{Filters: Filters{EventRef: []string{fixture.child.EventRefs[0]}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pages = append(pages, queryPage)
+	logPage, err := manager.Log(context.Background(), LogRequest{Namespace: []string{"fixture"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pages = append(pages, logPage)
+	for _, page := range pages {
+		var expected bytes.Buffer
+		if err := json.NewEncoder(&expected).Encode(page); err != nil {
+			t.Fatal(err)
+		}
+		maximum := uint64(expected.Len())
+		if err := writeQueryPageJSONLimit(context.Background(), io.Discard, page, maximum); err != nil {
+			t.Fatalf("writeQueryPageJSONLimit() exact-bound error = %v", err)
+		}
+		err := writeQueryPageJSONLimit(context.Background(), io.Discard, page, maximum-1)
+		var limit *ledger.LimitError
+		if !errors.As(err, &limit) || limit.Resource != "json_result_bytes" || limit.Maximum != maximum-1 || limit.ObservedAtLeast != maximum {
+			t.Fatalf("writeQueryPageJSONLimit() first-excess error = %#v", err)
+		}
+	}
+}
+
+func TestQueryPageStreamingJSONProductionMaximumPassesExactly(t *testing.T) {
+	page := QueryPage{Batches: []Batch{{Items: make([]EventItem, 5)}}}
+	base, err := queryJSONValueSizeLimit(context.Background(), page, ledger.Phase2Limits.JSONResultBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	remaining := ledger.Phase2Limits.JSONResultBytes - base - 1 // WriteQueryPageJSON includes one trailing newline.
+	for index := range page.Batches[0].Items {
+		share := remaining / uint64(len(page.Batches[0].Items)-index)
+		page.Batches[0].Items[index].Subject = strings.Repeat("x", int(share))
+		remaining -= share
+	}
+	if err := WriteQueryPageJSON(context.Background(), io.Discard, page); err != nil {
+		t.Fatalf("WriteQueryPageJSON() exact 16 MiB error = %v", err)
+	}
+
+	page.Batches[0].Items[len(page.Batches[0].Items)-1].Subject += "x"
+	err = WriteQueryPageJSON(context.Background(), io.Discard, page)
+	var limit *ledger.LimitError
+	if !errors.As(err, &limit) || limit.Resource != "json_result_bytes" || limit.Maximum != ledger.Phase2Limits.JSONResultBytes || limit.ObservedAtLeast != ledger.Phase2Limits.JSONResultBytes+1 {
+		t.Fatalf("WriteQueryPageJSON() first excess error = %#v", err)
+	}
+}
+
+func TestQueryPageStreamingJSONMatchesStandardEscapesAndEmptyValues(t *testing.T) {
+	empty := []string{}
+	next := "cursor\u2028\u2029<>&"
+	page := QueryPage{
+		Operation: "query",
+		Batches: []Batch{{Items: []EventItem{{
+			Subject:    "quote\" slash\\ control\n\t<>&\u2028\u2029" + string([]byte{0xff}),
+			Parents:    empty,
+			Tags:       nil,
+			CausedBy:   &empty,
+			Supersedes: &empty,
+		}}}},
+		Unresolved: nil,
+		Page:       PageInfo{NextCursor: &next},
+	}
+	var got, want bytes.Buffer
+	if err := WriteQueryPageJSON(context.Background(), &got, page); err != nil {
+		t.Fatal(err)
+	}
+	if err := json.NewEncoder(&want).Encode(page); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got.Bytes(), want.Bytes()) {
+		t.Fatalf("streamed special JSON differs from encoding/json\ngot=%q\nwant=%q", got.Bytes(), want.Bytes())
+	}
+}
+
+func TestQueryJSONMixedWidthStringPollsCancellationAfterCrossedThreshold(t *testing.T) {
+	const blocks = 8_192
+	first := strings.Repeat("a", 255) + "é"
+	rest := strings.Repeat("a", 254) + "é"
+	var value strings.Builder
+	value.Grow(len(first) + (blocks-1)*len(rest))
+	value.WriteString(first)
+	for range blocks - 1 {
+		value.WriteString(rest)
+	}
+	ctx := &cancelingQueryJSONContext{Context: context.Background(), cancelAt: 3}
+	var output bytes.Buffer
+	encoder := queryJSONEncoder{ctx: ctx, writer: &output}
+	err := encoder.write(reflect.ValueOf(value.String()))
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("mixed-width string error = %v after %d polls and %d bytes, want context canceled near first crossed threshold", err, ctx.checks, output.Len())
+	}
+	if output.Len() > 4_096 {
+		t.Fatalf("mixed-width string wrote %d bytes before cancellation, want one bounded buffer at most", output.Len())
+	}
+}
+
+type cancelingQueryJSONContext struct {
+	context.Context
+	checks   int
+	cancelAt int
+}
+
+func (ctx *cancelingQueryJSONContext) Err() error {
+	ctx.checks++
+	if ctx.checks >= ctx.cancelAt {
+		return context.Canceled
+	}
+	return nil
+}
+
+func TestQueryBudgetsExactPageBeforeRetainingEachCandidate(t *testing.T) {
+	fixture := signedPartialScanFixture(t)
+	wide := commitFixture(t, fixture.store, fixture.key, "fixture/exact-page", nil, time.Date(2026, 8, 24, 15, 0, 0, 0, time.UTC),
+		fixtureEvent("one", "action", []string{"one"}, nil, nil),
+		fixtureEvent("two", "action", []string{"two"}, nil, nil),
+	)
+	manager := New(fixture.store)
+	if _, err := manager.Rebuild(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	request := QueryRequest{Filters: Filters{Namespace: []string{"fixture/exact-page"}}, Limit: 2}
+	baseline, err := manager.Query(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	items := pageItems(baseline)
+	if got := eventRefs(items); !reflect.DeepEqual(got, wide.EventRefs) {
+		t.Fatalf("baseline refs = %#v, want %#v", got, wide.EventRefs)
+	}
+	skeleton := baseline
+	skeleton.Batches = append([]Batch(nil), baseline.Batches...)
+	skeleton.Batches[0].Items = []EventItem{}
+	skeletonSize := queryPageJSONSize(t, skeleton)
+	firstSize, err := queryJSONValueSizeLimit(context.Background(), items[0], ledger.Phase2Limits.JSONResultBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondSize, err := queryJSONValueSizeLimit(context.Background(), items[1], ledger.Phase2Limits.JSONResultBytes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	exactSize := queryPageJSONSize(t, baseline)
+	if exactSize != skeletonSize+firstSize+1+secondSize {
+		t.Fatalf("page size = %d, want skeleton %d + items %d + comma + %d", exactSize, skeletonSize, firstSize, secondSize)
+	}
+
+	originalLimit := queryResultByteLimit
+	originalRetained := afterHydratedItemRetained
+	originalRelations := afterSelectedRelationsLoaded
+	t.Cleanup(func() {
+		queryResultByteLimit = originalLimit
+		afterHydratedItemRetained = originalRetained
+		afterSelectedRelationsLoaded = originalRelations
+	})
+	retained := []string{}
+	relationLoads := 0
+	afterHydratedItemRetained = func(item EventItem) { retained = append(retained, item.EventRef) }
+	afterSelectedRelationsLoaded = func(relations selectedRelations) {
+		relationLoads++
+		if len(relations.parents) != 1 || len(relations.tags) != 1 || len(relations.links) != 1 {
+			t.Fatalf("candidate relation set accumulated rows: %#v", relations)
+		}
+	}
+	queryResultByteLimit = skeletonSize + firstSize + secondSize // The second item fits alone; its comma does not.
+	_, err = manager.Query(context.Background(), request)
+	var limit *ledger.LimitError
+	if !errors.As(err, &limit) || limit.Resource != "json_result_bytes" || limit.Maximum != queryResultByteLimit || limit.ObservedAtLeast != queryResultByteLimit+1 {
+		t.Fatalf("Query() first-excess error = %#v", err)
+	}
+	if !reflect.DeepEqual(retained, wide.EventRefs[:1]) || relationLoads != 2 {
+		t.Fatalf("first-excess work retained=%#v relation loads=%d, want first item retained after two candidate checks", retained, relationLoads)
+	}
+
+	retained = nil
+	relationLoads = 0
+	queryResultByteLimit = exactSize
+	page, err := manager.Query(context.Background(), request)
+	if err != nil {
+		t.Fatalf("Query() exact-bound error = %v", err)
+	}
+	if got := queryPageJSONSize(t, page); got != exactSize || !reflect.DeepEqual(retained, wide.EventRefs) || relationLoads != 2 {
+		t.Fatalf("exact page size=%d retained=%#v relation loads=%d", got, retained, relationLoads)
+	}
+}
+
+func queryPageJSONSize(t *testing.T, page QueryPage) uint64 {
+	t.Helper()
+	var raw bytes.Buffer
+	if err := WriteQueryPageJSON(context.Background(), &raw, page); err != nil {
+		t.Fatal(err)
+	}
+	return uint64(raw.Len())
 }
 
 func TestQueryRefusesNonCurrentIndexAndPropagatesCancellation(t *testing.T) {

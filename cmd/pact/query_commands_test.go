@@ -4,8 +4,11 @@ package main
 
 import (
 	"bytes"
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,7 +16,81 @@ import (
 
 	"pact/internal/index"
 	"pact/internal/ledger"
+	"pact/internal/store"
 )
+
+func TestRunQueryUsesBoundedQueryPageSerializer(t *testing.T) {
+	fixture := newCLIQueryFixture(t)
+	st, err := store.Open(fixture.repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	page, err := index.New(st).Query(context.Background(), index.QueryRequest{Filters: index.Filters{Subject: []string{"widget-2"}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var want bytes.Buffer
+	if err := index.WriteQueryPageJSON(context.Background(), &want, page); err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	if code := run([]string{"query", "--repo", fixture.repo, "--subject", "widget-2", "--json"}, &stdout, &stderr); code != 0 {
+		t.Fatalf("run query exit = %d, stderr=%q", code, stderr.String())
+	}
+	if !bytes.Equal(stdout.Bytes(), want.Bytes()) {
+		t.Fatalf("CLI query JSON differs from bounded serializer\nCLI=%q\nwant=%q", stdout.Bytes(), want.Bytes())
+	}
+}
+
+func TestRunLogAndQueryReportJSONOutputFailures(t *testing.T) {
+	fixture := newCLIQueryFixture(t)
+	commands := [][]string{
+		{"log", "--repo", fixture.repo, "--json"},
+		{"query", "--repo", fixture.repo, "--subject", "widget-2", "--json"},
+	}
+	writers := []struct {
+		name string
+		new  func() io.Writer
+	}{
+		{name: "write error", new: func() io.Writer { return failingQueryWriter{} }},
+		{name: "short write", new: func() io.Writer { return shortQueryWriter{} }},
+	}
+	for _, command := range commands {
+		for _, writer := range writers {
+			t.Run(command[0]+"/"+writer.name, func(t *testing.T) {
+				var stderr bytes.Buffer
+				if code := run(command, writer.new(), &stderr); code != exitUnexpectedError {
+					t.Fatalf("run(%q) exit = %d, want %d; stderr=%q", command, code, exitUnexpectedError, stderr.String())
+				}
+				if strings.Contains(stderr.String(), "secret-pipe-detail") {
+					t.Fatalf("output diagnostic leaked writer detail: %q", stderr.String())
+				}
+				var diagnostic map[string]any
+				if err := json.Unmarshal(stderr.Bytes(), &diagnostic); err != nil {
+					t.Fatalf("output diagnostic is not JSON: %v; raw=%q", err, stderr.String())
+				}
+				if diagnostic["exit_code"] != float64(exitUnexpectedError) || diagnostic["error"] != "query output failed" {
+					t.Fatalf("output diagnostic = %#v", diagnostic)
+				}
+			})
+		}
+	}
+}
+
+type failingQueryWriter struct{}
+
+func (failingQueryWriter) Write([]byte) (int, error) {
+	return 0, errors.New("secret-pipe-detail")
+}
+
+type shortQueryWriter struct{}
+
+func (shortQueryWriter) Write(value []byte) (int, error) {
+	if len(value) == 0 {
+		return 0, nil
+	}
+	return len(value) - 1, nil
+}
 
 func TestRunLogAndQueryRejectInvalidShapes(t *testing.T) {
 	repo := t.TempDir()

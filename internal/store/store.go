@@ -212,6 +212,9 @@ func (st *Store) withLock(mode int, operation func() error) (err error) {
 func releaseLock(lock *os.File, resultErr *error) {
 	unlockErr := unlockLockFile(lock)
 	closeErr := closeLockFile(lock)
+	if unlockErr == nil && closeErr == nil {
+		return
+	}
 	if unlockErr != nil {
 		unlockErr = fmt.Errorf("unlock store lock: %w", unlockErr)
 	}

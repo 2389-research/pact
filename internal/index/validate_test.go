@@ -45,7 +45,7 @@ func TestStatusClassifiesCurrentCompleteReplica(t *testing.T) {
 		t.Fatal(err)
 	}
 	path := filepath.Join(st.Dir(), "index", "pact-v1.sqlite3")
-	writeSnapshotFixture(t, path, Project(scan))
+	writeSnapshotFixture(t, path, mustProject(t, scan))
 	status, err := New(st).Status(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -165,7 +165,7 @@ func TestStatusClassificationPrecedence(t *testing.T) {
 	t.Run("same-source row divergence is partial-build", func(t *testing.T) {
 		st, path, snapshot := managerFixture(t)
 		snapshot.Objects[0].ActorLabel = "divergent"
-		digest, err := LogicalDigest(snapshot)
+		digest, err := LogicalDigest(context.Background(), snapshot)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -502,10 +502,11 @@ func TestStatusHandlesSparse900MiBDatabaseWithoutMaterializingIt(t *testing.T) {
 
 func resetValidationSeams(t *testing.T) {
 	t.Helper()
-	oldClose, oldAfterRepresentative, oldAfterValidated := closeIndexReader, afterRepresentativeIndexRow, afterValidatedIndexRow
+	oldOpen, oldClose, oldAfterRepresentative, oldAfterValidated := openIndexReader, closeIndexReader, afterRepresentativeIndexRow, afterValidatedIndexRow
 	t.Cleanup(func() {
-		closeIndexReader, afterRepresentativeIndexRow, afterValidatedIndexRow = oldClose, oldAfterRepresentative, oldAfterValidated
+		openIndexReader, closeIndexReader, afterRepresentativeIndexRow, afterValidatedIndexRow = oldOpen, oldClose, oldAfterRepresentative, oldAfterValidated
 	})
+	openIndexReader = openSQLiteIndexReader
 	closeIndexReader = func(db *sql.DB) error { return db.Close() }
 	afterRepresentativeIndexRow = func() {}
 	afterValidatedIndexRow = func() {}
@@ -527,14 +528,38 @@ func TestStatusClassifiesUnsafeAndOversizeFilesAsCorrupt(t *testing.T) {
 		}
 	})
 
+	t.Run("sparse exact maximum reaches SQLite validation", func(t *testing.T) {
+		resetValidationSeams(t)
+		st, path, _ := managerFixture(t)
+		if err := os.Truncate(path, int64(ledger.Phase2Limits.SQLiteBytes)); err != nil {
+			t.Fatal(err)
+		}
+		opened := false
+		originalReader := openIndexReader
+		openIndexReader = func(candidate string) (*sql.DB, error) {
+			opened = true
+			return originalReader(candidate)
+		}
+		status, err := New(st).Status(context.Background())
+		if err != nil || status.Index.State != "current" || !opened {
+			t.Fatalf("status = %#v, opened = %v, error = %v", status, opened, err)
+		}
+	})
+
 	t.Run("sparse oversize file", func(t *testing.T) {
+		resetValidationSeams(t)
 		st, path, _ := managerFixture(t)
 		if err := os.Truncate(path, int64(ledger.Phase2Limits.SQLiteBytes)+1); err != nil {
 			t.Fatal(err)
 		}
+		opened := false
+		openIndexReader = func(string) (*sql.DB, error) {
+			opened = true
+			return nil, errors.New("oversized SQLite reached reader")
+		}
 		status, err := New(st).Status(context.Background())
-		if err != nil || status.Index.State != "corrupt" {
-			t.Fatalf("status = %#v, error = %v", status, err)
+		if err != nil || status.Index.State != "corrupt" || opened {
+			t.Fatalf("status = %#v, opened = %v, error = %v", status, opened, err)
 		}
 	})
 
@@ -571,7 +596,9 @@ func TestStatusClassifiesSelfConsistentRowsBeyondCurrentSourceAsPartialBuild(t *
 	batch := uint64(0)
 	snapshot.Events = append(snapshot.Events, EventRow{EventRef: rogueRef, CommitID: rogueID, LocalID: "rogue", Kind: "action", EventType: "fixture.rogue", Subject: "fixture/rogue", SchemaRef: "pact:core/fixture/v1", CausalBatch: &batch, CausalStatus: "ordered"})
 	snapshot.Heads = append(snapshot.Heads, HeadRow{Namespace: "fixture/rogue", CommitID: rogueID})
-	sortSnapshot(&snapshot)
+	if err := sortSnapshot(context.Background(), &snapshot); err != nil {
+		t.Fatal(err)
+	}
 	setFixtureMetadata(snapshot.IndexMeta, "source_count_objects", "7")
 	setFixtureMetadata(snapshot.IndexMeta, "source_count_commits", "5")
 	setFixtureMetadata(snapshot.IndexMeta, "source_count_events", "6")
@@ -580,7 +607,7 @@ func TestStatusClassifiesSelfConsistentRowsBeyondCurrentSourceAsPartialBuild(t *
 	setFixtureMetadata(snapshot.IndexMeta, "row_count_commits", "5")
 	setFixtureMetadata(snapshot.IndexMeta, "row_count_events", "6")
 	setFixtureMetadata(snapshot.IndexMeta, "row_count_heads", "4")
-	digest, err := LogicalDigest(snapshot)
+	digest, err := LogicalDigest(context.Background(), snapshot)
 	if err != nil {
 		t.Fatal(err)
 	}

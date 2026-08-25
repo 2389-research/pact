@@ -13,7 +13,7 @@ import (
 	"pact/internal/store"
 )
 
-func runLog(args []string, stderr io.Writer) (map[string]any, error) {
+func runLog(args []string, stderr io.Writer) (index.QueryPage, error) {
 	flags := flag.NewFlagSet("log", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	repo := flags.String("repo", ".", "project root")
@@ -23,25 +23,25 @@ func runLog(args []string, stderr io.Writer) (map[string]any, error) {
 	flags.Var(&namespaces, "namespace", "namespace prefix")
 	flags.Var(&actors, "actor", "actor key ID")
 	if err := flags.Parse(args); err != nil {
-		return nil, &commandError{code: exitUsage, message: "invalid log arguments"}
+		return index.QueryPage{}, &commandError{code: exitUsage, message: "invalid log arguments"}
 	}
 	if flags.NArg() != 0 {
-		return nil, &commandError{code: exitUsage, message: "log accepts no positional arguments"}
+		return index.QueryPage{}, &commandError{code: exitUsage, message: "log accepts no positional arguments"}
 	}
 	st, err := store.Open(*repo)
 	if err != nil {
-		return nil, &commandError{code: exitStore, message: err.Error()}
+		return index.QueryPage{}, &commandError{code: exitStore, message: err.Error()}
 	}
 	page, err := index.New(st).Log(context.Background(), index.LogRequest{
 		Namespace: namespaces, Actor: actors, Limit: *limit, Cursor: *cursor,
 	})
 	if err != nil {
-		return nil, queryCommandError(err)
+		return index.QueryPage{}, queryCommandError(err)
 	}
-	return queryPageMap(page), nil
+	return page, nil
 }
 
-func runQuery(args []string, stderr io.Writer) (map[string]any, error) { //nolint:funlen // Keeping the fixed flag-to-filter map together makes the CLI contract auditable.
+func runQuery(args []string, stderr io.Writer) (index.QueryPage, error) { //nolint:funlen // Keeping the fixed flag-to-filter map together makes the CLI contract auditable.
 	flags := flag.NewFlagSet("query", flag.ContinueOnError)
 	flags.SetOutput(stderr)
 	repo := flags.String("repo", ".", "project root")
@@ -59,58 +59,48 @@ func runQuery(args []string, stderr io.Writer) (map[string]any, error) { //nolin
 	flags.Var((*repeatFlag)(&filters.CausedBy), "caused-by", "causal event reference")
 	flags.Var((*repeatFlag)(&filters.Supersedes), "supersedes", "superseded event reference")
 	if err := flags.Parse(args); err != nil {
-		return nil, &commandError{code: exitUsage, message: "invalid query arguments"}
+		return index.QueryPage{}, &commandError{code: exitUsage, message: "invalid query arguments"}
 	}
 	if flags.NArg() != 0 {
-		return nil, &commandError{code: exitUsage, message: "query accepts no positional arguments"}
+		return index.QueryPage{}, &commandError{code: exitUsage, message: "query accepts no positional arguments"}
 	}
 	st, err := store.Open(*repo)
 	if err != nil {
-		return nil, &commandError{code: exitStore, message: err.Error()}
+		return index.QueryPage{}, &commandError{code: exitStore, message: err.Error()}
 	}
 	page, err := index.New(st).Query(context.Background(), index.QueryRequest{Filters: filters, Limit: *limit, Cursor: *cursor})
 	if err != nil {
-		return nil, queryCommandError(err)
+		return index.QueryPage{}, queryCommandError(err)
 	}
-	return queryPageMap(page), nil
+	return page, nil
 }
 
-func queryPageMap(page index.QueryPage) map[string]any {
-	return map[string]any{
-		"operation": page.Operation, "index": indexInfoMap(page.Index),
-		"replica": replicaInfoMap(page.Replica), "filters": page.Filters,
-		"order": page.Order, "batches": page.Batches,
-		"unresolved": page.Unresolved, "page": page.Page,
+func emitQueryResult(writer io.Writer, asJSON bool, page index.QueryPage) error {
+	if asJSON {
+		return index.WriteQueryPageJSON(context.Background(), writer, page)
 	}
+	emitQueryHuman(writer, page)
+	return nil
 }
 
-func emitQueryHuman(writer io.Writer, result map[string]any) {
-	info, infoOK := result["index"].(map[string]any)
-	replica, replicaOK := result["replica"].(map[string]any)
-	filters, filtersOK := result["filters"].(index.Filters)
-	batches, batchesOK := result["batches"].([]index.Batch)
-	unresolved, unresolvedOK := result["unresolved"].([]index.EventItem)
-	page, pageOK := result["page"].(index.PageInfo)
-	if !infoOK || !replicaOK || !filtersOK || !batchesOK || !unresolvedOK || !pageOK {
-		return
-	}
-	fprintf(writer, "PACT %s\n", result["operation"])
-	fprintf(writer, "index state: %v\ncoverage: %v\n", info["state"], info["coverage"])
-	fprintf(writer, "local replica completeness: %v (global completeness: %v)\n", replica["completeness"], replica["global_completeness"])
-	emitFiltersHuman(writer, filters)
+func emitQueryHuman(writer io.Writer, page index.QueryPage) {
+	fprintf(writer, "PACT %s\n", page.Operation)
+	fprintf(writer, "index state: %v\ncoverage: %v\n", page.Index.State, page.Index.Coverage)
+	fprintf(writer, "local replica completeness: %v (global completeness: %v)\n", page.Replica.Completeness, page.Replica.GlobalCompleteness)
+	emitFiltersHuman(writer, page.Filters)
 	fprintf(writer, "causal batches use known local dependencies; this is not a total order\n")
-	for _, batch := range batches {
+	for _, batch := range page.Batches {
 		fprintf(writer, "causal batch %d (complete in page: %v)\n", batch.Batch, batch.CompleteInPage)
 		for _, item := range batch.Items {
 			emitEventHuman(writer, item)
 		}
 	}
 	fprintf(writer, "unresolved events (separate from ordered causal batches):\n")
-	for _, item := range unresolved {
+	for _, item := range page.Unresolved {
 		emitEventHuman(writer, item)
 	}
-	if page.NextCursor != nil {
-		fprintf(writer, "continuation: %s\n", *page.NextCursor)
+	if page.Page.NextCursor != nil {
+		fprintf(writer, "continuation: %s\n", *page.Page.NextCursor)
 	}
 }
 

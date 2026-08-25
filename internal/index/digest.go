@@ -3,6 +3,7 @@
 package index
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
@@ -14,14 +15,23 @@ import (
 const logicalDigestDomain = "PACT-INDEX-LOGICAL-ROWS-V1\x00"
 
 // LogicalDigest identifies every logical row while ignoring its own stored metadata value.
-func LogicalDigest(snapshot Snapshot) (string, error) {
+func LogicalDigest(ctx context.Context, snapshot Snapshot) (string, error) {
+	if ctx == nil {
+		return "", fmt.Errorf("context is required")
+	}
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
 	hash := sha256.New()
 	if _, err := io.WriteString(hash, logicalDigestDomain); err != nil {
 		return "", fmt.Errorf("write logical digest domain: %w", err)
 	}
 	tables := logicalTables(snapshot)
-	for _, table := range tables {
-		if err := writeLogicalTable(hash, table); err != nil {
+	for index, table := range tables {
+		if err := pollIndexContext(ctx, index); err != nil {
+			return "", err
+		}
+		if err := writeLogicalTable(ctx, hash, table); err != nil {
 			return "", err
 		}
 	}
@@ -111,14 +121,20 @@ func nullableString(value *string) any {
 	return *value
 }
 
-func writeLogicalTable(writer io.Writer, table logicalTable) error {
+func writeLogicalTable(ctx context.Context, writer io.Writer, table logicalTable) error {
 	// #nosec G115 -- table.count comes from len, so it is nonnegative and fits uint64.
 	if err := writeTableHeader(writer, table.name, uint64(table.count)); err != nil {
 		return err
 	}
 	for index := range table.count {
-		encoded, err := canonical.Marshal(table.row(index))
+		if err := pollIndexContext(ctx, index); err != nil {
+			return err
+		}
+		encoded, err := canonical.MarshalContext(ctx, table.row(index))
 		if err != nil {
+			if contextError(err) {
+				return err
+			}
 			return fmt.Errorf("canonicalize logical row %s[%d]: %w", table.name, index, err)
 		}
 		if err := writeUint64(writer, uint64(len(encoded))); err != nil {

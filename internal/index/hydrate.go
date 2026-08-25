@@ -5,9 +5,9 @@ package index
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"path/filepath"
 	"reflect"
 	"sort"
@@ -18,12 +18,11 @@ import (
 )
 
 var (
-	beforeQueryHydration   = func() {}
-	resolveCanonicalCommit = ledger.ResolveCommit
-	queryPageJSONSize      = func(page QueryPage) (uint64, error) {
-		raw, err := json.Marshal(page)
-		return uint64(len(raw)), err
-	}
+	beforeQueryHydration         = func() {}
+	resolveCanonicalCommit       = ledger.ResolveCommit
+	queryResultByteLimit         = ledger.Phase2Limits.JSONResultBytes
+	afterHydratedItemRetained    = func(EventItem) {}
+	afterSelectedRelationsLoaded = func(selectedRelations) {}
 )
 
 // EventItem is the JSON-ready canonical event projection returned by log and query.
@@ -188,17 +187,64 @@ func (m *Manager) queryPageLocked(ctx context.Context, operation string, filters
 	if hasMore {
 		rows = rows[:limit]
 	}
-	beforeQueryHydration()
-	items, err := hydrateSelectedRows(ctx, m.store, db, scan, rows, operation == "query")
+	result, batchIndexes, err := buildQueryPageSkeleton(ctx, db, scan, operation, filters, limit, hasMore, rows, info, expectation)
 	if err != nil {
 		return QueryPage{}, err
 	}
-	result = QueryPage{
-		Operation: operation, Index: info, Replica: replicaInfo(scan), Filters: cloneFilters(filters), Order: fixedOrder(),
-		Batches: []Batch{}, Unresolved: []EventItem{}, Page: PageInfo{Limit: limit, Returned: len(items), HasMore: hasMore},
-	}
-	if err := assembleCausalGroups(ctx, db, filters, items, &result); err != nil {
+	retainedJSONBytes, err := queryPageJSONSizeLimit(ctx, result, queryResultByteLimit)
+	if err != nil {
 		return QueryPage{}, err
+	}
+	beforeQueryHydration()
+	if err := hydrateSelectedRows(ctx, m.store, db, scan, rows, operation == "query", &result, batchIndexes, &retainedJSONBytes, queryResultByteLimit); err != nil {
+		return QueryPage{}, err
+	}
+	if err := ctx.Err(); err != nil {
+		return QueryPage{}, err
+	}
+	if err := writeQueryPageJSONLimit(ctx, io.Discard, result, queryResultByteLimit); err != nil {
+		var limit *ledger.LimitError
+		if errors.As(err, &limit) {
+			return QueryPage{}, limit
+		}
+		return QueryPage{}, safeIndexReadError("encode query result failed", err)
+	}
+	if err := ctx.Err(); err != nil {
+		return QueryPage{}, err
+	}
+	return result, nil
+}
+
+func buildQueryPageSkeleton(ctx context.Context, db *sql.DB, scan ledger.ScanResult, operation string, filters Filters, limit int, hasMore bool, rows []selectedRow, info IndexInfo, expectation cursorExpectation) (QueryPage, map[uint64]int, error) {
+	result := QueryPage{
+		Operation: operation, Index: info, Replica: replicaInfo(scan), Filters: cloneFilters(filters), Order: fixedOrder(),
+		Batches: []Batch{}, Unresolved: []EventItem{}, Page: PageInfo{Limit: limit, Returned: len(rows), HasMore: hasMore},
+	}
+	batchIndexes := map[uint64]int{}
+	selectedCounts := map[uint64]uint64{}
+	for _, row := range rows {
+		if err := ctx.Err(); err != nil {
+			return QueryPage{}, nil, err
+		}
+		if row.CausalStatus == "unresolved" {
+			continue
+		}
+		if row.CausalBatch == nil {
+			return QueryPage{}, nil, &QueryError{Code: "index_corrupt"}
+		}
+		batch := *row.CausalBatch
+		if _, found := batchIndexes[batch]; !found {
+			batchIndexes[batch] = len(result.Batches)
+			result.Batches = append(result.Batches, Batch{Batch: batch, Items: []EventItem{}})
+		}
+		selectedCounts[batch]++
+	}
+	for index := range result.Batches {
+		count, err := countMatchingBatch(ctx, db, filters, result.Batches[index].Batch)
+		if err != nil {
+			return QueryPage{}, nil, err
+		}
+		result.Batches[index].CompleteInPage = count == selectedCounts[result.Batches[index].Batch]
 	}
 	if hasMore {
 		last := rows[len(rows)-1]
@@ -207,26 +253,13 @@ func (m *Manager) queryPageLocked(ctx context.Context, operation string, filters
 			Format: cursorFormat, LogicalDigest: *info.LogicalDigest, QueryDigest: expectation.QueryDigest,
 			SchemaVersion: *info.SchemaVersion, SourceFingerprint: *info.SourceFingerprint,
 		}
-		next, encodeErr := encodeCursor(ctx, state)
-		if encodeErr != nil {
-			return QueryPage{}, encodeErr
+		next, err := encodeCursor(ctx, state)
+		if err != nil {
+			return QueryPage{}, nil, err
 		}
 		result.Page.NextCursor = &next
 	}
-	if err := ctx.Err(); err != nil {
-		return QueryPage{}, err
-	}
-	size, err := queryPageJSONSize(result)
-	if err != nil {
-		return QueryPage{}, safeIndexReadError("encode query result failed", err)
-	}
-	if size > ledger.Phase2Limits.JSONResultBytes {
-		return QueryPage{}, &ledger.LimitError{Resource: "json_result_bytes", Maximum: ledger.Phase2Limits.JSONResultBytes, ObservedAtLeast: ledger.Phase2Limits.JSONResultBytes + 1}
-	}
-	if err := ctx.Err(); err != nil {
-		return QueryPage{}, err
-	}
-	return result, nil
+	return result, batchIndexes, nil
 }
 
 func querySelectionPosition(ctx context.Context, db *sql.DB, token string, expectation cursorExpectation) (selectionPosition, bool, error) {
@@ -269,45 +302,83 @@ func selectIndexRows(ctx context.Context, db *sql.DB, filters Filters, after *se
 	return result, nil
 }
 
-func hydrateSelectedRows(ctx context.Context, st *store.Store, db *sql.DB, scan ledger.ScanResult, rows []selectedRow, queryView bool) ([]EventItem, error) {
-	unresolved, err := selectedUnresolvedSet(ctx, rows, scan.UnresolvedEvents)
-	if err != nil {
-		return nil, err
-	}
-	relations, err := loadSelectedRelations(ctx, db, rows)
-	if err != nil {
-		return nil, err
-	}
+func hydrateSelectedRows(ctx context.Context, st *store.Store, db *sql.DB, scan ledger.ScanResult, rows []selectedRow, queryView bool, page *QueryPage, batchIndexes map[uint64]int, retainedJSONBytes *uint64, maximum uint64) error {
 	resolved := make(map[string]ledger.CommitRecord)
-	items := make([]EventItem, 0, len(rows))
 	for _, row := range rows {
 		if err := ctx.Err(); err != nil {
-			return nil, err
+			return err
 		}
+		relations, err := loadSelectedRowRelations(ctx, db, row)
+		if err != nil {
+			return err
+		}
+		afterSelectedRelationsLoaded(relations)
 		commit, found := resolved[row.CommitID]
 		if !found {
 			commit, err = resolveCanonicalCommit(ctx, st, row.CommitID, ledger.Phase2Limits)
 			if err != nil {
 				if contextError(err) {
-					return nil, err
+					return err
 				}
-				return nil, &QueryError{Code: "index_corrupt"}
+				return &QueryError{Code: "index_corrupt"}
 			}
 			resolved[row.CommitID] = commit
 		}
 		if err := ctx.Err(); err != nil {
-			return nil, err
+			return err
 		}
-		item, err := hydrateSelectedRow(row, commit, scan, unresolved, relations, queryView)
+		item, err := hydrateSelectedRow(row, commit, scan, unresolvedEvent(scan.UnresolvedEvents, row.EventRef), relations, queryView)
 		if err != nil {
-			return nil, err
+			return err
 		}
-		items = append(items, item)
+		if err := retainHydratedItem(ctx, page, batchIndexes, item, retainedJSONBytes, maximum); err != nil {
+			return err
+		}
 	}
-	return items, ctx.Err()
+	return ctx.Err()
 }
 
-func hydrateSelectedRow(row selectedRow, resolved ledger.CommitRecord, scan ledger.ScanResult, unresolved map[string]struct{}, relations selectedRelations, queryView bool) (EventItem, error) {
+func retainHydratedItem(ctx context.Context, page *QueryPage, batchIndexes map[uint64]int, item EventItem, retained *uint64, maximum uint64) error {
+	if page == nil || retained == nil {
+		return fmt.Errorf("retained query budget is required")
+	}
+	if *retained > maximum {
+		return &ledger.LimitError{Resource: "json_result_bytes", Maximum: maximum, ObservedAtLeast: maximum + 1}
+	}
+	destination := &page.Unresolved
+	if item.CausalStatus != "unresolved" {
+		if item.CausalBatch == nil {
+			return &QueryError{Code: "index_corrupt"}
+		}
+		index, found := batchIndexes[*item.CausalBatch]
+		if !found {
+			return &QueryError{Code: "index_corrupt"}
+		}
+		destination = &page.Batches[index].Items
+	}
+	separator := uint64(0)
+	if len(*destination) != 0 {
+		separator = 1
+	}
+	remaining := maximum - *retained
+	if separator > remaining {
+		return &ledger.LimitError{Resource: "json_result_bytes", Maximum: maximum, ObservedAtLeast: maximum + 1}
+	}
+	size, err := queryJSONValueSizeLimit(ctx, item, remaining-separator)
+	if err != nil {
+		var limit *ledger.LimitError
+		if errors.As(err, &limit) {
+			return &ledger.LimitError{Resource: "json_result_bytes", Maximum: maximum, ObservedAtLeast: maximum + 1}
+		}
+		return err
+	}
+	*retained += separator + size
+	*destination = append(*destination, item)
+	afterHydratedItemRetained(item)
+	return nil
+}
+
+func hydrateSelectedRow(row selectedRow, resolved ledger.CommitRecord, scan ledger.ScanResult, unresolved bool, relations selectedRelations, queryView bool) (EventItem, error) {
 	commit, commitFound := scan.Commits[row.CommitID]
 	event, eventFound := scan.Events[row.EventRef]
 	if !commitFound || !eventFound || !sameCanonicalCommit(resolved, commit) || event.CommitID != commit.ID || !sameSelectedScalar(row, commit, event) {
@@ -321,7 +392,7 @@ func hydrateSelectedRow(row selectedRow, resolved ledger.CommitRecord, scan ledg
 		if row.CausalStatus != "ordered" || row.CausalBatch == nil || *row.CausalBatch != batch {
 			return EventItem{}, &QueryError{Code: "index_corrupt"}
 		}
-	} else if _, found := unresolved[event.Ref]; row.CausalStatus != "unresolved" || row.CausalBatch != nil || !found {
+	} else if row.CausalStatus != "unresolved" || row.CausalBatch != nil || !unresolved {
 		return EventItem{}, &QueryError{Code: "index_corrupt"}
 	}
 	item := EventItem{
@@ -341,50 +412,23 @@ func hydrateSelectedRow(row selectedRow, resolved ledger.CommitRecord, scan ledg
 	return item, nil
 }
 
-func selectedUnresolvedSet(ctx context.Context, rows []selectedRow, refs []string) (map[string]struct{}, error) {
-	needed := false
-	for _, row := range rows {
-		if row.CausalStatus == "unresolved" {
-			needed = true
-			break
-		}
-	}
-	if !needed {
-		return nil, ctx.Err()
-	}
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	result := make(map[string]struct{}, len(refs))
-	for _, ref := range refs {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-		result[ref] = struct{}{}
-	}
-	return result, ctx.Err()
+func unresolvedEvent(refs []string, ref string) bool {
+	index := sort.SearchStrings(refs, ref)
+	return index < len(refs) && refs[index] == ref
 }
 
-func loadSelectedRelations(ctx context.Context, db *sql.DB, rows []selectedRow) (selectedRelations, error) {
+func loadSelectedRowRelations(ctx context.Context, db *sql.DB, row selectedRow) (selectedRelations, error) {
 	result := selectedRelations{parents: map[string][]indexedParent{}, tags: map[string][]string{}, links: map[string][]indexedLink{}}
-	commitSet := map[string]struct{}{}
-	eventSet := map[string]struct{}{}
-	for _, row := range rows {
-		commitSet[row.CommitID] = struct{}{}
-		eventSet[row.EventRef] = struct{}{}
-		result.parents[row.CommitID] = []indexedParent{}
-		result.tags[row.EventRef] = []string{}
-		result.links[row.EventRef] = []indexedLink{}
-	}
-	commits := sortedSet(commitSet)
-	events := sortedSet(eventSet)
-	if err := loadParentRows(ctx, db, commits, result.parents); err != nil {
+	result.parents[row.CommitID] = []indexedParent{}
+	result.tags[row.EventRef] = []string{}
+	result.links[row.EventRef] = []indexedLink{}
+	if err := loadParentRows(ctx, db, []string{row.CommitID}, result.parents); err != nil {
 		return selectedRelations{}, err
 	}
-	if err := loadTagRows(ctx, db, events, result.tags); err != nil {
+	if err := loadTagRows(ctx, db, []string{row.EventRef}, result.tags); err != nil {
 		return selectedRelations{}, err
 	}
-	if err := loadLinkRows(ctx, db, events, result.links); err != nil {
+	if err := loadLinkRows(ctx, db, []string{row.EventRef}, result.links); err != nil {
 		return selectedRelations{}, err
 	}
 	return result, nil
@@ -457,32 +501,6 @@ func scanRelationRows(ctx context.Context, db *sql.DB, statement string, argumen
 	}
 	if err := rows.Err(); err != nil {
 		return safeIndexReadError("read indexed event relations failed", err)
-	}
-	return nil
-}
-
-func assembleCausalGroups(ctx context.Context, db *sql.DB, filters Filters, items []EventItem, page *QueryPage) error {
-	batchIndexes := map[uint64]int{}
-	for _, item := range items {
-		if item.CausalStatus == "unresolved" {
-			page.Unresolved = append(page.Unresolved, item)
-			continue
-		}
-		batch := *item.CausalBatch
-		index, found := batchIndexes[batch]
-		if !found {
-			index = len(page.Batches)
-			batchIndexes[batch] = index
-			page.Batches = append(page.Batches, Batch{Batch: batch, Items: []EventItem{}})
-		}
-		page.Batches[index].Items = append(page.Batches[index].Items, item)
-	}
-	for index := range page.Batches {
-		count, err := countMatchingBatch(ctx, db, filters, page.Batches[index].Batch)
-		if err != nil {
-			return err
-		}
-		page.Batches[index].CompleteInPage = count == uint64(len(page.Batches[index].Items))
 	}
 	return nil
 }
@@ -563,15 +581,6 @@ func cloneUint64Pointer(value *uint64) *uint64 {
 		return nil
 	}
 	return new(*value)
-}
-
-func sortedSet(values map[string]struct{}) []string {
-	result := make([]string, 0, len(values))
-	for value := range values {
-		result = append(result, value)
-	}
-	sort.Strings(result)
-	return result
 }
 
 func stringsToArguments(values []string) []any {

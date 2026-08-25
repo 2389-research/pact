@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"pact/internal/ledger"
 	"pact/internal/store"
 
 	_ "modernc.org/sqlite"
@@ -40,7 +41,7 @@ func managerFixture(t *testing.T) (*store.Store, string, Snapshot) {
 	t.Helper()
 	fixture := signedPartialScanFixture(t)
 	path := filepath.Join(fixture.store.Dir(), "index", "pact-v1.sqlite3")
-	snapshot := Project(fixture.scan)
+	snapshot := mustProject(t, fixture.scan)
 	writeSnapshotFixture(t, path, snapshot)
 	return fixture.store, path, snapshot
 }
@@ -102,6 +103,15 @@ func writeSnapshotFixture(t *testing.T, path string, snapshot Snapshot) {
 	if err := db.Close(); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func mustProject(t *testing.T, scan ledger.ScanResult) Snapshot {
+	t.Helper()
+	snapshot, err := Project(context.Background(), scan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return snapshot
 }
 
 func mapRows[Row any](rows []Row, convert func(Row) []any) [][]any {

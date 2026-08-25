@@ -221,14 +221,16 @@ The fixed profile is `pact/resource-limits/phase2-v1`.
 | Values across filter families | 256 |
 | Encoded cursor | 4,096 bytes |
 | Decoded cursor | 3,072 bytes |
-| Encoded JSON result | 16,777,216 bytes |
+| Encoded JSON result, including the `--json` newline | 16,777,216 bytes |
 | Stored SQLite file | 2,147,483,648 bytes |
 | Diagnostic samples per axis | 100 |
 | One diagnostic text field | 512 UTF-8 bytes |
 
 Exact-bound inputs pass. With `--json`, the first excess fails safely with a
 bounded, machine-readable diagnostic instead of truncating authoritative
-results. The code names the input contract: graph, scan, and filter excesses use
+results. Log and query use one streaming serializer for both the bound and CLI
+output, so this limit does not require a full-page encoding buffer. The code
+names the input contract: graph, scan, and filter excesses use
 `resource_limit`; an invalid page limit is a usage error; an oversized or
 malformed cursor is `cursor_invalid`; and an oversized stored index is
 `corrupt`.

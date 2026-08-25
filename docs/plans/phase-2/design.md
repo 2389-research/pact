@@ -1,9 +1,19 @@
-<!-- ABOUTME: Defines the exact proposed contract for PACT Phase 2. -->
-<!-- ABOUTME: Freezes bounded graph, disposable SQLite, causal query, and completeness behavior before code. -->
+<!-- ABOUTME: Defines the implemented contract for PACT Phase 2. -->
+<!-- ABOUTME: Freezes bounded graph, disposable SQLite, causal query, and completeness behavior. -->
 
 # PACT Phase 2 design
 
-**Status:** Approved by Doctor Biz on 2026-08-24; implementation is in progress.
+**Status:** Tasks 1–7 are implemented and committed through `218536f` from
+Phase 2 start `a6c6c14`. Repository dogfood is recorded by commit object
+`sha256:69d67237ecf856c5b72515cd1ac43322642a847c1fc0d35955cd30e911146743`
+and checkpoint object
+`sha256:511f085606dc807fd3a67b2fd80afb37355d27f4b677b087cb337b32552eb485`.
+The initial independent broad review returned three Important and three Minor
+findings, and its re-review found three Important and two stale-doc Minor
+findings. Both TDD fix waves passed the full gate. The final independent
+re-review covers the Task 8 working tree based on `218536f`, from Phase 2 start
+`a6c6c14`, and reports 0 Critical, 0 Important, and 0 Minor findings. Its
+focused closeout commit remains pending; this record does not invent that ID.
 
 **Dependency evidence:** Official Go module metadata on 2026-08-24 resolves
 `modernc.org/sqlite` to `v1.57.0`. That module declares Go 1.25 and pins
@@ -194,6 +204,14 @@ uses “causal batch” and “known local dependencies,” labels observed time
 “advisory,” prints unresolved events separately, and states that batch order is
 not a total order.
 
+Page assembly first charges the exact empty page, including causal groups,
+cursor, page fields, empty destinations, and the trailing newline. It then
+charges each hydrated event and its array comma before retaining that event.
+The same streaming `QueryPage` serializer checks the final result and writes
+CLI JSON. Exact 16 MiB output passes; the first excess returns typed
+`json_result_bytes` without allocating a full-page encoding or retaining the
+excess row.
+
 ## One bounded ledger scan
 
 Phase 2 refactors the current verifier behind one context-aware
@@ -242,7 +260,7 @@ The fixed profile name is `pact/resource-limits/phase2-v1`.
 | Values across all filter families | 256 |
 | Encoded cursor | 4,096 bytes |
 | Decoded cursor | 3,072 bytes |
-| Encoded JSON result | 16,777,216 bytes (16 MiB) |
+| Encoded JSON result, including the CLI newline | 16,777,216 bytes (16 MiB) |
 | Stored SQLite file | 2,147,483,648 bytes (2 GiB) |
 | Diagnostic samples per axis | 100 |
 | One diagnostic text field | 512 UTF-8 bytes |
@@ -442,6 +460,10 @@ source fingerprint. It classifies unsupported format/schema as incompatible,
 physical or logical damage as corrupt, coverage mismatch as partial-build, and
 source mismatch as stale.
 
+The SQLite size gate reads the approved profile directly. An exact 2 GiB sparse
+file continues into the real read-only SQLite and header-validation path; the
+first excess is classified corrupt before the reader opens.
+
 ## Deterministic causal batches
 
 The scheduler creates `start(commit)`, `event(ref)`, and `finish(commit)` nodes.
@@ -554,8 +576,11 @@ Rebuild performs:
    journal or WAL sidecar remains.
 7. Atomically rename the closed temporary file over `pact-v1.sqlite3`, then
    sync `.pact/index/`. This rename is the only publication point.
-8. Reopen and validate the published file, assert canonical/trust/head/prior
-   checkpoint bytes are unchanged, and return its current/partial coverage.
+8. Reopen and validate the published file, then run a second bounded canonical
+   scan and compare its verified source fingerprint. The exclusive store lock
+   spans both scans and publication; byte-level failure and interruption tests
+   prove canonical, trust, ref, and checkpoint bytes stay unchanged. Return
+   current/partial coverage only after the second scan passes.
 
 A crash or error before rename leaves the prior destination untouched. A first
 build leaves no usable index. A crash after a fully synced temp file is renamed
@@ -579,13 +604,18 @@ type Manager struct { /* store plus fixed contracts */ }
 func New(st *store.Store) *Manager
 func (m *Manager) Status(ctx context.Context) (Status, error)
 func (m *Manager) Rebuild(ctx context.Context) (RebuildResult, error)
-func (m *Manager) Log(ctx context.Context, q LogRequest) (LogPage, error)
+func (m *Manager) Log(ctx context.Context, q LogRequest) (QueryPage, error)
 func (m *Manager) Query(ctx context.Context, q QueryRequest) (QueryPage, error)
+
+func Project(ctx context.Context, scan ledger.ScanResult) (Snapshot, error)
+func LogicalDigest(ctx context.Context, snapshot Snapshot) (string, error)
 ```
 
 No database handle or SQL leaves the package. Dynamic WHERE clauses come only
 from a fixed field-to-clause table; caller values are parameters. Context flows
-through scans, transactions, and queries.
+through scans, projection, deterministic chunk/merge sorting, logical-row
+encoding, transactions, and queries. Cancellation returns unchanged through
+the locked rebuild, status, log, and query operations.
 
 `internal/index` consumes the immutable projection returned by `ledger.Scan`
 and calls ledger canonical result resolution. Ledger never imports index. The
@@ -618,7 +648,10 @@ the smallest GREEN change, and refactor for each behavior. Required layers are:
 - integration tests with real files, SQLite, and Ed25519 objects for rebuild,
   corruption, failure boundaries, partial replicas, concurrency, and parity;
 - compiled E2E tests for every CLI shape, restart, deletion/rebuild, output
-  safety, and unchanged canonical/trust state;
+  safety, exact concurrent success contracts, interrupted recovery with strict
+  verification, and unchanged canonical/trust/ref state;
+- sparse-file integration tests proving exact 2 GiB reaches SQLite validation
+  while 2 GiB plus one byte never opens;
 - cold `scripts/check`, full race, vet, scratch build, zero-issue linter, module
   verification, and the full repository dogfood flow.
 
@@ -628,6 +661,18 @@ type `build.capability.verified`, subject `pact/mvp/phase-0-1`, actor
 and tag `dogfood` before and after recoverable index removal. The existing
 commit, checkpoint, trust bytes, heads, and hashes must remain unchanged until
 all gates pass and the one signed Phase 2 event is intentionally appended.
+
+The implemented gate passed before and after the intentional append. The
+existing dogfood intersection returned only `#phase-0-1-mvp` with source
+fingerprint
+`sha256:c057555e08261de323603c053d2b3813b7444b644acccfad530ddd5d6294e16a`
+and logical digest
+`sha256:b673e993507589aa01c2de6a8094fce0a56521c1350ce05d422e87b02666e4e5`
+across index removal and rebuild. The new `#phase-2-mvp` event proved stale
+refusal, direct canonical inspection, explicit rebuild, exact query, and strict
+verification. The chained final checkpoint left a current complete index after
+rebuild. Exact commands, IDs, hashes, and counts are in
+`docs/status/phase-2-dogfood.md`.
 
 ## Known weakness and recommendation
 

@@ -75,18 +75,20 @@ allowed.
 | First build and status | A real SQLite database validates as current and reports local coverage. |
 | Delete and rebuild | Moving the index aside and rebuilding yields identical logical rows and normalized query results. |
 | Stale/corrupt/incompatible index | Log/query refuse; explicit rebuild recovers solely from canonical bytes. |
-| Interrupted rebuild | Failures before publication leave the prior file; publication exposes only a fully validated replacement. |
+| Interrupted rebuild | Failures before publication leave the prior file and protected canonical/trust/ref bytes; recovery ends with strict verification of a fully validated replacement. |
 | Repeated rebuild and restart | Logical digest, causal batches, filters, pages, and same-source cursors remain stable. |
 | Filters and empty results | OR within one repeated field, AND across fields, namespace segment boundaries, and empty success are exact. |
 | Pagination and cursor misuse | No duplicates or omissions; split causal batches retain the same batch number; malformed, changed-query, and stale cursors fail by code. |
-| Exact limits | Every exact boundary passes; one over returns a typed bounded result and publishes nothing. |
+| Exact limits | Every exact boundary passes; one over returns a typed bounded result and publishes nothing. JSON counts the emitted newline, and exact 2 GiB reaches SQLite validation while the first excess does not open. |
 | Hostile graph shapes | Deep, wide, and high-edge fixtures stop iteratively without panic, recursion, or unbounded diagnostics. |
-| Source immutability | Object hashes, heads, trust bytes, refs, and prior checkpoint bytes match before and after every read/rebuild path. |
+| Source immutability | An exclusive store lock and a second bounded canonical scan protect the source fingerprint; byte snapshots prove heads, trust, refs, and prior checkpoint bytes stay unchanged. |
 | Output safety | Database, cursors, stdout, stderr, and diagnostics contain no private key or unsafe matched value. |
-| Rebuild/query race | Shared readers and the exclusive rebuild observe one source/index state under the race detector and real processes. |
+| Rebuild/query race | Shared readers and the exclusive rebuild observe one source/index state under the race detector and real processes; every success asserts its exact operation, index state, and result count. |
 | Version mismatch | Application ID, user version, schema digest, and required schema changes each produce explicit incompatibility. |
 
 ## Outcome
 
-The exact selected contract is in `docs/plans/phase-2/design.md`. Production
-implementation remains blocked until Doctor Biz approves it.
+This result records the historical preapproval design gate. Doctor Biz later
+approved the exact selected contract in `docs/plans/phase-2/design.md`. Current
+implementation and review state live in `docs/status/phase-2-dogfood.md` as the
+single source of truth.

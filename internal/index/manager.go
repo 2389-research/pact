@@ -94,6 +94,9 @@ func (m *Manager) statusLocked(ctx context.Context) (Status, error) {
 	path := filepath.Join(m.store.Root(), ".pact", "index", liveIndexName)
 	result.Index, err = validateIndex(ctx, path, scan)
 	if err != nil {
+		if contextError(err) {
+			return result, err
+		}
 		return result, fmt.Errorf("validate index: %w", err)
 	}
 	return result, nil
@@ -102,6 +105,9 @@ func (m *Manager) statusLocked(ctx context.Context) (Status, error) {
 func (m *Manager) scanSourceLocked(ctx context.Context) (ledger.ScanResult, error) {
 	scan, err := ledger.Scan(ctx, m.store, ledger.ScanOptions{Limits: ledger.Phase2Limits})
 	if err != nil {
+		if contextError(err) {
+			return ledger.ScanResult{}, err
+		}
 		return ledger.ScanResult{}, fmt.Errorf("scan index source: %w", err)
 	}
 	if !scan.Verification.OK {

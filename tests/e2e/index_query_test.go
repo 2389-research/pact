@@ -366,12 +366,15 @@ func TestCLIIndexStateRefusalAndRecovery(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		snapshot := index.Project(scan)
+		snapshot, err := index.Project(context.Background(), scan)
+		if err != nil {
+			t.Fatal(err)
+		}
 		if len(snapshot.Events) != 1 {
 			t.Fatalf("fixture events = %#v", snapshot.Events)
 		}
 		snapshot.Events[0].Subject = "state/derived-divergence"
-		digest, err := index.LogicalDigest(snapshot)
+		digest, err := index.LogicalDigest(context.Background(), snapshot)
 		if err != nil {
 			t.Fatal(err)
 		}

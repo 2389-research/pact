@@ -21,12 +21,10 @@ import (
 	"pact/internal/ledger"
 )
 
-const (
-	readerOptions         = "mode=ro&_query_only=1&_defensive=1&_foreign_keys=1&_busy_timeout=5000"
-	maximumSQLiteFileSize = int64(2_147_483_648)
-)
+const readerOptions = "mode=ro&_query_only=1&_defensive=1&_foreign_keys=1&_busy_timeout=5000"
 
 var (
+	openIndexReader             = openSQLiteIndexReader
 	closeIndexReader            = func(db *sql.DB) error { return db.Close() }
 	afterRepresentativeIndexRow = func() {}
 	afterValidatedIndexRow      = func() {}
@@ -82,15 +80,18 @@ func openValidatedIndex(ctx context.Context, path string, scan ledger.ScanResult
 		}
 		return IndexInfo{State: "missing", Coverage: coverageNone, RebuildRequired: true}, nil, nil
 	}
-	if err != nil || info.Mode()&fs.ModeSymlink != 0 || !info.Mode().IsRegular() || info.Size() < 0 || info.Size() > maximumSQLiteFileSize || hasIndexSidecar(path) {
+	// #nosec G115 -- the preceding negative-size branch guards the conversion.
+	if err != nil || info.Mode()&fs.ModeSymlink != 0 || !info.Mode().IsRegular() || info.Size() < 0 || uint64(info.Size()) > ledger.Phase2Limits.SQLiteBytes || hasIndexSidecar(path) {
 		return result, nil, nil //nolint:nilerr // Unsafe or unreadable live files are corrupt index state.
 	}
 	db, err := openIndexReader(path)
 	if err != nil {
 		return result, nil, nil //nolint:nilerr // An index that cannot open through the fixed reader is corrupt.
 	}
-	// Project has a fixed in-memory API; the bounded source scan already honored ctx.
-	expected := Project(scan) //nolint:contextcheck
+	expected, err := Project(ctx, scan)
+	if err != nil {
+		return result, db, err
+	}
 	inspection, state, validationErr := inspectDatabase(ctx, db, expected)
 	if contextErr := contextCause(ctx, validationErr); contextErr != nil {
 		return result, db, contextErr
@@ -225,7 +226,7 @@ func hasIndexSidecar(path string) bool {
 	return false
 }
 
-func openIndexReader(path string) (*sql.DB, error) {
+func openSQLiteIndexReader(path string) (*sql.DB, error) {
 	location := (&url.URL{Scheme: "file", Path: path}).String() + "?" + readerOptions
 	db, err := sql.Open("sqlite", location)
 	if err != nil {

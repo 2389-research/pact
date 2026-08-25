@@ -60,3 +60,19 @@
   cost and writer pause are the accepted fixed-snapshot tradeoff.
 - Keep long goal progress legible through small reviewed green commits. Do not
   let a broad E2E or documentation gate grow into one large uncommitted batch.
+- Phase 2 repository dogfood uses stable local ID `phase-2-mvp`. Its signed
+  commit is `sha256:69d67237ecf856c5b72515cd1ac43322642a847c1fc0d35955cd30e911146743`;
+  the chained checkpoint is
+  `sha256:511f085606dc807fd3a67b2fd80afb37355d27f4b677b087cb337b32552eb485`.
+  Full baseline, query, gate, and review evidence lives in
+  `docs/status/phase-2-dogfood.md`. Rebuild after the checkpoint before indexed
+  reads because every canonical append makes the derived index stale.
+- Rebuild protects canonical state with the exclusive store lock and a second
+  verified `ledger.Scan` source fingerprint. Do not invent numeric limits for
+  ignored refs/trust paths; byte snapshots in tests prove no mutation.
+- The 16 MiB log/query limit includes the JSON newline. Page assembly applies
+  an exact skeleton-and-item budget before each append, including group fields,
+  cursors, array commas, and the newline. CLI output uses the same streaming
+  `QueryPage` serializer and must propagate writer errors.
+- `errors.Join(err, nil)` wraps a lone error on current Go. When cancellation
+  identity is a contract, join a cleanup error only when that error is non-nil.

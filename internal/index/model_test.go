@@ -5,6 +5,7 @@ package index
 import (
 	"context"
 	"crypto/ed25519"
+	"errors"
 	"fmt"
 	"os"
 	"reflect"
@@ -18,6 +19,78 @@ import (
 	"pact/internal/ledger"
 	"pact/internal/store"
 )
+
+func TestProjectHonorsMidProjectionAndMidSortCancellation(t *testing.T) {
+	scan := ledger.ScanResult{
+		Commits: map[string]ledger.CommitRecord{}, Checkpoints: map[string]ledger.CheckpointRecord{},
+		Events: map[string]ledger.EventRecord{}, Heads: map[string][]string{}, CausalBatches: map[string]uint64{},
+	}
+	for index := range 2_048 {
+		id := fmt.Sprintf("sha256:%064x", 2_048-index)
+		scan.Commits[id] = ledger.CommitRecord{ID: id}
+	}
+	oldPoll := afterIndexWorkPoll
+	t.Cleanup(func() { afterIndexWorkPoll = oldPoll })
+	ctx, cancel := context.WithCancel(context.Background())
+	polls := 0
+	afterIndexWorkPoll = func() {
+		polls++
+		if polls == 4 {
+			cancel()
+		}
+	}
+	if snapshot, err := Project(ctx, scan); !errors.Is(err, context.Canceled) || !reflect.DeepEqual(snapshot, Snapshot{}) {
+		t.Fatalf("Project() = (%#v, %v) after %d polls, want zero snapshot and context canceled", snapshot, err, polls)
+	}
+
+	snapshot := Snapshot{Objects: make([]ObjectRow, 2_048)}
+	for index := range snapshot.Objects {
+		snapshot.Objects[index].ObjectID = fmt.Sprintf("%08d", len(snapshot.Objects)-index)
+	}
+	ctx, cancel = context.WithCancel(context.Background())
+	polls = 0
+	afterIndexWorkPoll = func() {
+		polls++
+		if polls == 4 {
+			cancel()
+		}
+	}
+	if err := sortSnapshot(ctx, &snapshot); !errors.Is(err, context.Canceled) {
+		t.Fatalf("sortSnapshot() error = %v after %d polls, want context canceled", err, polls)
+	}
+}
+
+func TestProjectionCancellationPropagatesThroughLockedOperations(t *testing.T) {
+	fixture := signedPartialScanFixture(t)
+	manager := New(fixture.store)
+	if _, err := manager.Rebuild(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	oldBefore := beforeIndexProjection
+	t.Cleanup(func() { beforeIndexProjection = oldBefore })
+	operations := []struct {
+		name string
+		run  func(context.Context) error
+	}{
+		{name: "rebuild", run: func(ctx context.Context) error { _, err := manager.Rebuild(ctx); return err }},
+		{name: "status", run: func(ctx context.Context) error { _, err := manager.Status(ctx); return err }},
+		{name: "log", run: func(ctx context.Context) error {
+			_, err := manager.Log(ctx, LogRequest{Namespace: []string{"fixture"}})
+			return err
+		}},
+		{name: "query", run: func(ctx context.Context) error {
+			_, err := manager.Query(ctx, QueryRequest{Filters: Filters{Namespace: []string{"fixture"}}})
+			return err
+		}},
+	}
+	for _, operation := range operations {
+		t.Run(operation.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			beforeIndexProjection = cancel
+			assertDirectContextError(t, operation.run(ctx), context.Canceled)
+		})
+	}
+}
 
 const (
 	fixturePolicyRef = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
@@ -43,7 +116,7 @@ type signedFixture struct {
 
 func TestProjectSignedPartialReplicaExactRows(t *testing.T) {
 	fixture := signedPartialScanFixture(t)
-	snapshot := Project(fixture.scan)
+	snapshot := mustProject(t, fixture.scan)
 
 	wantObjects := []ObjectRow{
 		objectRowForCommit(fixture.scan.Commits[fixture.presentParent.ObjectID]),
@@ -214,17 +287,17 @@ func TestProjectSignedPartialReplicaExactRows(t *testing.T) {
 
 func TestProjectIsIndependentOfSourceMapInsertionOrder(t *testing.T) {
 	fixture := signedPartialScanFixture(t)
-	first := Project(fixture.scan)
+	first := mustProject(t, fixture.scan)
 	shuffled := shuffleScanMaps(fixture.scan)
-	second := Project(shuffled)
+	second := mustProject(t, shuffled)
 	if !reflect.DeepEqual(first, second) {
 		t.Fatalf("projection changed after source map reinsertion\nfirst:  %#v\nsecond: %#v", first, second)
 	}
-	firstDigest, err := LogicalDigest(first)
+	firstDigest, err := LogicalDigest(context.Background(), first)
 	if err != nil {
 		t.Fatal(err)
 	}
-	secondDigest, err := LogicalDigest(second)
+	secondDigest, err := LogicalDigest(context.Background(), second)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -234,7 +307,7 @@ func TestProjectIsIndependentOfSourceMapInsertionOrder(t *testing.T) {
 }
 
 func TestProjectEmptyAndPartialReplicaMetadata(t *testing.T) {
-	empty := Project(emptyScanFixture(t))
+	empty := mustProject(t, emptyScanFixture(t))
 	if len(empty.IndexMeta) != 25 {
 		t.Fatalf("empty metadata rows = %d, want 25", len(empty.IndexMeta))
 	}
@@ -248,7 +321,7 @@ func TestProjectEmptyAndPartialReplicaMetadata(t *testing.T) {
 	}
 
 	fixture := signedPartialScanFixture(t)
-	partial := Project(fixture.scan)
+	partial := mustProject(t, fixture.scan)
 	if got := metadataValue(partial, "local_completeness"); got != "incomplete" {
 		t.Fatalf("local_completeness = %q, want incomplete", got)
 	}

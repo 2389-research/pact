@@ -18,6 +18,37 @@ import (
 	"pact/internal/store"
 )
 
+func TestRebuildIgnoresDeepRefPathOutsideCanonicalSource(t *testing.T) {
+	fixture := signedPartialScanFixture(t)
+	deepRef := filepath.Join(fixture.store.Dir(), "refs", strings.Repeat("a", 200), strings.Repeat("b", 200), strings.Repeat("c", 120), "ignored")
+	if err := os.MkdirAll(filepath.Dir(deepRef), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(deepRef, []byte("ignored ref data\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	protectedBefore := captureProtectedFiles(t, fixture.store.Dir())
+	result, err := New(fixture.store).Rebuild(context.Background())
+	if err != nil {
+		t.Fatalf("Rebuild() refused ignored %d-byte ref path: %v", len(deepRef), err)
+	}
+	if result.Index.State != "current" {
+		t.Fatalf("Rebuild() state = %q, want current", result.Index.State)
+	}
+	if protectedAfter := captureProtectedFiles(t, fixture.store.Dir()); !reflect.DeepEqual(protectedAfter, protectedBefore) {
+		t.Fatal("rebuild changed canonical, trust, ref, or checkpoint bytes")
+	}
+}
+
+func TestCanonicalSourceProofDetectsObjectChange(t *testing.T) {
+	fixture := signedPartialScanFixture(t)
+	if err := os.WriteFile(fixture.child.Path, []byte("{}"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	err := proveCanonicalSourceUnchanged(context.Background(), fixture.store, fixture.scan.SourceFingerprint)
+	assertQueryErrorCode(t, err, "source_changed")
+}
+
 func TestRebuildCreatesThenReplacesValidatedIndex(t *testing.T) {
 	fixture := signedPartialScanFixture(t)
 	manager := New(fixture.store)

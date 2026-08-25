@@ -15,6 +15,7 @@ import (
 
 	"pact/internal/canonical"
 	"pact/internal/identity"
+	"pact/internal/index"
 	"pact/internal/ledger"
 	"pact/internal/store"
 )
@@ -37,7 +38,7 @@ type commandError struct {
 
 func (err *commandError) Error() string { return err.message }
 
-func run(args []string, stdout, stderr io.Writer) int {
+func run(args []string, stdout, stderr io.Writer) int { //nolint:funlen,gocyclo // The fixed top-level command dispatch keeps every CLI operation visible in one switch.
 	if len(args) == 0 {
 		emitError(stderr, false, &commandError{code: exitUsage, message: "a command is required"})
 		return exitUsage
@@ -49,6 +50,7 @@ func run(args []string, stdout, stderr io.Writer) int {
 		flagOutput = io.Discard
 	}
 	var result map[string]any
+	var queryResult *index.QueryPage
 	var err error
 	switch command {
 	case "init":
@@ -72,9 +74,17 @@ func run(args []string, stdout, stderr io.Writer) int {
 	case "index":
 		result, err = runIndex(commandArgs, flagOutput)
 	case "log":
-		result, err = runLog(commandArgs, flagOutput)
+		var page index.QueryPage
+		page, err = runLog(commandArgs, flagOutput)
+		if err == nil {
+			queryResult = &page
+		}
 	case "query":
-		result, err = runQuery(commandArgs, flagOutput)
+		var page index.QueryPage
+		page, err = runQuery(commandArgs, flagOutput)
+		if err == nil {
+			queryResult = &page
+		}
 	default:
 		err = &commandError{code: exitUsage, message: fmt.Sprintf("unknown command: %s", command)}
 	}
@@ -91,7 +101,14 @@ func run(args []string, stdout, stderr io.Writer) int {
 		}
 		return code
 	}
-	emitResult(stdout, asJSON, result)
+	if queryResult != nil {
+		if err := emitQueryResult(stdout, asJSON, *queryResult); err != nil {
+			emitError(stderr, asJSON, &commandError{code: exitUnexpectedError, message: "query output failed"})
+			return exitUnexpectedError
+		}
+	} else {
+		emitResult(stdout, asJSON, result)
+	}
 	return 0
 }
 
@@ -245,8 +262,6 @@ func emitResult(writer io.Writer, asJSON bool, result map[string]any) {
 	switch result["operation"] {
 	case "index-status", "index-rebuild":
 		emitIndexHuman(writer, result)
-	case "log", "query":
-		emitQueryHuman(writer, result)
 	default:
 		fmt.Fprintf(writer, "PACT %s\n", result["operation"])
 	}

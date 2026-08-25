@@ -195,7 +195,7 @@ func TestCursorRequiresValidGroupBatchPair(t *testing.T) {
 func TestCursorContinuationMustExistInValidatedIndex(t *testing.T) {
 	fixture := signedPartialScanFixture(t)
 	path := indexPath(fixture.store)
-	writeSnapshotFixture(t, path, Project(fixture.scan))
+	writeSnapshotFixture(t, path, mustProject(t, fixture.scan))
 	db, err := openIndexReader(path)
 	if err != nil {
 		t.Fatal(err)
