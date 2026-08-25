@@ -146,7 +146,12 @@ func (m *Manager) queryPageLocked(ctx context.Context, operation string, filters
 	if db != nil {
 		defer func() {
 			if closeErr := closeIndexReader(db); closeErr != nil && err == nil {
-				err = &QueryError{Code: "index_corrupt"}
+				result = QueryPage{}
+				if contextErr := contextCause(ctx, closeErr); contextErr != nil {
+					err = contextErr
+				} else {
+					err = &QueryError{Code: "index_corrupt"}
+				}
 			}
 		}()
 	}

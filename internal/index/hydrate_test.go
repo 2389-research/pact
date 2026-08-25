@@ -428,10 +428,40 @@ func TestQueryCloseReaderFailureIsSafeIndexCorruption(t *testing.T) {
 	resetValidationSeams(t)
 	unsafe := "close file:/private/index.sqlite?dsn=secret after SELECT payload"
 	closeIndexReader = func(db *sql.DB) error { return errors.Join(db.Close(), errors.New(unsafe)) }
-	_, err := manager.Query(context.Background(), QueryRequest{Filters: Filters{EventRef: []string{fixture.presentParent.EventRefs[0]}}})
+	page, err := manager.Query(context.Background(), QueryRequest{Filters: Filters{EventRef: []string{fixture.presentParent.EventRefs[0]}}})
 	assertQueryErrorCode(t, err, "index_corrupt")
+	if !reflect.DeepEqual(page, QueryPage{}) {
+		t.Fatalf("Query() page = %#v, want zero page after close failure", page)
+	}
 	if strings.Contains(err.Error(), unsafe) || strings.Contains(strings.ToLower(err.Error()), "select") || strings.Contains(strings.ToLower(err.Error()), "dsn") {
 		t.Fatalf("query close error leaked SQLite detail: %q", err)
+	}
+}
+
+func TestQueryCloseReaderContextFailurePreservesSentinelAndZeroesPage(t *testing.T) {
+	for _, sentinel := range []error{context.Canceled, context.DeadlineExceeded} {
+		t.Run(sentinel.Error(), func(t *testing.T) {
+			fixture := signedPartialScanFixture(t)
+			manager := New(fixture.store)
+			if _, err := manager.Rebuild(context.Background()); err != nil {
+				t.Fatal(err)
+			}
+			resetValidationSeams(t)
+			closeIndexReader = func(db *sql.DB) error {
+				if err := db.Close(); err != nil {
+					return errors.Join(err, sentinel)
+				}
+				return sentinel
+			}
+			page, err := manager.Query(context.Background(), QueryRequest{Filters: Filters{EventRef: []string{fixture.presentParent.EventRefs[0]}}})
+			var queryErr *QueryError
+			if !errors.Is(err, sentinel) || errors.As(err, &queryErr) {
+				t.Fatalf("Query() error = %#v, want context sentinel without query classification", err)
+			}
+			if !reflect.DeepEqual(page, QueryPage{}) {
+				t.Fatalf("Query() page = %#v, want zero page after context close failure", page)
+			}
+		})
 	}
 }
 
