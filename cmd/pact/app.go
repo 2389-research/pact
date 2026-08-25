@@ -69,6 +69,12 @@ func run(args []string, stdout, stderr io.Writer) int {
 		result, err = runVerify(commandArgs, flagOutput)
 	case "checkpoint":
 		result, err = runCheckpoint(commandArgs, flagOutput)
+	case "index":
+		result, err = runIndex(commandArgs, flagOutput)
+	case "log":
+		result, err = runLog(commandArgs, flagOutput)
+	case "query":
+		result, err = runQuery(commandArgs, flagOutput)
 	default:
 		err = &commandError{code: exitUsage, message: fmt.Sprintf("unknown command: %s", command)}
 	}
@@ -236,7 +242,14 @@ func emitResult(writer io.Writer, asJSON bool, result map[string]any) {
 		}
 		return
 	}
-	fmt.Fprintf(writer, "PACT %s\n", result["operation"])
+	switch result["operation"] {
+	case "index-status", "index-rebuild":
+		emitIndexHuman(writer, result)
+	case "log", "query":
+		emitQueryHuman(writer, result)
+	default:
+		fmt.Fprintf(writer, "PACT %s\n", result["operation"])
+	}
 }
 
 func emitError(writer io.Writer, asJSON bool, err *commandError) {

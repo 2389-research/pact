@@ -41,6 +41,10 @@ func (err *QueryError) Error() string {
 		return "query requires a current index: " + err.Code
 	case "source_invalid":
 		return "query source is invalid"
+	case "source_changed":
+		return "index source changed during the operation"
+	case "index_publication_failed":
+		return "index publication failed"
 	default:
 		return "query failed"
 	}

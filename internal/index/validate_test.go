@@ -4,14 +4,17 @@ package index
 
 import (
 	"context"
+	"crypto/ed25519"
 	"database/sql"
 	"errors"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"pact/internal/identity"
 	"pact/internal/ledger"
 	"pact/internal/store"
 )
@@ -61,9 +64,10 @@ func TestStatusInvalidSourceRetainsStableCode(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err = New(st).Status(context.Background())
-	if err == nil || !strings.Contains(err.Error(), "source_invalid") {
-		t.Fatalf("Status() error = %v, want stable source_invalid code", err)
+	if err == nil {
+		t.Fatal("Status() succeeded with invalid source")
 	}
+	assertQueryErrorCode(t, err, "source_invalid")
 }
 
 func TestStatusClassifiesMissingWithoutMutatingIndexDirectory(t *testing.T) {
@@ -158,10 +162,9 @@ func TestStatusClassificationPrecedence(t *testing.T) {
 		}
 	})
 
-	t.Run("divergent rows beat stale", func(t *testing.T) {
+	t.Run("same-source row divergence is partial-build", func(t *testing.T) {
 		st, path, snapshot := managerFixture(t)
 		snapshot.Objects[0].ActorLabel = "divergent"
-		setFixtureMetadata(snapshot.IndexMeta, "source_fingerprint", "sha256:"+strings.Repeat("6", 64))
 		digest, err := LogicalDigest(snapshot)
 		if err != nil {
 			t.Fatal(err)
@@ -186,6 +189,95 @@ func TestStatusClassificationPrecedence(t *testing.T) {
 			t.Fatalf("status = %#v, error = %v; want corrupt", status, err)
 		}
 	})
+}
+
+func TestStatusClassifiesValidSourceShrinkAsStale(t *testing.T) {
+	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
+	st, err := store.Init(t.TempDir(), "fixture/shrink", now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	seed := make([]byte, ed25519.SeedSize)
+	private := ed25519.NewKeyFromSeed(seed)
+	public := private.Public().(ed25519.PublicKey)
+	keyID, err := identity.KeyID(public)
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := &identity.KeyFile{Actor: "Shrink Fixture", KeyID: keyID, Public: public, Private: private, CreatedAt: now}
+	if _, err := ledger.AddRoot(st, key, now); err != nil {
+		t.Fatal(err)
+	}
+	commitFixture(t, st, key, "fixture/shrink/one", []string{}, now, fixtureEvent("one", "observation", nil, nil, nil))
+	removed := commitFixture(t, st, key, "fixture/shrink/two", []string{}, now, fixtureEvent("two", "observation", nil, nil, nil))
+	manager := New(st)
+	if _, err := manager.Rebuild(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(removed.Path); err != nil {
+		t.Fatal(err)
+	}
+	status, err := manager.Status(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if status.Index.State != "stale" {
+		t.Fatalf("source-shrink state = %q, want stale", status.Index.State)
+	}
+}
+
+func TestDeclaredStoredCountsEnforceFixedBoundsAndRelationships(t *testing.T) {
+	valid := map[string]string{
+		"row_count_index_meta": "25", "row_count_objects": "2", "row_count_commits": "1",
+		"row_count_parent_edges": "0", "row_count_events": "1", "row_count_event_tags": "1",
+		"row_count_event_links": "0", "row_count_checkpoints": "1", "row_count_checkpoint_schema_refs": "1",
+		"row_count_checkpoint_frontier": "0", "row_count_heads": "1", "row_count_completeness_blockers": "0",
+		"source_count_objects": "2", "source_count_commits": "1", "source_count_checkpoints": "1",
+		"source_count_events": "1", "source_count_edges": "2", "source_count_canonical_bytes": "100",
+	}
+	if _, ok := declaredStoredCounts(valid); !ok {
+		t.Fatal("valid declared counts rejected")
+	}
+	tests := []struct{ key, value string }{
+		{key: "source_count_objects", value: "100001"},
+		{key: "row_count_events", value: "250001"},
+		{key: "source_count_edges", value: "1000001"},
+		{key: "source_count_canonical_bytes", value: "1073741825"},
+		{key: "row_count_event_tags", value: "101"},
+		{key: "row_count_checkpoint_schema_refs", value: "101"},
+		{key: "row_count_commits", value: "2"},
+		{key: "row_count_index_meta", value: "24"},
+	}
+	for _, test := range tests {
+		t.Run(test.key+"="+test.value, func(t *testing.T) {
+			meta := make(map[string]string, len(valid))
+			maps.Copy(meta, valid)
+			meta[test.key] = test.value
+			if _, ok := declaredStoredCounts(meta); ok {
+				t.Fatalf("unsafe declared counts accepted: %s=%s", test.key, test.value)
+			}
+		})
+	}
+	hostile := []struct {
+		name      string
+		overrides map[string]string
+	}{
+		{name: "commit addition operand", overrides: map[string]string{"row_count_commits": "18446744073709551615", "source_count_commits": "18446744073709551615"}},
+		{name: "checkpoint addition operand", overrides: map[string]string{"row_count_checkpoints": "18446744073709551615", "source_count_checkpoints": "18446744073709551615"}},
+		{name: "parent edge addition operand", overrides: map[string]string{"row_count_parent_edges": "18446744073709551615", "source_count_edges": "1"}},
+		{name: "event link addition operand", overrides: map[string]string{"row_count_event_links": "18446744073709551615", "source_count_edges": "1"}},
+		{name: "frontier addition operand", overrides: map[string]string{"row_count_checkpoint_frontier": "18446744073709551615", "source_count_edges": "1"}},
+	}
+	for _, test := range hostile {
+		t.Run(test.name, func(t *testing.T) {
+			meta := make(map[string]string, len(valid))
+			maps.Copy(meta, valid)
+			maps.Copy(meta, test.overrides)
+			if _, ok := declaredStoredCounts(meta); ok {
+				t.Fatalf("overflowing declared counts accepted: %#v", test.overrides)
+			}
+		})
+	}
 }
 
 func TestStatusValidationDamageMatrix(t *testing.T) {
@@ -389,7 +481,7 @@ func TestValidationPreflightUsesStoredTextBytes(t *testing.T) {
 	if _, err := preflightTable(context.Background(), db, table); err == nil {
 		t.Fatal("stored multibyte TEXT passed the byte limit")
 	}
-	for _, table := range streamingTables(logicalTables(Snapshot{})) {
+	for _, table := range streamingTables(tableBounds{}) {
 		withoutOctets := strings.ReplaceAll(table.textLengthQuery, "octet_length(", "")
 		if strings.Contains(withoutOctets, "length(") {
 			t.Fatalf("%s bound query uses character length: %s", table.name, table.textLengthQuery)
@@ -466,7 +558,7 @@ func TestStatusClassifiesUnsafeAndOversizeFilesAsCorrupt(t *testing.T) {
 	})
 }
 
-func TestStatusRejectsRowsBeyondSourceDerivedAdmission(t *testing.T) {
+func TestStatusClassifiesSelfConsistentRowsBeyondCurrentSourceAsPartialBuild(t *testing.T) {
 	st, path, snapshot := managerFixture(t)
 	rogueID := "sha256:" + strings.Repeat("9", 64)
 	rogueRef := rogueID + "#rogue"
@@ -501,8 +593,8 @@ func TestStatusRejectsRowsBeyondSourceDerivedAdmission(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if status.Index.State != "corrupt" {
-		t.Fatalf("state = %q, want corrupt", status.Index.State)
+	if status.Index.State != "partial-build" {
+		t.Fatalf("state = %q, want partial-build", status.Index.State)
 	}
 }
 
@@ -534,7 +626,17 @@ func refreshFixtureLogicalDigest(t *testing.T, path string, expected Snapshot) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	digest, _, _, readErr := readSnapshotDB(context.Background(), db, expected)
+	meta, readErr := readMetadata(context.Background(), db)
+	if readErr != nil {
+		db.Close()
+		t.Fatal(readErr)
+	}
+	declared, ok := declaredStoredCounts(meta)
+	if !ok {
+		db.Close()
+		t.Fatal("fixture metadata counts are invalid")
+	}
+	digest, _, _, readErr := readSnapshotDB(context.Background(), db, expected, declared)
 	closeErr := db.Close()
 	if readErr != nil {
 		t.Fatal(readErr)

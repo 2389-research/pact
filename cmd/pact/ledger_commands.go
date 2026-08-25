@@ -3,6 +3,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 
 	"pact/internal/canonical"
 	"pact/internal/identity"
+	"pact/internal/index"
 	"pact/internal/ledger"
 	"pact/internal/store"
 )
@@ -144,6 +146,9 @@ func runVerify(args []string, stderr io.Writer) (map[string]any, error) {
 	verified, err := ledger.Verify(st, *strict)
 	if err != nil {
 		return nil, ledgerCommandError(err)
+	}
+	if status, statusErr := index.New(st).Status(context.Background()); statusErr == nil {
+		verified.IndexStatus = status.Index.State
 	}
 	result := verifyMap(verified)
 	if !verified.OK {

@@ -84,7 +84,7 @@ func (m *Manager) statusLocked(ctx context.Context) (Status, error) {
 	if err != nil {
 		var queryErr *QueryError
 		if errors.As(err, &queryErr) && queryErr.Code == "source_invalid" {
-			return result, fmt.Errorf("scan index source: source_invalid")
+			return result, fmt.Errorf("scan index source: %w", queryErr)
 		}
 		return result, err
 	}

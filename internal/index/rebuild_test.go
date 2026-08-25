@@ -113,8 +113,10 @@ func TestRebuildRefusesInvalidSourceAndCancellation(t *testing.T) {
 	if _, _, err := st.PutCanonical(map[string]any{"bad": true}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := New(st).Rebuild(context.Background()); err == nil || !strings.Contains(err.Error(), "source_invalid") {
-		t.Fatalf("invalid-source error = %v", err)
+	if _, err := New(st).Rebuild(context.Background()); err == nil {
+		t.Fatal("Rebuild() succeeded with invalid source")
+	} else {
+		assertQueryErrorCode(t, err, "source_invalid")
 	}
 	if _, err := os.Lstat(filepath.Join(st.Dir(), "index", liveIndexName)); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("live file after source refusal: %v", err)
@@ -475,6 +477,8 @@ func TestRebuildReportsPostPublicationFaults(t *testing.T) {
 			test.install(fault)
 			if _, err := New(st).Rebuild(context.Background()); !errors.Is(err, fault) {
 				t.Fatalf("Rebuild() error = %v, want injected fault", err)
+			} else if test.name == "directory sync" {
+				assertQueryErrorCode(t, err, "index_publication_failed")
 			}
 			live := filepath.Join(st.Dir(), "index", liveIndexName)
 			if info, err := os.Lstat(live); err != nil || !info.Mode().IsRegular() {
@@ -518,8 +522,8 @@ func TestConcurrentCanonicalPublicationWaitsForFullRebuildLock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if status.Index.State != "partial-build" {
-		t.Fatalf("post-commit state = %q, want partial-build", status.Index.State)
+	if status.Index.State != "stale" {
+		t.Fatalf("post-commit state = %q, want stale", status.Index.State)
 	}
 }
 

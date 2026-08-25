@@ -64,7 +64,7 @@ func (m *Manager) rebuildLocked(ctx context.Context) (result RebuildResult, err 
 		return result, fmt.Errorf("scan rebuild source: %w", err)
 	}
 	if !scan.Verification.OK {
-		return result, fmt.Errorf("scan rebuild source: source_invalid")
+		return result, fmt.Errorf("scan rebuild source: %w", &QueryError{Code: "source_invalid"})
 	}
 	protectedBefore, err := snapshotProtectedState(ctx, m.store.Dir())
 	if err != nil {
@@ -111,7 +111,7 @@ func (m *Manager) rebuildLocked(ctx context.Context) (result RebuildResult, err 
 		return result, fmt.Errorf("validate built index: %w", err)
 	}
 	if info.State != "current" {
-		return result, fmt.Errorf("validate built index: index_%s", strings.ReplaceAll(info.State, "-", "_"))
+		return result, fmt.Errorf("validate built index: %w", &QueryError{Code: "index_" + strings.ReplaceAll(info.State, "-", "_")})
 	}
 	if err := syncIndexFile(tempPath); err != nil {
 		return result, fmt.Errorf("sync built index: %w", err)
@@ -132,11 +132,11 @@ func (m *Manager) rebuildLocked(ctx context.Context) (result RebuildResult, err 
 		return result, err
 	}
 	if err := renameIndexFile(tempPath, livePath); err != nil {
-		return result, fmt.Errorf("publish index: index_publication_failed: %w", err)
+		return result, fmt.Errorf("publish index: %w: %w", &QueryError{Code: "index_publication_failed"}, err)
 	}
 	cleanupTemp = false
 	if err := syncIndexDirectory(indexDirectory); err != nil {
-		return result, fmt.Errorf("sync published index directory: index_publication_failed: %w", err)
+		return result, fmt.Errorf("sync published index directory: %w: %w", &QueryError{Code: "index_publication_failed"}, err)
 	}
 	if err := beforePublishedValidation(livePath); err != nil {
 		return result, fmt.Errorf("prepare published-index validation: %w", err)
@@ -146,14 +146,14 @@ func (m *Manager) rebuildLocked(ctx context.Context) (result RebuildResult, err 
 		return result, fmt.Errorf("validate published index: %w", err)
 	}
 	if info.State != "current" {
-		return result, fmt.Errorf("validate published index: index_%s", strings.ReplaceAll(info.State, "-", "_"))
+		return result, fmt.Errorf("validate published index: %w", &QueryError{Code: "index_" + strings.ReplaceAll(info.State, "-", "_")})
 	}
 	protectedAfter, err := snapshotProtectedState(ctx, m.store.Dir())
 	if err != nil {
 		return result, fmt.Errorf("snapshot protected state after rebuild: %w", err)
 	}
 	if protectedBefore != protectedAfter {
-		return result, fmt.Errorf("validate protected state after rebuild: source_changed")
+		return result, fmt.Errorf("validate protected state after rebuild: %w", &QueryError{Code: "source_changed"})
 	}
 	status := Status{Index: info, Replica: replicaInfo(scan), Counts: sourceCounts(scan.Counts), Limits: LimitsInfo{Profile: ledger.LimitsProfile, Status: "within_limits"}}
 	return RebuildResult{Status: status, Created: !replaced, Replaced: replaced}, nil
