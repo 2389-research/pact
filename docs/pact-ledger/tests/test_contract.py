@@ -12,6 +12,7 @@ from pathlib import Path
 
 
 SKILL_ROOT = Path(__file__).resolve().parents[1]
+REPOSITORY_ROOT = SKILL_ROOT.parents[1]
 PACT_PATH = SKILL_ROOT / "scripts" / "pact_core.py"
 
 spec = importlib.util.spec_from_file_location("pact_reference", PACT_PATH)
@@ -123,6 +124,17 @@ class PactContractTest(unittest.TestCase):
             )
         )
         Draft202012Validator(projection_schema, registry=registry).validate(projection)
+
+    def test_full_module_go_hooks_do_not_accept_filenames(self) -> None:
+        config = (REPOSITORY_ROOT / ".pre-commit-config.yaml").read_text(
+            encoding="utf-8"
+        )
+        for hook_id in ("go-mod-tidy", "go-unit-tests"):
+            marker = f"- id: {hook_id}"
+            self.assertIn(marker, config)
+            block = config.split(marker, 1)[1].split("\n      - id:", 1)[0]
+            block = block.split("\n\n", 1)[0]
+            self.assertIn("pass_filenames: false", block)
 
 
 if __name__ == "__main__":

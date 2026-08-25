@@ -52,6 +52,20 @@ func TestStatusClassifiesCurrentCompleteReplica(t *testing.T) {
 	}
 }
 
+func TestStatusInvalidSourceRetainsStableCode(t *testing.T) {
+	st, err := store.Init(t.TempDir(), "fixture/invalid-status", time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := st.PutCanonical(map[string]any{"invalid": true}); err != nil {
+		t.Fatal(err)
+	}
+	_, err = New(st).Status(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "source_invalid") {
+		t.Fatalf("Status() error = %v, want stable source_invalid code", err)
+	}
+}
+
 func TestStatusClassifiesMissingWithoutMutatingIndexDirectory(t *testing.T) {
 	st, err := store.Init(t.TempDir(), "fixture/status", time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC))
 	if err != nil {

@@ -29,7 +29,12 @@ var (
 )
 
 // Blocker identifies one absent immutable dependency in the local object set.
-type Blocker struct{ Code, SourceID, Field, MissingRef string }
+type Blocker struct {
+	Code       string `json:"code"`
+	SourceID   string `json:"source_id"`
+	Field      string `json:"field"`
+	MissingRef string `json:"missing_ref"`
+}
 
 // Completeness describes closure of the scanned local object set.
 type Completeness struct {

@@ -4,6 +4,7 @@ package index
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 
@@ -21,19 +22,21 @@ type Manager struct{ store *store.Store }
 
 // IndexInfo describes whether the disposable index can answer for the current local source.
 type IndexInfo struct {
-	State             string
-	Coverage          string
-	Path              *string
-	SchemaVersion     *int
-	SourceFingerprint *string
-	LogicalDigest     *string
-	RebuildRequired   bool
+	State             string  `json:"state"`
+	Coverage          string  `json:"coverage"`
+	Path              *string `json:"path"`
+	SchemaVersion     *int    `json:"schema_version"`
+	SourceFingerprint *string `json:"source_fingerprint"`
+	LogicalDigest     *string `json:"logical_digest"`
+	RebuildRequired   bool    `json:"rebuild_required"`
 }
 
 // ReplicaInfo describes closure of the scanned local immutable object set.
 type ReplicaInfo struct {
-	Scope, Completeness, GlobalCompleteness string
-	Blockers                                []ledger.Blocker
+	Scope              string           `json:"scope"`
+	Completeness       string           `json:"completeness"`
+	GlobalCompleteness string           `json:"global_completeness"`
+	Blockers           []ledger.Blocker `json:"blockers"`
 }
 
 // Counts holds source counts when a bounded canonical scan succeeded.
@@ -68,24 +71,43 @@ func (m *Manager) Status(ctx context.Context) (result Status, err error) {
 		return result, fmt.Errorf("index status requires a store and context")
 	}
 	err = m.store.WithReadLock(func() error {
-		scan, scanErr := ledger.Scan(ctx, m.store, ledger.ScanOptions{Limits: ledger.Phase2Limits})
-		if scanErr != nil {
-			return fmt.Errorf("scan index source: %w", scanErr)
-		}
-		if !scan.Verification.OK {
-			return fmt.Errorf("scan index source: source_invalid")
-		}
-		result.Replica = replicaInfo(scan)
-		result.Counts = sourceCounts(scan.Counts)
-		result.Limits = LimitsInfo{Profile: ledger.LimitsProfile, Status: "within_limits"}
-		path := filepath.Join(m.store.Root(), ".pact", "index", liveIndexName)
-		result.Index, scanErr = validateIndex(ctx, path, scan)
-		if scanErr != nil {
-			return fmt.Errorf("validate index: %w", scanErr)
-		}
-		return nil
+		var statusErr error
+		result, statusErr = m.statusLocked(ctx)
+		return statusErr
 	})
 	return result, err
+}
+
+func (m *Manager) statusLocked(ctx context.Context) (Status, error) {
+	result := unavailableStatus()
+	scan, err := m.scanSourceLocked(ctx)
+	if err != nil {
+		var queryErr *QueryError
+		if errors.As(err, &queryErr) && queryErr.Code == "source_invalid" {
+			return result, fmt.Errorf("scan index source: source_invalid")
+		}
+		return result, err
+	}
+	result.Replica = replicaInfo(scan)
+	result.Counts = sourceCounts(scan.Counts)
+	result.Limits = LimitsInfo{Profile: ledger.LimitsProfile, Status: "within_limits"}
+	path := filepath.Join(m.store.Root(), ".pact", "index", liveIndexName)
+	result.Index, err = validateIndex(ctx, path, scan)
+	if err != nil {
+		return result, fmt.Errorf("validate index: %w", err)
+	}
+	return result, nil
+}
+
+func (m *Manager) scanSourceLocked(ctx context.Context) (ledger.ScanResult, error) {
+	scan, err := ledger.Scan(ctx, m.store, ledger.ScanOptions{Limits: ledger.Phase2Limits})
+	if err != nil {
+		return ledger.ScanResult{}, fmt.Errorf("scan index source: %w", err)
+	}
+	if !scan.Verification.OK {
+		return ledger.ScanResult{}, &QueryError{Code: "source_invalid"}
+	}
+	return scan, nil
 }
 
 func unavailableStatus() Status {

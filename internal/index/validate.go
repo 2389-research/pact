@@ -49,37 +49,53 @@ type databaseInspection struct {
 
 type tableBounds map[string]uint64
 
-func validateIndex(ctx context.Context, path string, scan ledger.ScanResult) (IndexInfo, error) { //nolint:gocyclo // The linear branches preserve the contract's state precedence.
+func validateIndex(ctx context.Context, path string, scan ledger.ScanResult) (IndexInfo, error) {
+	result, db, err := openValidatedIndex(ctx, path, scan)
+	if db == nil {
+		return result, err
+	}
+	closeErr := closeIndexReader(db)
+	if contextErr := contextCause(ctx, err, closeErr); contextErr != nil {
+		return result, contextErr
+	}
+	if err != nil || closeErr != nil {
+		result.State = "corrupt"
+		result.Coverage = coverageNone
+		result.RebuildRequired = true
+	}
+	return result, nil
+}
+
+func openValidatedIndex(ctx context.Context, path string, scan ledger.ScanResult) (IndexInfo, *sql.DB, error) { //nolint:gocyclo // The linear branches preserve the contract's state precedence.
 	result := IndexInfo{State: "corrupt", Coverage: coverageNone, Path: new(path), RebuildRequired: true}
 	directoryInfo, directoryErr := os.Lstat(filepath.Dir(path))
 	if errors.Is(directoryErr, fs.ErrNotExist) {
-		return IndexInfo{State: "missing", Coverage: coverageNone, RebuildRequired: true}, nil
+		return IndexInfo{State: "missing", Coverage: coverageNone, RebuildRequired: true}, nil, nil
 	}
 	if directoryErr != nil || directoryInfo.Mode()&fs.ModeSymlink != 0 || !directoryInfo.IsDir() {
-		return result, nil //nolint:nilerr // Unsafe or unreadable index paths are corrupt index state.
+		return result, nil, nil //nolint:nilerr // Unsafe or unreadable index paths are corrupt index state.
 	}
 	info, err := os.Lstat(path)
 	if errors.Is(err, fs.ErrNotExist) {
 		if hasIndexSidecar(path) {
-			return result, nil
+			return result, nil, nil
 		}
-		return IndexInfo{State: "missing", Coverage: coverageNone, RebuildRequired: true}, nil
+		return IndexInfo{State: "missing", Coverage: coverageNone, RebuildRequired: true}, nil, nil
 	}
 	if err != nil || info.Mode()&fs.ModeSymlink != 0 || !info.Mode().IsRegular() || info.Size() < 0 || info.Size() > maximumSQLiteFileSize || hasIndexSidecar(path) {
-		return result, nil //nolint:nilerr // Unsafe or unreadable live files are corrupt index state.
+		return result, nil, nil //nolint:nilerr // Unsafe or unreadable live files are corrupt index state.
 	}
 	db, err := openIndexReader(path)
 	if err != nil {
-		return result, nil //nolint:nilerr // An index that cannot open through the fixed reader is corrupt.
+		return result, nil, nil //nolint:nilerr // An index that cannot open through the fixed reader is corrupt.
 	}
 	// Project has a fixed in-memory API; the bounded source scan already honored ctx.
 	expected := Project(scan) //nolint:contextcheck
 	inspection, state, validationErr := inspectDatabase(ctx, db, expected)
-	closeErr := closeIndexReader(db)
-	if contextErr := contextCause(ctx, validationErr, closeErr); contextErr != nil {
-		return result, contextErr
+	if contextErr := contextCause(ctx, validationErr); contextErr != nil {
+		return result, db, contextErr
 	}
-	if validationErr != nil || closeErr != nil {
+	if validationErr != nil {
 		state = "corrupt"
 	}
 	result.State = state
@@ -93,15 +109,15 @@ func validateIndex(ctx context.Context, path string, scan ledger.ScanResult) (In
 		result.LogicalDigest = new(digest)
 	}
 	if state == "corrupt" || state == "incompatible" {
-		return result, nil
+		return result, db, nil
 	}
 	if inspection.divergent {
 		result.State = "partial-build"
-		return result, nil
+		return result, db, nil
 	}
 	if inspection.meta["source_fingerprint"] != scan.SourceFingerprint {
 		result.State = "stale"
-		return result, nil
+		return result, db, nil
 	}
 	result.State = "current"
 	result.RebuildRequired = false
@@ -110,7 +126,7 @@ func validateIndex(ctx context.Context, path string, scan ledger.ScanResult) (In
 	} else {
 		result.Coverage = "partial"
 	}
-	return result, nil
+	return result, db, nil
 }
 
 func inspectDatabase(ctx context.Context, db *sql.DB, expected Snapshot) (databaseInspection, string, error) { //nolint:gocyclo // Each gate maps to one required classification boundary.

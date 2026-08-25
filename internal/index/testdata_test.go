@@ -126,3 +126,7 @@ func mutateSQLiteFixture(t *testing.T, path, statement string, arguments ...any)
 		t.Fatal(err)
 	}
 }
+
+func indexPath(st interface{ Dir() string }) string {
+	return filepath.Join(st.Dir(), "index", liveIndexName)
+}

@@ -22,10 +22,12 @@ repos:
       - id: go-fmt
       - id: go-imports
       - id: go-mod-tidy
+        pass_filenames: false
       - id: golangci-lint
         args: ['--timeout=10m', '--fix']
       - id: go-unit-tests
         args: ['-race', '-count=1', './...']  # -count=1 disables test caching
+        pass_filenames: false
 
   - repo: local
     hooks:
