@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"reflect"
-	"slices"
 	"sort"
 	"strings"
 
@@ -80,8 +79,13 @@ type indexedLink struct {
 	Resolved         int64
 }
 
+type indexedParent struct {
+	ParentID string
+	Resolved int64
+}
+
 type selectedRelations struct {
-	parents map[string][]string
+	parents map[string][]indexedParent
 	tags    map[string][]string
 	links   map[string][]indexedLink
 }
@@ -204,12 +208,18 @@ func (m *Manager) queryPageLocked(ctx context.Context, operation string, filters
 		}
 		result.Page.NextCursor = &next
 	}
+	if err := ctx.Err(); err != nil {
+		return QueryPage{}, err
+	}
 	size, err := queryPageJSONSize(result)
 	if err != nil {
 		return QueryPage{}, safeIndexReadError("encode query result failed", err)
 	}
 	if size > ledger.Phase2Limits.JSONResultBytes {
 		return QueryPage{}, &ledger.LimitError{Resource: "json_result_bytes", Maximum: ledger.Phase2Limits.JSONResultBytes, ObservedAtLeast: ledger.Phase2Limits.JSONResultBytes + 1}
+	}
+	if err := ctx.Err(); err != nil {
+		return QueryPage{}, err
 	}
 	return result, nil
 }
@@ -255,6 +265,10 @@ func selectIndexRows(ctx context.Context, db *sql.DB, filters Filters, after *se
 }
 
 func hydrateSelectedRows(ctx context.Context, st *store.Store, db *sql.DB, scan ledger.ScanResult, rows []selectedRow, queryView bool) ([]EventItem, error) {
+	unresolved, err := selectedUnresolvedSet(ctx, rows, scan.UnresolvedEvents)
+	if err != nil {
+		return nil, err
+	}
 	relations, err := loadSelectedRelations(ctx, db, rows)
 	if err != nil {
 		return nil, err
@@ -262,6 +276,9 @@ func hydrateSelectedRows(ctx context.Context, st *store.Store, db *sql.DB, scan 
 	resolved := make(map[string]ledger.CommitRecord)
 	items := make([]EventItem, 0, len(rows))
 	for _, row := range rows {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		commit, found := resolved[row.CommitID]
 		if !found {
 			commit, err = resolveCanonicalCommit(ctx, st, row.CommitID, ledger.Phase2Limits)
@@ -273,22 +290,25 @@ func hydrateSelectedRows(ctx context.Context, st *store.Store, db *sql.DB, scan 
 			}
 			resolved[row.CommitID] = commit
 		}
-		item, err := hydrateSelectedRow(row, commit, scan, relations, queryView)
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		item, err := hydrateSelectedRow(row, commit, scan, unresolved, relations, queryView)
 		if err != nil {
 			return nil, err
 		}
 		items = append(items, item)
 	}
-	return items, nil
+	return items, ctx.Err()
 }
 
-func hydrateSelectedRow(row selectedRow, resolved ledger.CommitRecord, scan ledger.ScanResult, relations selectedRelations, queryView bool) (EventItem, error) {
+func hydrateSelectedRow(row selectedRow, resolved ledger.CommitRecord, scan ledger.ScanResult, unresolved map[string]struct{}, relations selectedRelations, queryView bool) (EventItem, error) {
 	commit, commitFound := scan.Commits[row.CommitID]
 	event, eventFound := scan.Events[row.EventRef]
 	if !commitFound || !eventFound || !sameCanonicalCommit(resolved, commit) || event.CommitID != commit.ID || !sameSelectedScalar(row, commit, event) {
 		return EventItem{}, &QueryError{Code: "index_corrupt"}
 	}
-	if !reflect.DeepEqual(relations.parents[commit.ID], commit.Parents) || !reflect.DeepEqual(relations.tags[event.Ref], event.Tags) || !sameIndexedLinks(relations.links[event.Ref], event, scan.Events) {
+	if !sameIndexedParents(relations.parents[commit.ID], commit.Parents, scan.Commits) || !reflect.DeepEqual(relations.tags[event.Ref], event.Tags) || !sameIndexedLinks(relations.links[event.Ref], event, scan.Events) {
 		return EventItem{}, &QueryError{Code: "index_corrupt"}
 	}
 	batch, ordered := scan.CausalBatches[event.Ref]
@@ -296,7 +316,7 @@ func hydrateSelectedRow(row selectedRow, resolved ledger.CommitRecord, scan ledg
 		if row.CausalStatus != "ordered" || row.CausalBatch == nil || *row.CausalBatch != batch {
 			return EventItem{}, &QueryError{Code: "index_corrupt"}
 		}
-	} else if row.CausalStatus != "unresolved" || row.CausalBatch != nil || !containsString(scan.UnresolvedEvents, event.Ref) {
+	} else if _, found := unresolved[event.Ref]; row.CausalStatus != "unresolved" || row.CausalBatch != nil || !found {
 		return EventItem{}, &QueryError{Code: "index_corrupt"}
 	}
 	item := EventItem{
@@ -316,14 +336,38 @@ func hydrateSelectedRow(row selectedRow, resolved ledger.CommitRecord, scan ledg
 	return item, nil
 }
 
+func selectedUnresolvedSet(ctx context.Context, rows []selectedRow, refs []string) (map[string]struct{}, error) {
+	needed := false
+	for _, row := range rows {
+		if row.CausalStatus == "unresolved" {
+			needed = true
+			break
+		}
+	}
+	if !needed {
+		return nil, ctx.Err()
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	result := make(map[string]struct{}, len(refs))
+	for _, ref := range refs {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		result[ref] = struct{}{}
+	}
+	return result, ctx.Err()
+}
+
 func loadSelectedRelations(ctx context.Context, db *sql.DB, rows []selectedRow) (selectedRelations, error) {
-	result := selectedRelations{parents: map[string][]string{}, tags: map[string][]string{}, links: map[string][]indexedLink{}}
+	result := selectedRelations{parents: map[string][]indexedParent{}, tags: map[string][]string{}, links: map[string][]indexedLink{}}
 	commitSet := map[string]struct{}{}
 	eventSet := map[string]struct{}{}
 	for _, row := range rows {
 		commitSet[row.CommitID] = struct{}{}
 		eventSet[row.EventRef] = struct{}{}
-		result.parents[row.CommitID] = []string{}
+		result.parents[row.CommitID] = []indexedParent{}
 		result.tags[row.EventRef] = []string{}
 		result.links[row.EventRef] = []indexedLink{}
 	}
@@ -341,15 +385,16 @@ func loadSelectedRelations(ctx context.Context, db *sql.DB, rows []selectedRow) 
 	return result, nil
 }
 
-func loadParentRows(ctx context.Context, db *sql.DB, commits []string, destination map[string][]string) error {
+func loadParentRows(ctx context.Context, db *sql.DB, commits []string, destination map[string][]indexedParent) error {
 	if len(commits) == 0 {
 		return nil
 	}
 	arguments := stringsToArguments(commits)
-	statement := "SELECT child_id,parent_id FROM parent_edges WHERE child_id IN (" + placeholders(len(commits)) + ") ORDER BY child_id,parent_id"
+	statement := "SELECT child_id,parent_id,resolved FROM parent_edges WHERE child_id IN (" + placeholders(len(commits)) + ") ORDER BY child_id,parent_id"
 	return scanRelationRows(ctx, db, statement, arguments, func(rows *sql.Rows) error {
-		var child, parent string
-		if err := rows.Scan(&child, &parent); err != nil {
+		var child string
+		var parent indexedParent
+		if err := rows.Scan(&child, &parent.ParentID, &parent.Resolved); err != nil {
 			return err
 		}
 		destination[child] = append(destination[child], parent)
@@ -467,10 +512,10 @@ func sameSelectedScalar(row selectedRow, commit ledger.CommitRecord, event ledge
 func sameIndexedLinks(actual []indexedLink, event ledger.EventRecord, events map[string]ledger.EventRecord) bool {
 	expected := make([]indexedLink, 0, len(event.CausedBy)+len(event.Supersedes))
 	for _, target := range event.CausedBy {
-		expected = append(expected, indexedLink{Relation: "caused_by", Target: target, Resolved: resolvedEvent(events, target)})
+		expected = append(expected, indexedLink{Relation: "caused_by", Target: target, Resolved: resolvedReference(events, target)})
 	}
 	for _, target := range event.Supersedes {
-		expected = append(expected, indexedLink{Relation: "supersedes", Target: target, Resolved: resolvedEvent(events, target)})
+		expected = append(expected, indexedLink{Relation: "supersedes", Target: target, Resolved: resolvedReference(events, target)})
 	}
 	sort.Slice(expected, func(left, right int) bool {
 		if expected[left].Relation != expected[right].Relation {
@@ -481,8 +526,17 @@ func sameIndexedLinks(actual []indexedLink, event ledger.EventRecord, events map
 	return reflect.DeepEqual(actual, expected)
 }
 
-func resolvedEvent(events map[string]ledger.EventRecord, ref string) int64 {
-	if _, found := events[ref]; found {
+func sameIndexedParents(actual []indexedParent, parents []string, commits map[string]ledger.CommitRecord) bool {
+	expected := make([]indexedParent, 0, len(parents))
+	for _, parent := range parents {
+		expected = append(expected, indexedParent{ParentID: parent, Resolved: resolvedReference(commits, parent)})
+	}
+	sort.Slice(expected, func(left, right int) bool { return expected[left].ParentID < expected[right].ParentID })
+	return reflect.DeepEqual(actual, expected)
+}
+
+func resolvedReference[Value any](values map[string]Value, ref string) int64 {
+	if _, found := values[ref]; found {
 		return 1
 	}
 	return 0
@@ -521,10 +575,6 @@ func stringsToArguments(values []string) []any {
 		result[index] = value
 	}
 	return result
-}
-
-func containsString(values []string, want string) bool {
-	return slices.Contains(values, want)
 }
 
 func contextError(err error) bool {

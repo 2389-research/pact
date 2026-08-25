@@ -3,6 +3,7 @@
 package index
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"errors"
@@ -100,6 +101,25 @@ func TestCursorDecodeStrictCanonicalShapeAndSafeErrors(t *testing.T) {
 				t.Fatal("cursor error echoed raw token")
 			}
 		})
+	}
+}
+
+func TestCursorRejectsNonCanonicalRawURLTrailingBits(t *testing.T) {
+	fixedRaw, err := base64.RawURLEncoding.DecodeString(fixedCursorVector)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, final := range "RST" {
+		token := fixedCursorVector[:len(fixedCursorVector)-1] + string(final)
+		raw, decodeErr := base64.RawURLEncoding.DecodeString(token)
+		if decodeErr != nil {
+			t.Fatal(decodeErr)
+		}
+		if !bytes.Equal(raw, fixedRaw) {
+			t.Fatalf("final %q no longer demonstrates identical decoded bytes", final)
+		}
+		_, decodeErr = decodeCursor(context.Background(), token, fixedCursorExpectation())
+		assertQueryErrorCode(t, decodeErr, "cursor_invalid")
 	}
 }
 

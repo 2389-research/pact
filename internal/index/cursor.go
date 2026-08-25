@@ -149,7 +149,7 @@ func decodeCursor(ctx context.Context, token string, expectation cursorExpectati
 		return invalid()
 	}
 	beforeCursorBase64Decode()
-	raw, err := base64.RawURLEncoding.DecodeString(token)
+	raw, err := base64.RawURLEncoding.Strict().DecodeString(token)
 	if err != nil || len(raw) != decodedLength || uint64(len(raw)) > ledger.Phase2Limits.DecodedCursorBytes {
 		return invalid()
 	}

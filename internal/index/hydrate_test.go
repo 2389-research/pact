@@ -119,6 +119,47 @@ func TestPageSplitCausalBatchIsIncompleteOnBothPages(t *testing.T) {
 	}
 }
 
+func TestPageCursorTransitionsFromLastOrderedToFirstUnresolvedExactlyOnce(t *testing.T) {
+	fixture := signedPartialScanFixture(t)
+	manager := New(fixture.store)
+	if _, err := manager.Rebuild(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	request := QueryRequest{Filters: Filters{Namespace: []string{"fixture/projection"}}, Limit: 1}
+	first, err := manager.Query(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := eventRefs(pageItems(first)); !reflect.DeepEqual(got, []string{fixture.presentParent.EventRefs[0]}) || len(first.Batches) != 1 || len(first.Unresolved) != 0 || first.Page.NextCursor == nil {
+		t.Fatalf("ordered boundary page = %#v", first)
+	}
+	request.Cursor = *first.Page.NextCursor
+	second, err := manager.Query(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := eventRefs(pageItems(second))
+	wantUnresolved := append([]string(nil), fixture.child.EventRefs...)
+	slices.Sort(wantUnresolved)
+	if !reflect.DeepEqual(got, wantUnresolved[:1]) || len(second.Batches) != 0 || len(second.Unresolved) != 1 {
+		t.Fatalf("first unresolved page = %#v, want ref %q", second, wantUnresolved[0])
+	}
+	if second.Page.NextCursor == nil {
+		t.Fatal("first unresolved page omitted continuation")
+	}
+	request.Cursor = *second.Page.NextCursor
+	third, err := manager.Query(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	all := append(eventRefs(pageItems(first)), eventRefs(pageItems(second))...)
+	all = append(all, eventRefs(pageItems(third))...)
+	want := append([]string{fixture.presentParent.EventRefs[0]}, wantUnresolved...)
+	if !reflect.DeepEqual(all, want) || third.Page.HasMore {
+		t.Fatalf("boundary pagination refs = %#v, want each ref once as %#v", all, want)
+	}
+}
+
 func TestPageKeepsMissingSupersedesOrderedAndMissingCausedByUnresolved(t *testing.T) {
 	fixture := signedPartialScanFixture(t)
 	manager := New(fixture.store)
@@ -173,6 +214,21 @@ func TestParityRejectsTamperedIndexedScalarTagLinkAndMissingRow(t *testing.T) {
 			assertQueryErrorCode(t, err, "index_corrupt")
 		})
 	}
+}
+
+func TestParentParityRejectsResolvedFlagTamperedAfterValidation(t *testing.T) {
+	fixture := signedPartialScanFixture(t)
+	manager := New(fixture.store)
+	if _, err := manager.Rebuild(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	original := beforeQueryHydration
+	beforeQueryHydration = func() {
+		mutateSQLiteFixture(t, indexPath(fixture.store), "UPDATE parent_edges SET resolved=0 WHERE child_id=? AND parent_id=?", fixture.child.ObjectID, fixture.presentParent.ObjectID)
+	}
+	t.Cleanup(func() { beforeQueryHydration = original })
+	_, err := manager.Query(context.Background(), QueryRequest{Filters: Filters{EventRef: []string{fixture.child.EventRefs[0]}}})
+	assertQueryErrorCode(t, err, "index_corrupt")
 }
 
 func TestCanonicalHydrationRejectsSelectedCommitChangedAfterValidation(t *testing.T) {
@@ -338,6 +394,28 @@ func TestQueryRefusesNonCurrentIndexAndPropagatesCancellation(t *testing.T) {
 	_, err = manager.Query(ctx, QueryRequest{Filters: Filters{Namespace: []string{"fixture"}}})
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("canceled Query() error = %v", err)
+	}
+}
+
+func TestQueryHonorsCancellationAfterRealResolutionOnFinalUnresolvedPage(t *testing.T) {
+	fixture := signedPartialScanFixture(t)
+	manager := New(fixture.store)
+	if _, err := manager.Rebuild(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	original := resolveCanonicalCommit
+	resolveCanonicalCommit = func(ctx context.Context, st *store.Store, id string, limits ledger.Limits) (ledger.CommitRecord, error) {
+		commit, err := original(ctx, st, id, limits)
+		if err == nil {
+			cancel()
+		}
+		return commit, err
+	}
+	t.Cleanup(func() { resolveCanonicalCommit = original })
+	_, err := manager.Query(ctx, QueryRequest{Filters: Filters{EventRef: []string{fixture.child.EventRefs[0]}}, Limit: 1})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Query() error = %v, want context canceled after real canonical resolution", err)
 	}
 }
 
