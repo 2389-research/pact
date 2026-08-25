@@ -3,17 +3,17 @@
 
 # PACT Phase 2 design
 
-**Status:** Tasks 1–7 are implemented and committed through `218536f` from
-Phase 2 start `a6c6c14`. Repository dogfood is recorded by commit object
+**Status:** Implemented and committed from Phase 2 start `a6c6c14` through
+Task 8 closeout `682c822`. Repository dogfood is recorded by commit object
 `sha256:69d67237ecf856c5b72515cd1ac43322642a847c1fc0d35955cd30e911146743`
 and checkpoint object
 `sha256:511f085606dc807fd3a67b2fd80afb37355d27f4b677b087cb337b32552eb485`.
 The initial independent broad review returned three Important and three Minor
 findings, and its re-review found three Important and two stale-doc Minor
 findings. Both TDD fix waves passed the full gate. The final independent
-re-review covers the Task 8 working tree based on `218536f`, from Phase 2 start
-`a6c6c14`, and reports 0 Critical, 0 Important, and 0 Minor findings. Its
-focused closeout commit remains pending; this record does not invent that ID.
+re-review covered the exact Task 8 candidate based on `218536f`, from Phase 2
+start `a6c6c14`, and reported 0 Critical, 0 Important, and 0 Minor findings.
+That reviewed candidate landed as `682c822` with every commit hook passing.
 
 **Dependency evidence:** Official Go module metadata on 2026-08-24 resolves
 `modernc.org/sqlite` to `v1.57.0`. That module declares Go 1.25 and pins

@@ -6,16 +6,15 @@
 ## Status
 
 Phase 2 implementation and repository dogfood passed their product gates on
-2026-08-24, and final independent review passed on 2026-08-25. Tasks 1–7 are
-committed through `218536f` on `wip/phase-2-dag-index-query`. The clean review
-covers the Task 8 working tree based on `218536f`, from Phase 2 start
-`a6c6c14`; its focused closeout commit remains pending.
+2026-08-24, and final independent review passed on 2026-08-25. The clean review
+covered the exact Task 8 candidate based on `218536f`, from Phase 2 start
+`a6c6c14`. That candidate landed on `wip/phase-2-dag-index-query` as closeout
+commit `682c822` with every commit hook passing.
 
 Two TDD fix waves resolved every broad-review finding. The final independent
 re-review reports 0 Critical, 0 Important, and 0 Minor findings and approves
-the package for commit. The Task 8 records and two canonical objects remain
-unstaged for the intended `chore: dogfood phase 2 index and query` closeout;
-this status does not invent its Git ID before that commit occurs.
+the package for commit. The Task 8 records and two canonical objects landed in
+`682c822` (`chore: dogfood phase 2 index and query`).
 
 ## Signed proof
 
@@ -208,7 +207,7 @@ The first re-review found three follow-up Important issues and two stale-doc
 Minor issues, all fixed through a second TDD wave.
 
 The second review found three remaining Important issues and two stale design
-statements. The next unstaged fix wave now charges the exact complete page
+statements. The second TDD fix wave charges the exact complete page
 before retaining each hydrated candidate, reports JSON stdout failures with a
 safe exit-10 diagnostic, and removes the invented refs/trust manifest limits.
 Rebuild still holds the exclusive store lock, validates fixed paths, and runs a
