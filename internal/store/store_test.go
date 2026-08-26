@@ -97,6 +97,48 @@ func TestLockErrorReleaseOnlyUnwrapOmitsNilOperation(t *testing.T) {
 	}
 }
 
+func TestLockErrorFlockFailurePreservesCloseFailure(t *testing.T) {
+	acquisitionErr := errors.New("injected flock failure")
+	closeErr := errors.New("injected close after flock failure")
+	originalFlock := flockLockFile
+	originalClose := closeLockFile
+	flockLockFile = func(*os.File, int) error { return acquisitionErr }
+	closeLockFile = func(lock *os.File) error { return errors.Join(closeErr, lock.Close()) }
+	t.Cleanup(func() {
+		flockLockFile = originalFlock
+		closeLockFile = originalClose
+	})
+
+	lock, err := lockDirectory(t.TempDir(), syscall.LOCK_EX)
+	if lock != nil || !errors.Is(err, acquisitionErr) || !errors.Is(err, closeErr) {
+		t.Fatalf("lockDirectory() = (%#v, %v), want acquisition and close failures", lock, err)
+	}
+}
+
+func TestLockErrorFlockFailureOmitsNilCloseCause(t *testing.T) {
+	acquisitionErr := errors.New("injected flock failure")
+	originalFlock := flockLockFile
+	originalClose := closeLockFile
+	flockLockFile = func(*os.File, int) error { return acquisitionErr }
+	closeLockFile = func(lock *os.File) error { return lock.Close() }
+	t.Cleanup(func() {
+		flockLockFile = originalFlock
+		closeLockFile = originalClose
+	})
+
+	lock, err := lockDirectory(t.TempDir(), syscall.LOCK_EX)
+	if lock != nil || !errors.Is(err, acquisitionErr) {
+		t.Fatalf("lockDirectory() = (%#v, %v), want acquisition failure", lock, err)
+	}
+	if causes, ok := err.(interface{ Unwrap() []error }); ok {
+		for index, cause := range causes.Unwrap() {
+			if cause == nil {
+				t.Fatalf("lockDirectory() cause %d is nil: %#v", index, causes.Unwrap())
+			}
+		}
+	}
+}
+
 func TestInitLocksRepositoryDirectory(t *testing.T) {
 	repo := t.TempDir()
 	original := beforePublish
