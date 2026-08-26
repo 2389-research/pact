@@ -1,161 +1,358 @@
-# Animated Help Final Fix Report
+<!-- ABOUTME: Records the final-review fixes, TDD evidence, and verification commands. -->
+<!-- ABOUTME: Keeps each required finding tied to its design choice and observed test result. -->
 
-Base: `d7048f7`
+# Final review fix report
 
-## Implementation
+Date: 2026-08-23
+Branch: `wip/phase-0-1-core`
+Scope: all eight findings in `.superpowers/sdd/final-review-findings.md`
 
-- Added `terminalAnimationConfig`, which retains 80x30 fallback dimensions but
-  enables frames only for a TTY with positive observed width and height.
-- Reserved `AnimationFrames == 0` for a TTY without safe geometry; the bare
-  welcome then skips the decorative seal and prints normal help.
-- Preserved redirected static output and independent color-terminal detection.
-- Tested exact repaint ownership for 40-column and 12-column renderers.
-- Scoped README motion wording to capable terminals.
+## Oracle and contract evidence
 
-Files changed:
+Before choosing semantics, I read the complete CLI exit table and the matching
+Python functions in `docs/pact-ledger/scripts/pact_core.py`:
 
-- `cmd/pact/main.go`
-- `cmd/pact/seal_animation.go`
-- `cmd/pact/seal_animation_test.go`
-- `README.md`
+- `repo_path`, `command_keygen`, `command_hash`, and `command_heads` report
+  resolved absolute paths, including symlinked parents.
+- `load_key_file` classifies key-ID/public and private/public mismatches as
+  integrity exit 4.
+- `load_trust` classifies malformed trust-file shape as store exit 3, while
+  trusted-root public-byte mismatches are integrity exit 4.
+- `read_object` classifies missing objects as exit 9 and digest mismatch as
+  exit 4.
+- `verify_object_file` retains parsed objects when signature verification alone
+  fails, but stops object interpretation when exact bytes, digest, JSON, or
+  canonical form fails.
+- `scan_secret_hazards` reports hazard paths and classes without rejected
+  values.
 
-## TDD evidence
+The production signing-key boundary remains intentionally stricter than the
+Python oracle, as required by the final review.
 
-### RED
+## RED evidence
 
-Command:
+Tests were added before production changes.
 
-```sh
-env -u GOROOT mise exec -- go test ./cmd/pact -run 'Test(BarePactFallbacksAndExplicitHelp|TerminalAnimationConfig|ProductionSealAnimationIsFinite)$' -count=1
-```
-
-Output:
-
-```text
-# pact/cmd/pact [pact/cmd/pact.test]
-cmd/pact/seal_animation_test.go:81:29: undefined: terminalAnimationConfig
-FAIL	pact/cmd/pact [build failed]
-FAIL
-```
-
-### GREEN
+### Signing keys, public trust keys, and typed identity integrity
 
 Command:
 
-```sh
-env -u GOROOT mise exec -- go test ./cmd/pact -run 'Test(BarePactFallbacksAndExplicitHelp|TerminalAnimationConfig|ProductionSealAnimationIsFinite)$' -count=1
+```text
+env -u GOROOT mise exec -- go test -count=1 ./internal/identity -run 'TestLoad(Signing|Public|KeyFileRejectsKeyID)'
 ```
 
-Output:
+Observed RED:
 
 ```text
-ok  	pact/cmd/pact	0.225s
+undefined: ErrIntegrity
+undefined: LoadSigningKey
+undefined: ErrSecretSafety
+undefined: LoadPublicKey
+FAIL pact/internal/identity [build failed]
 ```
 
-The first scaled repaint assertion exposed a stale hard-coded `\x1b[29A`
-expectation in the test. The test now derives the rewind from the width; no
-production change was needed for that test strengthening.
+### Store rollback and cross-process mutation lock
 
-## Broad verification
-
-### Focused package
+Command:
 
 ```text
-$ env -u GOROOT mise exec -- go test ./cmd/pact -count=1
-ok  	pact/cmd/pact	3.303s
+env -u GOROOT mise exec -- go test -count=1 ./internal/store -run 'TestPutCanonical(RollsBack|Serializes)|TestStoreMutationLock'
 ```
 
-### Compiled operator E2E
+Observed RED:
 
 ```text
-$ env -u GOROOT mise exec -- go test ./tests/e2e -run '^TestOperatorCLIContract$' -count=1
-ok  	pact/tests/e2e	1.093s
+undefined: syncDirectoryFile
+undefined: readCanonicalFile
+undefined: mutationLockPath
+st.WithMutationLock undefined
+FAIL pact/internal/store [build failed]
 ```
 
-### Vet
+The first GREEN attempt exposed a real shadowing bug in rollback: the deferred
+closure captured the `linkFile` initializer's local `err`, which stayed nil.
+All post-link tests showed the canonical link remained, and the identical
+admission returned `created:false`. Renaming that local to `linkErr` made the
+defer observe the named return error and enabled the intended rollback.
+
+### Raw secret references and typed show failures
+
+Command:
 
 ```text
-$ env -u GOROOT mise exec -- go vet ./...
+env -u GOROOT mise exec -- go test -count=1 ./internal/ledger -run 'TestNormalizeEventBatch(ScansRaw|InvalidReferences)'
 ```
 
-Exit status: 0.
-
-### Race
+Observed RED:
 
 ```text
-$ env -u GOROOT mise exec -- go test -race ./...
-ok  	pact/cmd/pact	12.177s
-ok  	pact/internal/canonical	1.207s
-ok  	pact/internal/conformance	1.741s
-ok  	pact/internal/identity	1.917s
-ok  	pact/internal/index	(cached)
-ok  	pact/internal/ledger	(cached)
-ok  	pact/internal/status	(cached)
-ok  	pact/internal/store	(cached)
-ok  	pact/tests/e2e	16.295s
+undefined: ErrSecretSafety
+undefined: ShowError
+undefined: ErrMissingDependency
+FAIL pact/internal/ledger [build failed]
 ```
 
-### Canonical check
+### JSON diagnostics and exit classification
+
+Command:
 
 ```text
-$ env -u GOROOT mise exec -- ./scripts/check
-ok  	pact/cmd/pact	5.066s
-ok  	pact/internal/canonical	(cached)
-ok  	pact/internal/conformance	(cached)
-ok  	pact/internal/identity	(cached)
-ok  	pact/internal/index	(cached)
-ok  	pact/internal/ledger	(cached)
-ok  	pact/internal/status	(cached)
-ok  	pact/internal/store	(cached)
-ok  	pact/tests/e2e	14.646s
-test_frozen_vectors (test_conformance.CanonicalizationVectorTest.test_frozen_vectors) ... ok
-test_all_schemas_are_well_formed_and_examples_validate (test_contract.PactContractTest.test_all_schemas_are_well_formed_and_examples_validate) ... ok
-test_canonical_json_normalizes_unicode_and_rejects_floats (test_contract.PactContractTest.test_canonical_json_normalizes_unicode_and_rejects_floats) ... ok
-test_full_module_go_hooks_do_not_accept_filenames (test_contract.PactContractTest.test_full_module_go_hooks_do_not_accept_filenames) ... ok
-test_namespace_and_event_pattern_semantics (test_contract.PactContractTest.test_namespace_and_event_pattern_semantics) ... ok
-test_secret_scanner_allows_indirection_and_rejects_raw_values (test_contract.PactContractTest.test_secret_scanner_allows_indirection_and_rejects_raw_values) ... ok
-test_append_only_correction_keeps_original_bytes (test_pact.PactCliTest.test_append_only_correction_keeps_original_bytes) ... ok
-test_bounded_subdelegation_authorizes_one_child_level (test_pact.PactCliTest.test_bounded_subdelegation_authorizes_one_child_level) ... ok
-test_causal_revocation_preserves_but_unauthorizes_later_commit (test_pact.PactCliTest.test_causal_revocation_preserves_but_unauthorizes_later_commit) ... ok
-test_directory_sync_unions_objects_without_overwrite (test_pact.PactCliTest.test_directory_sync_unions_objects_without_overwrite) ... ok
-test_forbidden_subdelegation_is_not_authorized (test_pact.PactCliTest.test_forbidden_subdelegation_is_not_authorized) ... ok
-test_full_lifecycle_and_checkpoint (test_pact.PactCliTest.test_full_lifecycle_and_checkpoint) ... ok
-test_native_fork_and_explicit_merge (test_pact.PactCliTest.test_native_fork_and_explicit_merge) ... ok
-test_scoped_delegation_authorizes_agent_commit (test_pact.PactCliTest.test_scoped_delegation_authorizes_agent_commit) ... ok
-test_secret_like_payload_is_refused (test_pact.PactCliTest.test_secret_like_payload_is_refused) ... ok
-test_tampering_is_detected (test_pact.PactCliTest.test_tampering_is_detected) ... ok
-test_event_batch_examples (test_schemas.SchemaTest.test_event_batch_examples) ... ok
-test_projection_manifest_example (test_schemas.SchemaTest.test_projection_manifest_example) ... ok
-
-----------------------------------------------------------------------
-Ran 18 tests in 0.519s
-
-OK
+env -u GOROOT mise exec -- go test -count=1 ./cmd/pact -run 'TestRun(JSONFlag|TrustAddAllows|UsesTyped)'
 ```
 
-### Whitespace
+Observed RED:
 
 ```text
-$ git diff --check
+undefined: exitMissingDependency
+FAIL pact/cmd/pact [build failed]
 ```
 
-Exit status: 0.
+### Real binary path and trust concurrency contract
 
-## Fresh-eyes review
+Command:
 
-Reviewed `README.md`, `cmd/pact/main.go`, `cmd/pact/seal_animation.go`, and
-`cmd/pact/seal_animation_test.go` after broad gates. No findings: the fix takes
-no external input, does not alter color-terminal detection, preserves the
-static non-TTY path, and derives repaint counts from renderer geometry.
+```text
+env -u GOROOT mise exec -- go test -count=1 ./tests/e2e -run 'TestCLIReviewSecurityAndResolvedPathContract|TestCLIConcurrentTrustAddPreservesDistinctAndIdenticalRoots' -v
+```
 
-## Commit and hooks
+Observed RED:
 
-Commit SHA: pending normal-hook commit; this report is updated with the final
-SHA before handoff.
+```text
+keygen path = ".../key-link/operator.key.json", want resolved ".../keys/operator.key.json"
+trusted distinct roots = 2, want 16
+FAIL pact/tests/e2e
+```
 
-Hook output: pending normal-hook commit.
+## Design and GREEN evidence
 
-## Concerns
+1. Private signing keys now use `identity.LoadSigningKey(path, st.Root())`.
+   The loader resolves ancestor symlinks without following the final component
+   for the lexical containment check, resolves the final target separately,
+   checks both against the Store's resolved root, requires a regular file, and
+   rejects every group/other permission bit. `LoadPublicKey` skips only these
+   private-key rules and admits readable public-only files.
+2. `Store.WithMutationLock` uses an advisory exclusive flock in a private real
+   directory under the system temp directory, keyed by the resolved repo root.
+   An unlocked stale file is safe. `ledger.AddRoot` holds it across load,
+   collision check, sorted append, and atomic write.
+3. `PutCanonical` holds the same mutation lock across admission. A defer tracks
+   whether this call created the no-overwrite hard link; any later shard sync,
+   hook, readback, or digest failure removes that link and syncs the shard.
+   Serialization prevents another compliant admission from taking ownership of
+   that path during rollback.
+4. `run` sends each `FlagSet` to `io.Discard` in JSON mode, then emits exactly
+   one structured command error.
+5. `ledger.ShowError` carries a `ShowResult` and unwraps to `ErrIntegrity`.
+   Exact-byte, digest, parse, canonical, and structure failures return typed
+   details; authenticity-only failure still returns the parsed signed object.
+6. Identity, store, and ledger packages now own typed integrity, store,
+   authorization, secret-safety, and missing-dependency errors. The CLI maps
+   those types to exits 3, 4, 5, 7, and 9 without matching prose.
+7. Raw event input is scanned before detailed validation. Reference validators
+   report field paths and hazard/error classes only.
+8. Keygen uses the resolved path returned by key creation; hash resolves the
+   input file; heads reports `st.Root()`.
 
-None. A TTY whose dimensions cannot be observed intentionally receives normal
-help without the seal, avoiding unsafe cursor rewrites.
+Focused GREEN commands:
+
+```text
+env -u GOROOT mise exec -- go test -count=1 ./internal/identity -run 'TestLoad(Signing|Public|KeyFileRejects)'
+ok pact/internal/identity
+
+env -u GOROOT mise exec -- go test -count=1 ./internal/store -run 'TestPutCanonical(RollsBack|Serializes|Verifies)|TestStoreMutationLock' -v
+PASS: digest, shard-sync, hook, readback, identical-admission, and stale-lock cases
+
+env -u GOROOT mise exec -- go test -count=1 ./internal/ledger -run 'TestNormalizeEventBatch(ScansRaw|InvalidReferences)|TestShow(ReturnsTyped|Allows|Missing)' -v
+PASS: raw PEM/token paths, value-free refs, corrupt/unparseable show, authenticity-only show, and missing dependency
+
+env -u GOROOT mise exec -- go test -count=1 ./cmd/pact -run 'TestRun(JSONFlag|TrustAddAllows|UsesTyped)' -v
+PASS: one JSON diagnostic, public-only trust, typed exits, and show details
+
+env -u GOROOT mise exec -- go test -count=1 ./tests/e2e -run 'TestCLIReviewSecurityAndResolvedPathContract|TestCLIConcurrentTrustAddPreservesDistinctAndIdenticalRoots' -v
+PASS: real binary signing-key, resolved-path, JSON flag, and concurrent trust scenarios
+```
+
+## Final verification
+
+Fresh-eyes review covered all 16 task files. It found one added security issue:
+the first mutation-lock draft placed a predictable lock file directly under the
+shared temp directory. A focused test reproduced that layout. The lock now
+lives under a checked `0700` real directory; both init and mutation locking
+reject a symlinked, non-directory, or group/other-accessible lock directory.
+
+Commands and results before the final post-review rerun:
+
+```text
+env -u GOROOT mise exec -- go test -count=1 ./...
+PASS: cmd/pact, canonical, conformance, identity, ledger, store, and real-binary E2E
+
+env -u GOROOT mise exec -- go vet ./...
+PASS
+
+git diff --check
+PASS
+
+env -u GOROOT mise exec -- ./scripts/check
+PASS: Go format, vet, tests, build, and all 17 Python oracle tests
+```
+
+Real usage built a fresh binary outside a fresh project, initialized through a
+resolved path, generated and trusted an external key, committed the bundled
+two-event example, inspected heads and the object, and ran strict verification.
+The commit reported valid integrity/authenticity and authorized root signing;
+strict verification reported `ok:true`, one commit, two events, and zero layer
+failures.
+
+Post-review verification reran from the final source state:
+
+```text
+env -u GOROOT mise exec -- go test -count=1 ./...
+PASS: all seven Go packages/test trees, including real-binary E2E
+
+env -u GOROOT mise exec -- go vet ./...
+PASS
+
+git diff --check
+PASS
+
+env -u GOROOT mise exec -- ./scripts/check
+PASS: canonical Go gate and 17/17 Python oracle tests
+
+env -u GOROOT mise exec -- go test -race -count=1 ./internal/store ./internal/ledger
+PASS: store and ledger concurrency paths under the race detector
+```
+
+## Adopted lint baseline
+
+Doctor Biz chose to adopt the full lint baseline after the new hook stack found
+78 issues. No lint rule or hook was weakened. The baseline work:
+
+- Applied every Go 1.26 `go fix` rewrite: `strings.SplitSeq`,
+  `sync.WaitGroup.Go`, `maps.Copy`, range-over-integer, and `strings.Builder`.
+- Replaced unchecked assertions on validated signed maps with typed internal
+  commit, event, and checkpoint views. Inconsistent post-validation shapes now
+  return errors instead of panicking.
+- Split verification passes, commit/checkpoint option preparation, canonical
+  normalization, event/evidence normalization, secret scanning, and canonical
+  admission into small helpers. Wire fields, validation order, error text, and
+  stored canonical bytes remain unchanged; the existing characterization,
+  conformance, ledger, CLI, and E2E tests cover those contracts.
+- Removed two unused authorization helpers and checked JSON encoding and
+  Ed25519 public-key assertions. Store lock release now checks both flock
+  unlock and lock-file close errors, joining them with any operation error.
+- Used one narrow `nolint:nilerr` where read failures are intentionally carried
+  in `ObjectVerification`. Narrow documented `#nosec` lines cover only the
+  required `private_key` wire field, public/user directory modes, and paths
+  already restricted to a resolved store/key root or a digest-derived private
+  lock location.
+
+The lint count fell from 78 to zero:
+
+```text
+env -u GOROOT mise exec -- golangci-lint run --timeout=10m
+0 issues.
+
+env -u GOROOT mise exec -- go fix -diff ./...
+PASS: no pending rewrites
+```
+
+Fresh-eyes review after the baseline refactor found a defer-order edge case:
+temporary-file cleanup could create an error after the rollback defer had
+already run. Canonical rollback is now registered first and therefore runs
+last, so every error returned after this call creates the canonical link
+removes and syncs that link.
+
+Final full gate from the reviewed source state:
+
+```text
+env -u GOROOT mise exec -- go test -count=1 ./...
+PASS: all Go packages, CLI integration, and real-binary E2E
+
+env -u GOROOT mise exec -- go test -race -count=1 ./...
+PASS: all packages under the race detector
+
+env -u GOROOT mise exec -- go vet ./...
+PASS
+
+env -u GOROOT mise exec -- golangci-lint run --timeout=10m
+0 issues.
+
+env -u GOROOT mise exec -- go fix -diff ./...
+PASS: no pending rewrites
+
+git diff --check
+PASS
+
+env -u GOROOT mise exec -- ./scripts/check
+PASS: Go gate and 17/17 Python oracle tests
+```
+
+## Final re-review
+
+The re-review found that the lint refactor had changed one established verify
+contract: malformed trust configuration returned early and discarded valid
+object, count, head, and layer results. The Python oracle and the pre-refactor
+Go path treat authority evaluation as one verification error while preserving
+the rest of the scan.
+
+Focused RED:
+
+```text
+env -u GOROOT mise exec -- go test -count=1 ./internal/ledger -run TestVerifyPreservesPartialResultWhenTrustEvaluationFails -v
+FAIL: Verify() returned `ledger store failure: malformed local trust file`
+instead of the partial result
+
+env -u GOROOT mise exec -- go test -count=1 ./tests/e2e -run TestCLIVerifyMalformedTrustPreservesFullStrictDetails -v
+FAIL: real binary exited 3 with no details, want exit 4 with full details
+
+env -u GOROOT mise exec -- go test -count=1 ./internal/store -run 'TestInitReturnsPublishedStoreWithBothReleaseErrors|TestWithMutationLockPreservesOperationAndBothReleaseErrors' -v
+FAIL: undefined injectable lock-release functions
+```
+
+GREEN behavior:
+
+- `Verify` appends `authority evaluation failed: ...` to its in-progress result,
+  then computes heads, sorts every error list, and sets `OK`. The CLI therefore
+  exits 4 and includes the complete structured verification result.
+- One shared store lock-release helper attempts unlock and close, then joins
+  both errors with the operation error. Tests prove the mutation callback runs
+  once. `Init` returns the published `Store` with release errors, so callers can
+  inspect the successfully created state without repeating initialization.
+
+Focused GREEN:
+
+```text
+env -u GOROOT mise exec -- go test -count=1 ./internal/ledger -run TestVerifyPreservesPartialResultWhenTrustEvaluationFails -v
+PASS
+
+env -u GOROOT mise exec -- go test -count=1 ./tests/e2e -run TestCLIVerifyMalformedTrustPreservesFullStrictDetails -v
+PASS: real binary exit 4 with object, counts, heads, layers, and sorted authority error
+
+env -u GOROOT mise exec -- go test -count=1 ./internal/store -run 'TestInitReturnsPublishedStoreWithBothReleaseErrors|TestWithMutationLockPreservesOperationAndBothReleaseErrors' -v
+PASS
+```
+
+Final re-review gate:
+
+```text
+env -u GOROOT mise exec -- go test -count=1 ./...
+PASS: all packages, CLI integration, and real-binary E2E
+
+env -u GOROOT mise exec -- go test -race -count=1 ./...
+PASS: all packages under the race detector
+
+env -u GOROOT mise exec -- go vet ./...
+PASS
+
+env -u GOROOT mise exec -- golangci-lint run --timeout=10m
+0 issues.
+
+env -u GOROOT mise exec -- go fix -diff ./...
+PASS: no pending rewrites
+
+git diff --check
+PASS
+
+env -u GOROOT mise exec -- ./scripts/check
+PASS: Go gate and 17/17 Python oracle tests
+```
