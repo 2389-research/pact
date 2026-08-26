@@ -9,6 +9,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -16,6 +17,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -672,7 +674,7 @@ func TestApplyNeverConvergesArbitraryOwnerErrors(t *testing.T) {
 func TestApplyReturnsStoreReleaseErrorAfterValidatedCollision(t *testing.T) {
 	request := setupRequest(t)
 	mustInitStore(t, request)
-	releaseFault := errors.New("injected store lock release failure")
+	releaseFault := fmt.Errorf("injected store lock release failure: %w", fs.ErrExist)
 	owners := defaultOwnerOperations
 	owners.initStore = func(string, string, time.Time) (store.InitResult, error) {
 		return store.InitResult{Status: store.InitConflict}, &store.LockError{
@@ -694,11 +696,50 @@ func TestApplyReturnsStoreReleaseErrorAfterValidatedCollision(t *testing.T) {
 	}
 }
 
+func TestApplyAcceptsDocumentedStoreRenameCollisions(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		collision error
+	}{
+		{name: "exists", collision: fs.ErrExist},
+		{name: "directory not empty", collision: syscall.ENOTEMPTY},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			request := setupRequest(t)
+			mustInitStore(t, request)
+			formatPath := filepath.Join(request.Repo, ".pact", "format.json")
+			before := readNamedBytes(t, []string{formatPath})
+			owners := defaultOwnerOperations
+			owners.initStore = func(string, string, time.Time) (store.InitResult, error) {
+				renameErr := &os.LinkError{
+					Op: "rename", Old: filepath.Join(request.Repo, ".pact.init-staging"),
+					New: filepath.Join(request.Repo, ".pact"), Err: test.collision,
+				}
+				return store.InitResult{Status: store.InitConflict},
+					fmt.Errorf("%w: publish initialized store: %w", store.ErrAlreadyInitialized, renameErr)
+			}
+
+			result, err := applyWithOwners(context.Background(), request, owners)
+			if err != nil {
+				t.Fatalf("Apply() error = %v, want documented rename collision convergence", err)
+			}
+			want := plannedActions(ActionExisting, ActionCreated, ActionCreated, ActionValid, ActionCreated)
+			if !reflect.DeepEqual(result.Actions, want) {
+				t.Fatalf("Apply() actions = %#v, want %#v", result.Actions, want)
+			}
+			after := readNamedBytes(t, []string{formatPath})
+			if !reflect.DeepEqual(after, before) {
+				t.Fatal("validated store rename collision changed existing format bytes")
+			}
+		})
+	}
+}
+
 func TestApplyReturnsJoinedKeyErrorAfterValidatedCollision(t *testing.T) {
 	request := setupRequest(t)
 	mustInitStore(t, request)
 	mustGenerateKey(t, request, request.Actor)
-	cleanupFault := errors.New("injected key cleanup failure")
+	cleanupFault := fmt.Errorf("injected key cleanup failure: %w", fs.ErrExist)
 	owners := defaultOwnerOperations
 	owners.generateKey = func(string, string, time.Time) (identity.GenerateResult, error) {
 		collision := &os.LinkError{Op: "link", Old: "temporary", New: request.KeyFile, Err: fs.ErrExist}

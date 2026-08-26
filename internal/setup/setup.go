@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"pact/internal/identity"
@@ -166,7 +167,7 @@ func applyWithOwners(ctx context.Context, request Request, owners ownerOperation
 		result.Repo = opened.Root()
 		result.Store = opened.Dir()
 		result.Actions = append(result.Actions, Action{Name: ActionStore, Status: ActionExisting})
-		if !onlyCollisionCause(initErr, store.ErrAlreadyInitialized) {
+		if !cleanStoreCollision(initErr) {
 			return applyFailure(result, initErr)
 		}
 	default:
@@ -205,7 +206,7 @@ func applyWithOwners(ctx context.Context, request Request, owners ownerOperation
 		}
 		result.Actions = append(result.Actions, Action{Name: ActionKey, Status: ActionExisting})
 		result.KeyID = key.KeyID
-		if !onlyCollisionCause(keyErr, fs.ErrExist) {
+		if !cleanKeyCollision(keyErr) {
 			return applyFailure(result, keyErr)
 		}
 	default:
@@ -303,18 +304,43 @@ func invalidOwnerOutcome(owner string) error {
 	return fmt.Errorf("%w: %s conflict has no error", errInvalidOwnerOutcome, owner)
 }
 
-// onlyCollisionCause accepts normal wrapper chains but rejects any independent error leaf.
-func onlyCollisionCause(err, collision error) bool {
+func cleanStoreCollision(err error) bool {
+	var lockErr *store.LockError
+	if errors.As(err, &lockErr) && lockErr.Release != nil {
+		return false
+	}
+	return onlyCollisionLeaves(err, store.ErrAlreadyInitialized, fs.ErrExist, syscall.ENOTEMPTY)
+}
+
+func cleanKeyCollision(err error) bool {
+	if err == nil {
+		return false
+	}
+	if _, ok := err.(interface{ Unwrap() []error }); ok {
+		return false
+	}
+	if single, ok := err.(interface{ Unwrap() error }); ok {
+		cause := single.Unwrap()
+		if cause == nil {
+			return errors.Is(err, fs.ErrExist)
+		}
+		return cleanKeyCollision(cause)
+	}
+	return errors.Is(err, fs.ErrExist)
+}
+
+// onlyCollisionLeaves accepts store-documented wrapper leaves but rejects every other cause.
+func onlyCollisionLeaves(err error, collisions ...error) bool {
 	if err == nil {
 		return false
 	}
 	if multiple, ok := err.(interface{ Unwrap() []error }); ok {
 		causes := multiple.Unwrap()
 		if len(causes) == 0 {
-			return errors.Is(err, collision)
+			return matchesCollision(err, collisions)
 		}
 		for _, cause := range causes {
-			if !onlyCollisionCause(cause, collision) {
+			if !onlyCollisionLeaves(cause, collisions...) {
 				return false
 			}
 		}
@@ -323,11 +349,20 @@ func onlyCollisionCause(err, collision error) bool {
 	if single, ok := err.(interface{ Unwrap() error }); ok {
 		cause := single.Unwrap()
 		if cause == nil {
-			return errors.Is(err, collision)
+			return matchesCollision(err, collisions)
 		}
-		return onlyCollisionCause(cause, collision)
+		return onlyCollisionLeaves(cause, collisions...)
 	}
-	return errors.Is(err, collision)
+	return matchesCollision(err, collisions)
+}
+
+func matchesCollision(err error, collisions []error) bool {
+	for _, collision := range collisions {
+		if errors.Is(err, collision) {
+			return true
+		}
+	}
+	return false
 }
 
 type observedSetup struct {
