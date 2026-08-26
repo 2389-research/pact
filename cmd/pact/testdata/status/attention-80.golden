@@ -13,6 +13,6 @@ Replica
 
 Index
   State     stale
-  Coverage  complete
+  Coverage  unavailable
 
 Run  pact index rebuild

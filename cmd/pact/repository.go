@@ -16,9 +16,10 @@ func normalizeRepositoryArgs(args []string, mode repositoryMode, workingDir stri
 		return args, nil
 	}
 	result := append([]string(nil), args...)
-	for position, argument := range result {
+	commandArgs := argumentsBeforeSentinel(result)
+	for position, argument := range commandArgs {
 		if argument == "--repo" {
-			if position+1 == len(result) {
+			if position+1 == len(commandArgs) {
 				return result, nil
 			}
 			path, err := resolveFromWorkingDir(workingDir, result[position+1])
@@ -59,6 +60,10 @@ func resolveFromWorkingDir(workingDir, value string) (string, error) {
 
 func discoverRepository(workingDir string) (string, error) {
 	current, err := filepath.Abs(workingDir)
+	if err != nil {
+		return "", err
+	}
+	current, err = filepath.EvalSymlinks(current)
 	if err != nil {
 		return "", err
 	}

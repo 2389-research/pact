@@ -43,7 +43,7 @@ func runWithConfig(args []string, config runConfig) int { //nolint:funlen // The
 	config = normalizedRunConfig(config)
 	args, display, err := parsePresentation(args)
 	if err != nil {
-		return writeCommandError(config.Stderr, false, &commandError{code: exitUsage, message: err.Error()})
+		return writeCommandError(config.Stderr, display.asJSON, &commandError{code: exitUsage, message: err.Error()})
 	}
 	catalog := commandCatalog()
 	if isHelpRequest(args) {
@@ -64,11 +64,7 @@ func runWithConfig(args []string, config runConfig) int { //nolint:funlen // The
 	if err != nil {
 		return writeCommandError(config.Stderr, display.asJSON, &commandError{code: exitUsage, message: err.Error()})
 	}
-	flagOutput := config.Stderr
-	if display.asJSON {
-		flagOutput = io.Discard
-	}
-	output, err := spec.handler(commandArgs, flagOutput, config)
+	output, err := spec.handler(commandArgs, io.Discard, config)
 	if err != nil {
 		var commandErr *commandError
 		if errors.As(err, &commandErr) {
@@ -145,17 +141,18 @@ func normalizedRunConfig(config runConfig) runConfig {
 func parsePresentation(args []string) ([]string, presentation, error) {
 	result := make([]string, 0, len(args))
 	display := presentation{colorMode: "auto"}
-	for position := 0; position < len(args); position++ {
-		argument := args[position]
+	commandArgs := argumentsBeforeSentinel(args)
+	for position := 0; position < len(commandArgs); position++ {
+		argument := commandArgs[position]
 		switch {
 		case argument == "--json":
 			display.asJSON = true
 		case argument == "--color":
-			if position+1 == len(args) {
-				return nil, presentation{}, errors.New("--color requires auto, always, or never")
+			if position+1 == len(commandArgs) {
+				return nil, display, errors.New("--color requires auto, always, or never")
 			}
 			position++
-			display.colorMode = args[position]
+			display.colorMode = commandArgs[position]
 		case strings.HasPrefix(argument, "--color="):
 			display.colorMode = strings.TrimPrefix(argument, "--color=")
 		default:
@@ -163,9 +160,19 @@ func parsePresentation(args []string) ([]string, presentation, error) {
 		}
 	}
 	if display.colorMode != "auto" && display.colorMode != "always" && display.colorMode != "never" {
-		return nil, presentation{}, errors.New("--color requires auto, always, or never")
+		return nil, display, errors.New("--color requires auto, always, or never")
 	}
+	result = append(result, args[len(commandArgs):]...)
 	return result, display, nil
+}
+
+func argumentsBeforeSentinel(args []string) []string {
+	for position, argument := range args {
+		if argument == "--" {
+			return args[:position]
+		}
+	}
+	return args
 }
 
 func colorEnabled(display presentation, config runConfig, terminal bool) bool {
@@ -178,15 +185,17 @@ func colorEnabled(display presentation, config runConfig, terminal bool) bool {
 	case "never":
 		return false
 	default:
-		return terminal && config.Environment["NO_COLOR"] == "" && config.Environment["TERM"] != "dumb"
+		_, noColor := config.Environment["NO_COLOR"]
+		return terminal && !noColor && config.Environment["TERM"] != "dumb"
 	}
 }
 
 func isHelpRequest(args []string) bool {
-	if len(args) == 0 || args[0] == "help" {
+	commandArgs := argumentsBeforeSentinel(args)
+	if len(commandArgs) == 0 || commandArgs[0] == "help" {
 		return true
 	}
-	for _, argument := range args {
+	for _, argument := range commandArgs {
 		if argument == "--help" || argument == "-h" {
 			return true
 		}
@@ -195,11 +204,12 @@ func isHelpRequest(args []string) bool {
 }
 
 func helpPath(args []string) []string {
-	if len(args) > 0 && args[0] == "help" {
-		return args[1:]
+	commandArgs := argumentsBeforeSentinel(args)
+	if len(commandArgs) > 0 && commandArgs[0] == "help" {
+		return commandArgs[1:]
 	}
-	result := make([]string, 0, len(args))
-	for _, argument := range args {
+	result := make([]string, 0, len(commandArgs))
+	for _, argument := range commandArgs {
 		if argument != "--help" && argument != "-h" {
 			result = append(result, argument)
 		}

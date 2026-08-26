@@ -39,7 +39,7 @@ func renderTopHelp(writer io.Writer, catalog []commandSpec) error {
 			return err
 		}
 	}
-	return nil
+	return renderFlags(writer, "Global options", catalogGlobalFlags(catalog))
 }
 
 func renderGroupHelp(writer io.Writer, catalog []commandSpec, group string) error {
@@ -57,6 +57,9 @@ func renderCommandHelp(writer io.Writer, spec commandSpec) error {
 	if err := fprintf(writer, "Usage: %s\n\n%s\n\nCommands:\n  %s\n", spec.usage, spec.purpose, strings.Join(spec.path, " ")); err != nil {
 		return err
 	}
+	if err := renderFlags(writer, "Options", spec.flags); err != nil {
+		return err
+	}
 	if len(spec.examples) == 0 {
 		return nil
 	}
@@ -65,6 +68,34 @@ func renderCommandHelp(writer io.Writer, spec commandSpec) error {
 	}
 	for _, example := range spec.examples {
 		if err := fprintf(writer, "  %s\n", example); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func catalogGlobalFlags(catalog []commandSpec) []commandFlag {
+	if len(catalog) == 0 {
+		return nil
+	}
+	result := make([]commandFlag, 0, len(catalog[0].flags))
+	for _, flag := range catalog[0].flags {
+		if flag.global {
+			result = append(result, flag)
+		}
+	}
+	return result
+}
+
+func renderFlags(writer io.Writer, heading string, flags []commandFlag) error {
+	if len(flags) == 0 {
+		return nil
+	}
+	if err := fprintf(writer, "\n%s:\n", heading); err != nil {
+		return err
+	}
+	for _, flag := range flags {
+		if err := fprintf(writer, "  %-28s %s\n", flag.usage, flag.description); err != nil {
 			return err
 		}
 	}

@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 
@@ -95,6 +96,80 @@ func TestRepositoryDiscoveryInjectsRepoBeforeShowIdentifier(t *testing.T) {
 	}
 }
 
+func TestRepositoryDiscoveryResolvesSymlinkedWorkingDirectory(t *testing.T) {
+	repo := healthyOperatorRepository(t)
+	nested := filepath.Join(repo, "nested")
+	if err := os.Mkdir(nested, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	workingDirectory := filepath.Join(t.TempDir(), "linked-working-directory")
+	if err := os.Symlink(nested, workingDirectory); err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	if code := runWithConfig([]string{"status", "--json"}, runConfig{Stdout: &stdout, Stderr: &stderr, WorkingDir: workingDirectory, Width: 80}); code != 0 {
+		t.Fatalf("symlinked discovery exit = %d, stderr=%q", code, stderr.String())
+	}
+	var result map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	resolvedRepo, err := filepath.EvalSymlinks(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result["repo"] != resolvedRepo {
+		t.Fatalf("symlinked discovery result = %#v, want repo %q", result, resolvedRepo)
+	}
+}
+
+func TestGlobalOptionsAndRepositoryResolutionStopAtSentinel(t *testing.T) {
+	arguments := []string{"hash", "--", "--color", "always", "--json", "--help"}
+	parsed, display, err := parsePresentation(arguments)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(parsed, "\x00") != strings.Join(arguments, "\x00") || display.asJSON || display.colorMode != "auto" {
+		t.Fatalf("sentinel presentation = (%q, %#v), want (%q, plain)", parsed, display, arguments)
+	}
+
+	repo := healthyOperatorRepository(t)
+	normalized, err := normalizeRepositoryArgs([]string{"--", "--repo", "outside"}, repositoryOpen, repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolvedRepo, err := filepath.EvalSymlinks(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"--repo", resolvedRepo, "--", "--repo", "outside"}
+	if strings.Join(normalized, "\x00") != strings.Join(want, "\x00") {
+		t.Fatalf("sentinel repository arguments = %q, want %q", normalized, want)
+	}
+	missingValue, err := normalizeRepositoryArgs([]string{"--repo", "--"}, repositoryOpen, repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if want := []string{"--repo", "--"}; strings.Join(missingValue, "\x00") != strings.Join(want, "\x00") {
+		t.Fatalf("sentinel repository value = %q, want %q", missingValue, want)
+	}
+
+	directory := t.TempDir()
+	t.Chdir(directory)
+	for _, name := range []string{"--help", "--color", "--repo"} {
+		if err := os.WriteFile(filepath.Join(directory, name), []byte(name), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		var stdout, stderr bytes.Buffer
+		if code := runWithConfig([]string{"hash", "--", name}, runConfig{Stdout: &stdout, Stderr: &stderr, WorkingDir: directory, Width: 80}); code != 0 {
+			t.Fatalf("hash operand %q exit = %d, stderr=%q", name, code, stderr.String())
+		}
+		if strings.Contains(stdout.String(), "Usage:") {
+			t.Fatalf("hash operand %q rendered help: %q", name, stdout.String())
+		}
+	}
+}
+
 func TestStatusColorPrecedenceAndJSONPlainness(t *testing.T) {
 	repo := healthyOperatorRepository(t)
 	for _, test := range []struct {
@@ -104,6 +179,7 @@ func TestStatusColorPrecedenceAndJSONPlainness(t *testing.T) {
 		wantColor bool
 	}{
 		{name: "NO_COLOR", args: []string{"status", "--repo", repo}, config: runConfig{StdoutTerminal: true, Environment: map[string]string{"NO_COLOR": "1"}}, wantColor: false},
+		{name: "empty NO_COLOR", args: []string{"status", "--repo", repo}, config: runConfig{StdoutTerminal: true, Environment: map[string]string{"NO_COLOR": ""}}, wantColor: false},
 		{name: "TERM dumb", args: []string{"status", "--repo", repo}, config: runConfig{StdoutTerminal: true, Environment: map[string]string{"TERM": "dumb"}}, wantColor: false},
 		{name: "always", args: []string{"status", "--repo", repo, "--color", "always"}, config: runConfig{Environment: map[string]string{"NO_COLOR": "1"}}, wantColor: true},
 		{name: "JSON always plain", args: []string{"status", "--repo", repo, "--color", "always", "--json"}, config: runConfig{}, wantColor: false},
@@ -116,6 +192,111 @@ func TestStatusColorPrecedenceAndJSONPlainness(t *testing.T) {
 			}
 			if got := strings.Contains(stdout.String(), "\x1b["); got != test.wantColor {
 				t.Fatalf("color = %v, want %v; stdout=%q", got, test.wantColor, stdout.String())
+			}
+		})
+	}
+}
+
+func TestStatusJSONPresentationErrorUsesOneEnvelope(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := runWithConfig([]string{"status", "--json", "--color", "invalid"}, runConfig{Stdout: &stdout, Stderr: &stderr, Width: 80})
+	if code != exitUsage || stdout.Len() != 0 {
+		t.Fatalf("invalid JSON presentation = (%d, %q, %q)", code, stdout.String(), stderr.String())
+	}
+	decoder := json.NewDecoder(&stderr)
+	var result map[string]any
+	if err := decoder.Decode(&result); err != nil {
+		t.Fatalf("decode JSON diagnostic %q: %v", stderr.String(), err)
+	}
+	var extra any
+	if err := decoder.Decode(&extra); err != io.EOF {
+		t.Fatalf("extra JSON diagnostic %q: %v", stderr.String(), err)
+	}
+	if result["ok"] != false || result["exit_code"] != float64(exitUsage) || !strings.Contains(result["error"].(string), "--color requires") {
+		t.Fatalf("JSON presentation diagnostic = %#v", result)
+	}
+}
+
+func TestLeafFlagErrorsUseOnePACTDiagnostic(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	if code := runWithConfig([]string{"heads", "--not-a-flag"}, runConfig{Stdout: &stdout, Stderr: &stderr, Width: 80}); code != exitUsage {
+		t.Fatalf("leaf parser error exit = %d, stderr=%q", code, stderr.String())
+	}
+	if stdout.Len() != 0 || strings.Count(stderr.String(), "PACT error:") != 1 ||
+		strings.Contains(stderr.String(), "Usage of") || strings.Contains(stderr.String(), "flag provided") ||
+		!strings.Contains(stderr.String(), "invalid heads arguments") {
+		t.Fatalf("leaf parser diagnostic = stdout=%q stderr=%q", stdout.String(), stderr.String())
+	}
+}
+
+func TestCatalogHelpRendersMeaningfulFlagDescriptions(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		args []string
+		want []string
+	}{
+		{name: "top level", args: nil, want: []string{"Global options:", "--json", "machine-readable JSON", "--color auto|always|never", "human color output"}},
+		{name: "command", args: []string{"status", "--help"}, want: []string{"Options:", "--repo PATH", "project root", "--color auto|always|never"}},
+		{name: "nested command", args: []string{"index", "status", "--help"}, want: []string{"Options:", "--repo PATH", "project root", "--json"}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			if code := runWithConfig(test.args, runConfig{Stdout: &stdout, Stderr: &stderr, Width: 80}); code != 0 || stderr.Len() != 0 {
+				t.Fatalf("help exit = %d, stderr=%q", code, stderr.String())
+			}
+			for _, fragment := range test.want {
+				if !strings.Contains(stdout.String(), fragment) {
+					t.Fatalf("help lacks %q: %q", fragment, stdout.String())
+				}
+			}
+		})
+	}
+}
+
+func TestCommandCatalogListsEveryLeafFlag(t *testing.T) {
+	tests := []struct {
+		path string
+		want []string
+	}{
+		{path: "init", want: []string{"--color", "--json", "--namespace", "--repo"}},
+		{path: "keygen", want: []string{"--actor", "--color", "--json", "--out"}},
+		{path: "trust-add", want: []string{"--color", "--json", "--key-file", "--repo"}},
+		{path: "status", want: []string{"--color", "--json", "--repo"}},
+		{path: "heads", want: []string{"--color", "--json", "--namespace", "--repo"}},
+		{path: "show", want: []string{"--color", "--json", "--repo"}},
+		{path: "verify", want: []string{"--color", "--json", "--repo", "--strict"}},
+		{path: "log", want: []string{"--actor", "--color", "--cursor", "--json", "--limit", "--namespace", "--repo"}},
+		{path: "query", want: []string{"--actor", "--caused-by", "--color", "--cursor", "--event-ref", "--json", "--kind", "--limit", "--namespace", "--repo", "--schema-ref", "--subject", "--supersedes", "--tag", "--type"}},
+		{path: "commit", want: []string{"--color", "--correlation-id", "--delegation-ref", "--epoch", "--events", "--json", "--key-file", "--lease-ref", "--namespace", "--observed-at", "--parent", "--repo"}},
+		{path: "checkpoint", want: []string{"--authority-epoch", "--color", "--json", "--key-file", "--policy-ref", "--previous", "--purpose", "--repo", "--schema-ref", "--scope"}},
+		{path: "index status", want: []string{"--color", "--json", "--repo"}},
+		{path: "index rebuild", want: []string{"--color", "--json", "--repo"}},
+		{path: "hash", want: []string{"--color", "--json"}},
+	}
+	catalog := commandCatalog()
+	for _, test := range tests {
+		t.Run(test.path, func(t *testing.T) {
+			var got []string
+			for _, spec := range catalog {
+				if strings.Join(spec.path, " ") != test.path {
+					continue
+				}
+				for _, flag := range spec.flags {
+					name := strings.Fields(flag.usage)[0]
+					got = append(got, name)
+					if strings.TrimSpace(flag.description) == "" {
+						t.Fatalf("catalog flag %q lacks a description", name)
+					}
+				}
+				break
+			}
+			if got == nil {
+				t.Fatalf("catalog lacks %q", test.path)
+			}
+			sort.Strings(got)
+			sort.Strings(test.want)
+			if strings.Join(got, ",") != strings.Join(test.want, ",") {
+				t.Fatalf("catalog flags = %q, want %q", got, test.want)
 			}
 		})
 	}

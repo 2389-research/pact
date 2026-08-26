@@ -636,7 +636,11 @@ func statusGoldenResult(health statuspkg.Health, indexState string) statuspkg.Re
 		result.NextAction = &statuspkg.NextAction{Reason: "indexed reads are not ready", Command: "pact index rebuild"}
 	}
 	if health != statuspkg.HealthBroken {
-		result.Index = &index.Status{Index: index.IndexInfo{State: indexState, Coverage: "complete"}}
+		coverage := "complete"
+		if health == statuspkg.HealthAttention {
+			coverage = "unavailable"
+		}
+		result.Index = &index.Status{Index: index.IndexInfo{State: indexState, Coverage: coverage}}
 	}
 	return result
 }
