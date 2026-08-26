@@ -24,11 +24,23 @@ gate. `go list -m -json github.com/creack/pty@latest` resolved `v1.1.24` on
 
 ## Progress
 
-**State:** Plan written from `wip/operator-cli` evidence on branch
-`wip/setup-cli`. No setup production code has been copied from a rejected
-branch.
+**State:** Tasks 1-7 are implemented and independently approved on
+`wip/setup-cli`. Setup is the canonical bootstrap; fresh compiled-command
+dogfood and every final gate pass. Requirements and fresh-eyes reviewers
+approved the whole branch after all Critical and Important findings were fixed
+through TDD.
 
-**Next step:** Task 1, store publication outcomes and inode-based locks.
+**Delivered commits:**
+
+- Task 1: `753cc08`, with review repair `2c51ceb`;
+- Task 2: `91b0ea6`, with safety repairs `b9eb30c`, `3661ea7`, and `ac3a414`;
+- Task 3: `1f35696`;
+- Task 4: `43e32a3`, with convergence repairs `9e09dd6` and `0db1567`;
+- Task 5: `dbde27b`, with partial-result repair `e3f7172`;
+- Task 6: `99f1e52`, with terminal-safety repairs `843eaf3` and `1a541e4`.
+
+**Remaining work:** Land this exact closeout set. No setup implementation work
+remains, and the branch must not merge without Doctor Biz's explicit choice.
 
 ## Authority and Scope
 
@@ -277,7 +289,7 @@ Successful JSON is one newline-terminated object:
   "namespace": "org/example/widget",
   "actor": "Alice",
   "key_file": "/absolute/operator.key.json",
-  "key_id": "sha256:...",
+  "key_id": "ed25519:sha256:...",
   "actions": [
     {"name":"store","status":"created"},
     {"name":"key","status":"created"},
@@ -303,7 +315,7 @@ setup result in `details`.
 - Modify every direct `store.Init` caller found by
   `rg -n 'store\.Init\(|\bInit\(' internal cmd tests --glob '*.go'`
 
-- [ ] **Step 1: Add failing typed-publication and error-identity tests**
+- [x] **Step 1: Add failing typed-publication and error-identity tests**
 
 Add tests that prove:
 
@@ -325,7 +337,7 @@ env -u GOROOT mise exec -- go test ./internal/store -run 'TestInitResult|TestLoc
 
 Expected red: `Init` still returns `*Store`, and no typed result/error exists.
 
-- [ ] **Step 2: Replace temporary path locks with directory-descriptor locks**
+- [x] **Step 2: Replace temporary path locks with directory-descriptor locks**
 
 Open and flock the resolved repository directory for init. Open and flock the
 real `.pact` directory for read and mutation operations. Keep lock release in
@@ -335,21 +347,21 @@ directory only after no caller uses them.
 Do not silently ignore `Close` after a failed `Flock`; join it only when it is
 non-nil.
 
-- [ ] **Step 3: Return typed init and lock outcomes**
+- [x] **Step 3: Return typed init and lock outcomes**
 
 Set `InitCreated` and the final `Store` immediately after the `.pact` rename.
 Set `InitConflict` only where `checkStoreDestination` or the rename proves a
 no-overwrite collision. Compose operation and release failures with
 `LockError`, filtering nil members from `Unwrap`.
 
-- [ ] **Step 4: Update all callers in the same compiling step**
+- [x] **Step 4: Update all callers in the same compiling step**
 
 Every caller that needs the store reads `result.Store`; `pact init` converts
 `InitConflict` back to the existing exit-3 behavior. Tests that assert a
 second init refusal assert both status and error identity. Search direct,
 test, command, and fixture callers separately before running the package set.
 
-- [ ] **Step 5: Add separate real-filesystem alias concurrency tests**
+- [x] **Step 5: Add separate real-filesystem alias concurrency tests**
 
 Use a real directory plus symlink alias and start barriers, not sleeps:
 
@@ -369,7 +381,7 @@ env -u GOROOT mise exec -- go test ./internal/store ./internal/identity ./intern
 env -u GOROOT mise exec -- go test -race ./internal/store -run 'TestInitSerializesAliases|TestMutationLockSerializesAliases' -count=20
 ```
 
-- [ ] **Step 6: Review and commit**
+- [x] **Step 6: Review and commit**
 
 Run a requirements review, then a code-quality review. Fix all findings and
 commit only the inspected paths:
@@ -393,7 +405,7 @@ env -u GOROOT mise exec -- git commit -m "refactor: report store publication out
 - Modify every `identity.GenerateKeyFile` and `ledger.AddRoot` caller found in
   separate production and test searches
 
-- [ ] **Step 1: Add failing key normalization and path-preflight tests**
+- [x] **Step 1: Add failing key normalization and path-preflight tests**
 
 Prove NFC/trim normalization, empty and over-255-rune refusal, external missing
 target acceptance, existing external target acceptance, and lexical or
@@ -408,42 +420,42 @@ env -u GOROOT mise exec -- go test ./internal/identity -run 'TestNormalizeActor|
 
 Expected red: the exported validators do not exist.
 
-- [ ] **Step 2: Add failing key publication tests**
+- [x] **Step 2: Add failing key publication tests**
 
 Inject failures after link publication and during temporary cleanup. Prove the
 result stays `GenerateCreated` with a loadable 0600 key and the original error
 identity. Prove an existing target is `GenerateConflict`, remains byte-for-byte
 unchanged, and a random I/O failure has no conflict status.
 
-- [ ] **Step 3: Implement typed key outcomes and update all callers**
+- [x] **Step 3: Implement typed key outcomes and update all callers**
 
 Have the internal writer return whether its link succeeded. Normalize the
 actor once and reuse it. Preflight the key path before random generation. On a
 clean link collision, leave reopening and requested-state comparison to setup.
 Update command and test callers in this same compiling step.
 
-- [ ] **Step 4: Add failing trust publication tests**
+- [x] **Step 4: Add failing trust publication tests**
 
 Prove matching public bytes return `RootExisting`, conflicting public bytes
 remain an integrity error, and a post-rename sync failure returns
 `RootCreated` plus the original error. Exercise operation plus lock-release
 failure so the created root remains visible in the result.
 
-- [ ] **Step 5: Implement typed root outcomes and update all callers**
+- [x] **Step 5: Implement typed root outcomes and update all callers**
 
 Set `RootCreated` when `WriteLocalJSON` reports that replacement was published;
 set `RootExisting` only after key ID and public bytes match. To support this,
 make the store's atomic local writer expose a typed published error without
 changing its public call shape. Do not infer publication from error text.
 
-- [ ] **Step 6: Preserve index publication flags after rename**
+- [x] **Step 6: Preserve index publication flags after rename**
 
 Add tests for post-rename directory-sync and published-validation failures.
 After either error, `Created` or `Replaced` must match the pre-rename live-file
 state, and reopening `Status` must classify the actual final bytes. Set these
 flags immediately after rename; fill the full `Status` only after validation.
 
-- [ ] **Step 7: Compile every affected package, review, and commit**
+- [x] **Step 7: Compile every affected package, review, and commit**
 
 ```sh
 env -u GOROOT mise exec -- go test ./internal/identity ./internal/ledger ./internal/index ./internal/status ./cmd/pact ./tests/e2e -count=1
@@ -463,7 +475,7 @@ finding instead of trusting one grep.
 - Create: `internal/setup/setup.go`
 - Create: `internal/setup/setup_test.go`
 
-- [ ] **Step 1: Add failing request-normalization tests**
+- [x] **Step 1: Add failing request-normalization tests**
 
 Table-test missing repository, namespace, actor, key path, nil context, bad
 namespace, unsafe key path, and actor normalization. `Inspect` must reject the
@@ -478,7 +490,7 @@ env -u GOROOT mise exec -- go test ./internal/setup -run 'TestInspectRejectsInva
 
 Expected red: package `internal/setup` does not exist.
 
-- [ ] **Step 2: Add failing observation matrix tests**
+- [x] **Step 2: Add failing observation matrix tests**
 
 With real files and owner APIs, cover:
 
@@ -495,7 +507,7 @@ Assert plan order and exact planned status. A current index plans no rebuild;
 every other index state plans a rebuild. Snapshot every observed file before
 and after `Inspect` to prove no writes.
 
-- [ ] **Step 3: Implement normalization and observation**
+- [x] **Step 3: Implement normalization and observation**
 
 Keep unexported typed observed state in `internal/setup`. Use only owner APIs:
 `store.Open`, `DefaultNamespace`, identity validators/loaders, `ledger.Roots`,
@@ -506,13 +518,13 @@ The repository may not exist yet; normalize its absolute lexical path without
 creating it. A store opened through an alias reports the owner's resolved root
 in the plan.
 
-- [ ] **Step 4: Implement deterministic planning**
+- [x] **Step 4: Implement deterministic planning**
 
 Build exactly five ordered entries. The plan contains paths, actor, namespace,
 and action intent, never key material. Equal filesystem state and request must
 produce `reflect.DeepEqual` plans.
 
-- [ ] **Step 5: Verify, review, and commit**
+- [x] **Step 5: Verify, review, and commit**
 
 ```sh
 env -u GOROOT mise exec -- go test ./internal/setup -count=1
@@ -529,7 +541,7 @@ env -u GOROOT mise exec -- git commit -m "feat: add setup inspection plan"
 - Modify: `internal/setup/setup.go`
 - Modify: `internal/setup/setup_test.go`
 
-- [ ] **Step 1: Add a failing fresh-and-rerun integration test**
+- [x] **Step 1: Add a failing fresh-and-rerun integration test**
 
 Use a fixed time. First apply must return:
 
@@ -554,7 +566,7 @@ index current
 
 Every saved file must remain byte-for-byte identical.
 
-- [ ] **Step 2: Implement ordered application with truthful partial results**
+- [x] **Step 2: Implement ordered application with truthful partial results**
 
 For each action:
 
@@ -572,13 +584,13 @@ For each action:
 Do not hold one outer mutation lock around owner operations; each owner locks
 the smallest valid publication unit and rechecks state under that lock.
 
-- [ ] **Step 3: Add partial-resume and conflict tests**
+- [x] **Step 3: Add partial-resume and conflict tests**
 
 Start from each partial boundary and prove only missing actions change. Test
 namespace, actor, key safety, trust bytes, corrupt store, failed strict verify,
 and failed index rebuild. Snapshot winner bytes in every conflict test.
 
-- [ ] **Step 4: Add publication-failure tests at every mutable owner**
+- [x] **Step 4: Add publication-failure tests at every mutable owner**
 
 Inject store post-rename, key post-link, trust post-rename, and index
 post-rename failures. For each, assert:
@@ -591,7 +603,7 @@ post-rename failures. For each, assert:
 These service-boundary tests are the feasible proof missing from the rejected
 plan. Command-boundary writer failures are a separate Task 5 concern.
 
-- [ ] **Step 5: Add identical and conflicting concurrency tests**
+- [x] **Step 5: Add identical and conflicting concurrency tests**
 
 Run two setup applications through canonical and symlinked repository paths
 with barriers at owner publication points:
@@ -606,7 +618,7 @@ with barriers at owner publication points:
 Assert final bytes and both result status sequences. Do not accept “no race
 detector report” as proof of semantic convergence.
 
-- [ ] **Step 6: Verify, review, and commit**
+- [x] **Step 6: Verify, review, and commit**
 
 ```sh
 env -u GOROOT mise exec -- go test ./internal/setup -count=1
@@ -628,7 +640,7 @@ env -u GOROOT mise exec -- git commit -m "feat: apply resumable ledger setup"
 - Create: `cmd/pact/setup_command_test.go`
 - Modify: `cmd/pact/operator_cli_test.go`
 
-- [ ] **Step 1: Add failing catalog and nonterminal tests**
+- [x] **Step 1: Add failing catalog and nonterminal tests**
 
 Prove help lists setup under **Get started** from the catalog and documents all
 five flags. Fully flagged `--json` and redirected invocations do not read
@@ -638,14 +650,14 @@ namespace, actor, or key path exits 2 before any filesystem write.
 `--repo` defaults to the working directory for setup only; explicit `--repo`
 remains authoritative and uses `repositoryCreate`.
 
-- [ ] **Step 2: Wire the typed command handler**
+- [x] **Step 2: Wire the typed command handler**
 
 Parse setup-local flags with a silent `flag.FlagSet`. Add `StdinTerminal` and
 `Now` to `runConfig`; `main` supplies the real terminal fact and clock. The
 handler calls `setup.Inspect` only for an interactive prompted path and
 `setup.Apply` for execution.
 
-- [ ] **Step 3: Add exact human and JSON renderers**
+- [x] **Step 3: Add exact human and JSON renderers**
 
 Human output uses the selected terminal style: one clear heading, aligned
 five-step progress, restrained color from the existing presentation policy,
@@ -657,7 +669,7 @@ An `ApplyError` renders the existing safe diagnostic plus partial setup details
 without private bytes. Do not print an action as complete unless it exists in
 the service result.
 
-- [ ] **Step 4: Add failed-writer tests at the application boundary**
+- [x] **Step 4: Add failed-writer tests at the application boundary**
 
 Test both human and JSON with a writer that fails after accepting enough bytes
 to publish part of the result. Assert exit 10 after durable setup state exists.
@@ -670,7 +682,7 @@ returns 10 and does not invent a diagnostic on the failed stream. Cover prompt
 and plan write failure separately in Task 6 because those must happen before
 mutation.
 
-- [ ] **Step 5: Verify, review, and commit**
+- [x] **Step 5: Verify, review, and commit**
 
 ```sh
 env -u GOROOT mise exec -- go test ./cmd/pact -run 'TestSetup|TestHelp.*Setup' -count=1
@@ -691,7 +703,7 @@ env -u GOROOT mise exec -- git commit -m "feat: add automated setup command"
 - Modify: `go.mod`
 - Modify: `go.sum`
 
-- [ ] **Step 1: Add failing prompt state-machine tests**
+- [x] **Step 1: Add failing prompt state-machine tests**
 
 Only when stdin is a terminal, prompt in order for missing namespace, actor,
 and key path. Existing observed values may be offered as defaults for explicit
@@ -702,20 +714,20 @@ If any prompt occurred, render one complete plan to stderr and ask one final
 case-insensitive `[y/N]` confirmation. `y` and `yes` continue. Empty, `n`, or
 `no` returns the typed cancelled result, exits 0, and writes nothing.
 
-- [ ] **Step 2: Prove all pre-mutation writer failures**
+- [x] **Step 2: Prove all pre-mutation writer failures**
 
 Inject a stderr writer failure during each prompt, during the plan, and during
 confirmation. Every case exits 10 and leaves repo, key, trust, and index
 absent or byte-identical. No fallback prompt is written to stdout.
 
-- [ ] **Step 3: Implement the smallest prompt layer**
+- [x] **Step 3: Implement the smallest prompt layer**
 
 Keep prompt parsing in `cmd/pact`; do not put terminal facts or readers in
 `internal/setup`. Use one bounded reader for the interaction. Render the plan
 from the same `setup.Plan` that the confirmation approves, then let `Apply`
 re-observe state for concurrency safety.
 
-- [ ] **Step 4: Add compiled-binary and real-PTY coverage**
+- [x] **Step 4: Add compiled-binary and real-PTY coverage**
 
 Pin `github.com/creack/pty v1.1.24` as a test-only dependency. Start the built
 binary under a real PTY and assert prompt order, one plan, one confirmation,
@@ -733,7 +745,7 @@ In ordinary compiled-process tests cover:
 - identical and conflicting processes using canonical and symlink paths;
 - no `private_key` under the repo or in captured stdout/stderr.
 
-- [ ] **Step 5: Verify, review, and commit**
+- [x] **Step 5: Verify, review, and commit**
 
 ```sh
 env -u GOROOT mise exec -- go test ./cmd/pact ./tests/e2e -run 'TestSetup' -count=1
@@ -754,14 +766,14 @@ env -u GOROOT mise exec -- git commit -m "test: prove interactive setup lifecycl
 - Modify: `gotchas.md`
 - Create: `docs/status/operator-cli-setup.md`
 
-- [ ] **Step 1: Make setup part of the canonical lifecycle**
+- [x] **Step 1: Make setup part of the canonical lifecycle**
 
 Replace the separate init/keygen/trust-add bootstrap in `scripts/check` with
 one fully flagged `pact setup --json` call. Assert five ordered statuses and a
 current index. Keep existing commit/query/verify behavior and the repository
 secret scan.
 
-- [ ] **Step 2: Update operator documentation**
+- [x] **Step 2: Update operator documentation**
 
 README shows automated and guided setup, states that keys live outside the
 project, and explains safe reruns. Mark only the setup slice complete in the
@@ -769,7 +781,7 @@ design. Update this plan's progress with commit IDs and exact remaining work.
 Replace the obsolete setup-deferred gotcha with the shipped behavior; edit
 that entry in place rather than appending a contradiction.
 
-- [ ] **Step 3: Dogfood the compiled command**
+- [x] **Step 3: Dogfood the compiled command**
 
 Build one binary in a fresh temporary directory. Run fresh and rerun setup,
 compare store/key/trust/canonical/index bytes, verify 0600 key mode, run strict
@@ -778,7 +790,7 @@ output plus repository files for `private_key` and base64 private seed bytes.
 Record commands and durable IDs/digests in
 `docs/status/operator-cli-setup.md`; never record the private key bytes.
 
-- [ ] **Step 4: Run every final gate from a clean status**
+- [x] **Step 4: Run every final gate from a clean status**
 
 ```sh
 env -u GOROOT mise exec -- gofmt -w <only changed Go files>
@@ -794,7 +806,7 @@ Use a fresh `GOCACHE` and `GOLANGCI_LINT_CACHE` if the lint cache reports paths
 from another clone. Do not dismiss any warning as noise without proving it
 predates this branch.
 
-- [ ] **Step 5: Run independent whole-branch review**
+- [x] **Step 5: Run independent whole-branch review**
 
 Request a requirements review against the approved design and this plan, then
 a fresh-eyes code review of `wip/operator-cli...HEAD`. The reviewers must
@@ -810,7 +822,7 @@ explicitly answer:
 Fix every Critical and Important finding with TDD, rerun all gates, and ask the
 reviewers to verify the fixes.
 
-- [ ] **Step 6: Commit the closeout**
+- [x] **Step 6: Commit the closeout**
 
 ```sh
 git status --short

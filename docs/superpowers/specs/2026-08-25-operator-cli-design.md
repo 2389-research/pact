@@ -3,7 +3,8 @@
 
 # PACT Operator CLI Design
 
-**Status:** Foundation implemented; setup and renderer plans pending.
+**Status:** Foundation and setup implemented; log, query, and show renderer
+work remains pending.
 
 ## Goal
 
@@ -102,6 +103,9 @@ stream selects plain mode; otherwise `auto` selects color and symbols.
 
 ## Setup
 
+**Implementation status:** Complete on `wip/setup-cli`. The remaining sections
+of this design keep their prior status.
+
 `pact setup` converges the requested directory on a usable local ledger:
 
 1. initialize or validate the store;
@@ -162,19 +166,19 @@ and index reports `created`, `rebuilt`, or `current`.
 {
   "operation": "setup",
   "ok": true,
-  "status": "configured",
+  "status": "ready",
   "repo": "/resolved/project",
   "store": "/resolved/project/.pact",
   "namespace": "org/example/widget",
   "actor": "Alice",
-  "key_path": "/resolved/keys/alice.json",
+  "key_file": "/resolved/keys/alice.json",
   "key_id": "ed25519:sha256:...",
   "actions": [
-    {"step": "store", "status": "created"},
-    {"step": "key", "status": "created"},
-    {"step": "trust", "status": "created"},
-    {"step": "verify", "status": "valid"},
-    {"step": "index", "status": "created"}
+    {"name": "store", "status": "created"},
+    {"name": "key", "status": "created"},
+    {"name": "trust", "status": "created"},
+    {"name": "verify", "status": "valid"},
+    {"name": "index", "status": "created"}
   ]
 }
 ```

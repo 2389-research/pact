@@ -186,6 +186,26 @@ func TestGenerateKeyFileReportsCreatedAfterTemporaryCleanupFailure(t *testing.T)
 	assertPublishedGeneratedKey(t, result, path)
 }
 
+func TestGenerateKeyFilePreservesDirectorySyncAndTemporaryCleanupFailures(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "alice.key.json")
+	syncFault := errors.New("injected key directory sync failure")
+	cleanupFault := errors.New("injected key temporary cleanup failure")
+	oldSync := syncKeyDirectory
+	oldRemove := removeKeyTemporary
+	syncKeyDirectory = func(string) error { return syncFault }
+	removeKeyTemporary = func(string) error { return cleanupFault }
+	t.Cleanup(func() {
+		syncKeyDirectory = oldSync
+		removeKeyTemporary = oldRemove
+	})
+
+	result, err := GenerateKeyFile(path, "Alice", time.Now())
+	if !errors.Is(err, syncFault) || !errors.Is(err, cleanupFault) {
+		t.Fatalf("GenerateKeyFile() error = %v, want sync and cleanup faults", err)
+	}
+	assertPublishedGeneratedKey(t, result, path)
+}
+
 func TestGenerateKeyFileClassifiesOnlyExistingTargetAsConflict(t *testing.T) {
 	directory := t.TempDir()
 	path := filepath.Join(directory, "alice.key.json")

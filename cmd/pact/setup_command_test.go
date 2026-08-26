@@ -526,25 +526,35 @@ func TestSetupWriterFailuresReturnUnexpectedAfterDurableApply(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			repo := t.TempDir()
 			keyFile := filepath.Join(t.TempDir(), "alice.key.json")
-			stdout := &setupPartialWriter{limit: 24}
 			var stderr bytes.Buffer
-			args := []string{"setup", "--namespace", "org/example/widget", "--actor", "Alice", "--key-file", keyFile}
-			if asJSON {
-				args = append(args, "--json")
+			config := setupRunConfig(repo, io.Discard, &stderr, false)
+			output, err := runSetup([]string{
+				"--repo", repo, "--namespace", "org/example/widget", "--actor", "Alice", "--key-file", keyFile,
+			}, io.Discard, config)
+			if err != nil || output.setup == nil {
+				t.Fatalf("direct setup apply = (%#v, %v)", output.setup, err)
 			}
-			config := setupRunConfig(repo, stdout, &stderr, false)
-			if code := runWithConfig(args, config); code != exitUnexpectedError {
+			created := []setuppkg.ActionStatus{
+				setuppkg.ActionCreated, setuppkg.ActionCreated, setuppkg.ActionCreated, setuppkg.ActionValid, setuppkg.ActionCreated,
+			}
+			assertTypedSetupActions(t, *output.setup, created)
+
+			stdout := &setupPartialWriter{limit: 24}
+			config.Stdout = stdout
+			if code := writeSetup(config, presentation{asJSON: asJSON}, *output.setup); code != exitUnexpectedError {
 				t.Fatalf("setup writer failure exit = %d, stderr=%q", code, stderr.String())
 			}
 			if stdout.accepted == 0 || !strings.Contains(stderr.String(), "setup output failed") {
 				t.Fatalf("setup writer failure output = accepted %d, stderr=%q", stdout.accepted, stderr.String())
 			}
+			assertTypedSetupActions(t, *output.setup, created)
+
 			var sink bytes.Buffer
-			output, err := runSetup([]string{"--repo", repo, "--namespace", "org/example/widget", "--actor", "Alice", "--key-file", keyFile}, io.Discard, config)
-			if err != nil || output.setup == nil {
-				t.Fatalf("direct setup rerun = (%#v, %v)", output.setup, err)
+			rerun, err := runSetup([]string{"--repo", repo, "--namespace", "org/example/widget", "--actor", "Alice", "--key-file", keyFile}, io.Discard, config)
+			if err != nil || rerun.setup == nil {
+				t.Fatalf("direct setup rerun = (%#v, %v)", rerun.setup, err)
 			}
-			if err := json.NewEncoder(&sink).Encode(setupResultMap(*output.setup)); err != nil {
+			if err := json.NewEncoder(&sink).Encode(setupResultMap(*rerun.setup)); err != nil {
 				t.Fatal(err)
 			}
 			assertSetupActions(t, decodeSetupJSON(t, sink.Bytes()), []setuppkg.ActionStatus{
@@ -677,6 +687,18 @@ func assertSetupActions(t *testing.T, result map[string]any, statuses []setuppkg
 		assertExactKeys(t, action, "name", "status")
 		if action["name"] != string(names[position]) || action["status"] != string(statuses[position]) {
 			t.Fatalf("setup action %d = %#v, want (%s, %s)", position, action, names[position], statuses[position])
+		}
+	}
+}
+
+func assertTypedSetupActions(t *testing.T, result setuppkg.Result, statuses []setuppkg.ActionStatus) {
+	t.Helper()
+	if len(result.Actions) != len(statuses) {
+		t.Fatalf("setup actions = %#v, want statuses %#v", result.Actions, statuses)
+	}
+	for position, action := range result.Actions {
+		if action.Status != statuses[position] {
+			t.Fatalf("setup action %d = %#v, want status %s", position, action, statuses[position])
 		}
 	}
 }

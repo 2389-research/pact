@@ -320,8 +320,12 @@ func writeNewFile(path string, data []byte, mode fs.FileMode) (published bool, e
 	}
 	tempPath := temporary.Name()
 	defer func() {
-		if removeErr := removeKeyTemporary(tempPath); removeErr != nil && !errors.Is(removeErr, fs.ErrNotExist) && err == nil {
-			err = removeErr
+		if removeErr := removeKeyTemporary(tempPath); removeErr != nil && !errors.Is(removeErr, fs.ErrNotExist) {
+			if err == nil {
+				err = removeErr
+			} else {
+				err = errors.Join(err, removeErr)
+			}
 		}
 	}()
 	if err := temporary.Chmod(mode); err != nil {

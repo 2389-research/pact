@@ -122,15 +122,19 @@ func TestREADMEInstallCommandPlacesPactAtDocumentedDestination(t *testing.T) {
 	}
 }
 
-func TestCanonicalCheckRunsRealIndexLifecycle(t *testing.T) {
+func TestCanonicalCheckRunsRealSetupAndIndexLifecycle(t *testing.T) {
 	script, err := os.ReadFile(filepath.Join(projectRoot(t), "scripts", "check"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, fragment := range []string{
-		`"$check_pact" init`,
-		`"$check_pact" keygen`,
-		`"$check_pact" trust-add`,
+		`"$check_pact" setup --repo "$check_repo" --namespace org/pact/check --actor scripts/check --key-file "$check_key" --json`,
+		`("store", "created")`,
+		`("key", "created")`,
+		`("trust", "created")`,
+		`("verify", "valid")`,
+		`("index", "created")`,
+		`setup_index["index"]["state"] == "current"`,
 		`"$check_pact" commit`,
 		`"$check_pact" index status`,
 		`"$check_pact" index rebuild`,
@@ -148,6 +152,33 @@ func TestCanonicalCheckRunsRealIndexLifecycle(t *testing.T) {
 	}
 	if bytes.Contains(script, []byte("python3")) {
 		t.Fatal("scripts/check bypasses the managed uv Python boundary")
+	}
+}
+
+func TestSetupDeliveryArtifactsMatchShippedContract(t *testing.T) {
+	root := projectRoot(t)
+	design, err := os.ReadFile(filepath.Join(root, "docs", "superpowers", "specs", "2026-08-25-operator-cli-design.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, fragment := range []string{`"status": "ready"`, `"key_file":`, `{"name": "store"`} {
+		if !bytes.Contains(design, []byte(fragment)) {
+			t.Fatalf("setup design lacks shipped JSON field %q", fragment)
+		}
+	}
+	for _, obsolete := range []string{`"status": "configured"`, `"key_path":`, `{"step": "store"`} {
+		if bytes.Contains(design, []byte(obsolete)) {
+			t.Fatalf("setup design retains obsolete JSON field %q", obsolete)
+		}
+	}
+
+	scenarios, err := os.ReadFile(filepath.Join(root, "scenarios.jsonl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	setupValidations := `"validates":["tests/e2e:TestSetupCompiledLifecycle","tests/e2e:TestSetupRealPTYPromptContract"]`
+	if !bytes.Contains(scenarios, []byte(setupValidations)) || bytes.Contains(scenarios, []byte(`.scratch/setup-lifecycle.sh`)) {
+		t.Fatalf("setup scenario does not name only shipped validation: %s", scenarios)
 	}
 }
 

@@ -9,11 +9,12 @@ signed event commits, inspects local heads and objects, verifies the full
 store, makes official signed checkpoints, and queries a disposable SQLite
 index in deterministic causal batches.
 
-The Phase 0 contract, Phase 1 single-replica core, and Phase 2 bounded index and
-query surface are implemented. The setup wrapper is deferred; use the explicit
-bootstrap commands below. See the
+The Phase 0 contract, Phase 1 single-replica core, Phase 2 bounded index and
+query surface, and five-step setup command are implemented. See the
 [Phase 0 and Phase 1 status](docs/status/phase-0-1-dogfood.md) for exact gate,
-ledger, checkpoint, recovery, and setup-review evidence.
+ledger, checkpoint, and recovery evidence, and the
+[setup status](docs/status/operator-cli-setup.md) for setup dogfood and review
+evidence.
 
 ## Install
 
@@ -57,10 +58,31 @@ adds color only on a suitable terminal; `NO_COLOR` and `TERM=dumb` disable it.
 `always` forces color, `never` disables it, and JSON output never contains ANSI
 escapes.
 
-Setup remains deferred: this foundation does not ship `pact setup`. Use the
-explicit bootstrap lifecycle below to create a repository, key, and trusted
-root. Rebuild the derived index explicitly with `pact index rebuild` after a
-canonical write makes it stale.
+`pact setup` is the canonical bootstrap. A fully flagged command never prompts
+and is safe for automation:
+
+```sh
+pact setup \
+  --repo /path/to/project \
+  --namespace org/example/widget \
+  --actor operator/alice \
+  --key-file /path/outside/project/operator.key.json \
+  --json
+```
+
+On a terminal, omit missing values for a guided setup. PACT asks for the
+namespace, actor, and external key path, prints one five-step plan, then asks
+for confirmation before writing anything:
+
+```sh
+pact setup --repo /path/to/project
+```
+
+The key must live outside the project root. An exact rerun accepts the existing
+store, key, and trust root, verifies canonical state, and accepts or rebuilds
+the derived index. It never overwrites a conflicting namespace, actor, key, or
+trust root. Run the same command after an interrupted setup to resume from the
+last durable action.
 
 ## Build and run an operator lifecycle
 
@@ -79,18 +101,10 @@ key_file="$key_dir/operator.key.json"
 mkdir -p "$repo"
 env -u GOROOT mise exec -- go build -o "$pact" ./cmd/pact
 
-"$pact" init \
+"$pact" setup \
   --repo "$repo" \
   --namespace org/example/widget \
-  --json
-
-"$pact" keygen \
   --actor operator/alice \
-  --out "$key_file" \
-  --json
-
-"$pact" trust-add \
-  --repo "$repo" \
   --key-file "$key_file" \
   --json
 
@@ -160,8 +174,8 @@ a full strict store verification before it persists checkpoint bytes.
 
 ## Index and query operations
 
-The shipped command inventory is `init`, `keygen`, `trust-add`, `hash`,
-`commit`, `heads`, `show`, `verify`, `checkpoint`, `index status`,
+The shipped command inventory is `setup`, `init`, `keygen`, `trust-add`, `hash`,
+`commit`, `status`, `heads`, `show`, `verify`, `checkpoint`, `index status`,
 `index rebuild`, `log`, and `query`.
 
 The live SQLite file is `.pact/index/pact-v1.sqlite3`. It is derived,
@@ -277,7 +291,7 @@ exclusive store lock through publication, so large repositories make queries
 costly and pause writers during rebuild. This simple fixed-snapshot tradeoff is
 intentional for the local Phase 2 scope.
 
-Phase 3 payload and schema meaning, setup automation, network sync, policy
+Phase 3 payload and schema meaning, network sync, policy
 execution, and delegated authority remain out of scope. PACT also has no
 trusted timestamps, hardware key service, or global completeness claim.
 

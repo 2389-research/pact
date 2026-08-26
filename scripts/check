@@ -20,6 +20,8 @@ check_repo="$check_tmp/repo"
 check_key="$check_tmp/operator.key.json"
 check_events="$check_tmp/events.json"
 check_index="$check_repo/.pact/index/pact-v1.sqlite3"
+check_setup="$check_tmp/setup.json"
+check_setup_index="$check_tmp/setup-index.json"
 check_status="$check_tmp/status.json"
 check_rebuild_before="$check_tmp/rebuild-before.json"
 check_rebuild_after="$check_tmp/rebuild-after.json"
@@ -32,9 +34,8 @@ go build -o "$check_pact" ./cmd/pact
 mkdir -p "$check_repo"
 printf '%s\n' '{"events":[{"local_id":"check","kind":"observation","type":"build.check.executed","subject":"pact/scripts/check","schema_ref":"pact:core/generic-object/v1","payload":{},"evidence":[],"caused_by":[],"supersedes":[],"tags":["check"]}]}' >"$check_events"
 
-"$check_pact" init --repo "$check_repo" --namespace org/pact/check --json >/dev/null
-"$check_pact" keygen --actor scripts/check --out "$check_key" --json >/dev/null
-"$check_pact" trust-add --repo "$check_repo" --key-file "$check_key" --json >/dev/null
+"$check_pact" setup --repo "$check_repo" --namespace org/pact/check --actor scripts/check --key-file "$check_key" --json >"$check_setup"
+"$check_pact" index status --repo "$check_repo" --json >"$check_setup_index"
 "$check_pact" commit --repo "$check_repo" --key-file "$check_key" --events "$check_events" --json >"$check_tmp/commit.json"
 "$check_pact" index status --repo "$check_repo" --json >"$check_status"
 "$check_pact" index rebuild --repo "$check_repo" --json >"$check_rebuild_before"
@@ -42,13 +43,21 @@ printf '%s\n' '{"events":[{"local_id":"check","kind":"observation","type":"build
 "$check_pact" query --repo "$check_repo" --type build.check.executed --json >"$check_query_before"
 "$check_pact" verify --repo "$check_repo" --strict --json >"$check_verify"
 
-uv run - "$check_tmp/commit.json" "$check_status" "$check_rebuild_before" "$check_log" "$check_query_before" "$check_verify" <<'PY'
+uv run - "$check_setup" "$check_setup_index" "$check_tmp/commit.json" "$check_status" "$check_rebuild_before" "$check_log" "$check_query_before" "$check_verify" <<'PY'
 import json
 import sys
 
-commit, status, rebuild, log, query, verify = [json.load(open(path, encoding="utf-8")) for path in sys.argv[1:]]
+setup, setup_index, commit, status, rebuild, log, query, verify = [json.load(open(path, encoding="utf-8")) for path in sys.argv[1:]]
 event_ref = commit["event_refs"][0]
-assert status["index"]["state"] == "missing"
+assert [(action["name"], action["status"]) for action in setup["actions"]] == [
+    ("store", "created"),
+    ("key", "created"),
+    ("trust", "created"),
+    ("verify", "valid"),
+    ("index", "created"),
+]
+assert setup_index["index"]["state"] == "current"
+assert status["index"]["state"] == "stale"
 assert rebuild["index"]["state"] == "current"
 assert rebuild["index"]["coverage"] == "complete"
 assert [item["event_ref"] for batch in log["batches"] for item in batch["items"]] == [event_ref]
