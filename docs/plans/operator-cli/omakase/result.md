@@ -133,13 +133,13 @@ despite passing the broad gates.
 
 ## Cleanup
 
-Worktrees, pending:
+Worktrees, removed:
 
 - `operator-cli-stdlib`
 - `operator-cli-cobra`
 - `operator-cli-kong`
 
-Branches, pending:
+Branches, removed:
 
 - `operator-cli/omakase/stdlib`
 - `operator-cli/omakase/cobra`
