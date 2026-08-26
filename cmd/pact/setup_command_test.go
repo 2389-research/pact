@@ -3,9 +3,11 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -132,6 +134,126 @@ func TestSetupMissingValuesExitUsageBeforeWrites(t *testing.T) {
 			if _, err := os.Lstat(keyFile); !errors.Is(err, os.ErrNotExist) {
 				t.Fatalf("missing %s wrote key: %v", test.missing, err)
 			}
+		})
+	}
+}
+
+func TestSetupTerminalPromptsInOrderPlansOnceAndCancelsWithoutWrites(t *testing.T) {
+	repo := filepath.Join(t.TempDir(), "unwritten-project")
+	keyFile := filepath.Join(t.TempDir(), "alice.key.json")
+	stdin := strings.NewReader("org/example/widget\nAlice\n" + keyFile + "\nno\n")
+	var stdout, stderr bytes.Buffer
+	config := setupRunConfig(t.TempDir(), &stdout, &stderr, true)
+	config.Stdin = stdin
+
+	if code := runWithConfig([]string{"setup", "--repo", repo}, config); code != 0 {
+		t.Fatalf("setup cancel exit = %d, stderr=%q", code, stderr.String())
+	}
+	for _, fragment := range []string{"Namespace", "Actor", "Key file", "PACT setup plan", "store", "key", "trust", "verify", "index", "Continue? [y/N]"} {
+		if !strings.Contains(stderr.String(), fragment) {
+			t.Fatalf("interactive setup lacks %q: %q", fragment, stderr.String())
+		}
+	}
+	if strings.Index(stderr.String(), "Namespace") > strings.Index(stderr.String(), "Actor") ||
+		strings.Index(stderr.String(), "Actor") > strings.Index(stderr.String(), "Key file") {
+		t.Fatalf("prompt order = %q", stderr.String())
+	}
+	if strings.Count(stderr.String(), "PACT setup plan") != 1 || strings.Count(stderr.String(), "Continue? [y/N]") != 1 {
+		t.Fatalf("plan/confirmation count = %q", stderr.String())
+	}
+	result := setupHumanResult(t, stdout.String())
+	if result != setupCancelledStatus {
+		t.Fatalf("setup cancel result = %q, stdout=%q", result, stdout.String())
+	}
+	assertSetupPathsAbsent(t, repo, keyFile)
+}
+
+func TestSetupTerminalAcceptsObservedDefaultsAndExplicitYes(t *testing.T) {
+	repo := t.TempDir()
+	keyFile := filepath.Join(t.TempDir(), "alice.key.json")
+	var initialOut, initialErr bytes.Buffer
+	initial := setupRunConfig(repo, &initialOut, &initialErr, false)
+	if code := runWithConfig([]string{
+		"setup", "--namespace", "org/example/widget", "--actor", "Alice", "--key-file", keyFile, "--json",
+	}, initial); code != 0 {
+		t.Fatalf("initial setup exit = %d, stderr=%q", code, initialErr.String())
+	}
+
+	var stdout, stderr bytes.Buffer
+	config := setupRunConfig(repo, &stdout, &stderr, true)
+	config.Stdin = strings.NewReader("\n\nyEs\n")
+	if code := runWithConfig([]string{"setup", "--key-file", keyFile}, config); code != 0 {
+		t.Fatalf("defaulted setup exit = %d, stderr=%q", code, stderr.String())
+	}
+	for _, fragment := range []string{"Namespace [org/example/widget]", "Actor [Alice]", "Continue? [y/N]"} {
+		if !strings.Contains(stderr.String(), fragment) {
+			t.Fatalf("observed-default setup lacks %q: %q", fragment, stderr.String())
+		}
+	}
+	if !strings.Contains(stdout.String(), "ready") {
+		t.Fatalf("accepted setup output = %q", stdout.String())
+	}
+}
+
+func TestSetupTerminalFreshExamplesAreNotDefaults(t *testing.T) {
+	repo := filepath.Join(t.TempDir(), "unwritten-project")
+	keyFile := filepath.Join(t.TempDir(), "alice.key.json")
+	var stdout, stderr bytes.Buffer
+	config := setupRunConfig(t.TempDir(), &stdout, &stderr, true)
+	config.Stdin = strings.NewReader("\n")
+
+	if code := runWithConfig([]string{"setup", "--repo", repo, "--actor", "Alice", "--key-file", keyFile}, config); code != exitUsage {
+		t.Fatalf("empty fresh namespace exit = %d, stderr=%q", code, stderr.String())
+	}
+	if stdout.Len() != 0 || !strings.Contains(stderr.String(), "example: org/example/widget") || !strings.Contains(stderr.String(), "namespace is required") {
+		t.Fatalf("empty fresh namespace output = stdout=%q stderr=%q", stdout.String(), stderr.String())
+	}
+	assertSetupPathsAbsent(t, repo, keyFile)
+}
+
+func TestSetupTerminalRejectsOverlongLineBeforeWrites(t *testing.T) {
+	repo := filepath.Join(t.TempDir(), "unwritten-project")
+	keyFile := filepath.Join(t.TempDir(), "alice.key.json")
+	var stdout, stderr bytes.Buffer
+	config := setupRunConfig(t.TempDir(), &stdout, &stderr, true)
+	config.Stdin = strings.NewReader(strings.Repeat("n", 64*1024+1) + "\n")
+
+	if code := runWithConfig([]string{"setup", "--repo", repo, "--actor", "Alice", "--key-file", keyFile}, config); code != exitUsage {
+		t.Fatalf("overlong line exit = %d, stderr=%q", code, stderr.String())
+	}
+	if stdout.Len() != 0 || !strings.Contains(stderr.String(), "setup input exceeds 64 KiB") {
+		t.Fatalf("overlong line output = stdout=%q stderr=%q", stdout.String(), stderr.String())
+	}
+	assertSetupPathsAbsent(t, repo, keyFile)
+}
+
+func TestSetupInputAllowsExact64KiBWithCRLF(t *testing.T) {
+	want := strings.Repeat("n", setupInputLimit)
+	reader := bufio.NewReaderSize(strings.NewReader(want+"\r\n"), setupInputLimit+3)
+	got, err := readSetupLine(reader, io.Discard, "")
+	if err != nil || got != want {
+		t.Fatalf("exact 64 KiB CRLF input = (%d bytes, %v), want %d bytes", len(got), err, len(want))
+	}
+}
+
+func TestSetupTerminalWriterFailuresPrecedeAllMutation(t *testing.T) {
+	for _, failCall := range []int{1, 2, 3, 4, 5} {
+		t.Run(fmt.Sprintf("stderr write %d", failCall), func(t *testing.T) {
+			repo := filepath.Join(t.TempDir(), "unwritten-project")
+			keyFile := filepath.Join(t.TempDir(), "alice.key.json")
+			stdin := strings.NewReader("org/example/widget\nAlice\n" + keyFile + "\nyes\n")
+			var stdout bytes.Buffer
+			stderr := &setupCallFailWriter{failCall: failCall}
+			config := setupRunConfig(t.TempDir(), &stdout, stderr, true)
+			config.Stdin = stdin
+
+			if code := runWithConfig([]string{"setup", "--repo", repo}, config); code != exitUnexpectedError {
+				t.Fatalf("writer failure %d exit = %d", failCall, code)
+			}
+			if stdout.Len() != 0 {
+				t.Fatalf("writer failure %d fell back to stdout: %q", failCall, stdout.String())
+			}
+			assertSetupPathsAbsent(t, repo, keyFile)
 		})
 	}
 }
@@ -344,10 +466,44 @@ func (writer *setupRejectingWriter) Write([]byte) (int, error) {
 	return 0, errors.New("closed setup diagnostic")
 }
 
+type setupCallFailWriter struct {
+	calls, failCall int
+	output          bytes.Buffer
+}
+
+func (writer *setupCallFailWriter) Write(value []byte) (int, error) {
+	writer.calls++
+	if writer.calls == writer.failCall {
+		return 0, errors.New("closed interactive diagnostic")
+	}
+	return writer.output.Write(value)
+}
+
 func setupRunConfig(workingDir string, stdout, stderr io.Writer, stdinTerminal bool) runConfig {
 	return runConfig{
 		Stdin: refusedSetupInput{}, Stdout: stdout, Stderr: stderr, WorkingDir: workingDir,
 		StdinTerminal: stdinTerminal, Width: 80, Now: func() time.Time { return setupTestNow },
+	}
+}
+
+func setupHumanResult(t *testing.T, output string) string {
+	t.Helper()
+	if strings.Contains(output, setupCancelledStatus) {
+		return setupCancelledStatus
+	}
+	if strings.Contains(output, "ready") {
+		return "ready"
+	}
+	return ""
+}
+
+func assertSetupPathsAbsent(t *testing.T, repo, keyFile string) {
+	t.Helper()
+	if _, err := os.Lstat(repo); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("setup wrote repository: %v", err)
+	}
+	if _, err := os.Lstat(keyFile); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("setup wrote key: %v", err)
 	}
 }
 

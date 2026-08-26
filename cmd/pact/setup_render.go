@@ -16,7 +16,7 @@ func setupResultMap(result setuppkg.Result) map[string]any {
 		actions[position] = map[string]any{"name": string(action.Name), "status": string(action.Status)}
 	}
 	return map[string]any{
-		"operation": "setup", "ok": result.Status == "ready", "status": result.Status,
+		"operation": "setup", "ok": result.Status == "ready" || result.Status == setupCancelledStatus, "status": result.Status,
 		"repo": result.Repo, "store": result.Store, "namespace": result.Namespace, "actor": result.Actor,
 		"key_file": result.KeyFile, "key_id": result.KeyID, "actions": actions,
 	}
@@ -47,13 +47,31 @@ func writeSetupError(config runConfig, display presentation, result setuppkg.Res
 
 func emitSetupHuman(writer io.Writer, result setuppkg.Result, color bool, _ int) error {
 	var output strings.Builder
-	fmt.Fprintf(&output, "PACT setup\nRepo      %s\nStore     %s\nKey file  %s\nKey ID    %s\n\nSetup\n", result.Repo, result.Store, result.KeyFile, result.KeyID)
+	fmt.Fprintf(&output, "PACT setup\nRepo      %s\nStore     %s\nKey file  %s\n", result.Repo, result.Store, result.KeyFile)
+	if result.KeyID != "" {
+		fmt.Fprintf(&output, "Key ID    %s\n", result.KeyID)
+	}
+	if result.Status == setupCancelledStatus {
+		fmt.Fprintf(&output, "\n%s\n", setupCancelledStatus)
+		_, err := io.WriteString(writer, output.String())
+		return err
+	}
+	output.WriteString("\nSetup\n")
 	writeSetupActions(&output, result.Actions, color)
 	ready := "ready"
 	if color {
 		ready = "\x1b[32m" + ready + "\x1b[0m"
 	}
 	fmt.Fprintf(&output, "\n%s\n", ready)
+	_, err := io.WriteString(writer, output.String())
+	return err
+}
+
+func emitSetupPlan(writer io.Writer, plan setuppkg.Plan) error {
+	var output strings.Builder
+	fmt.Fprintf(&output, "\nPACT setup plan\nRepo       %s\nNamespace  %s\nActor      %s\nKey file   %s\n\nPlan\n", plan.Repo, plan.Namespace, plan.Actor, plan.KeyFile)
+	writeSetupActions(&output, plan.Actions, false)
+	output.WriteByte('\n')
 	_, err := io.WriteString(writer, output.String())
 	return err
 }

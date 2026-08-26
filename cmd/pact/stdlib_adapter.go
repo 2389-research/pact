@@ -16,6 +16,7 @@ import (
 type runConfig struct {
 	Stdin             io.Reader
 	StdinTerminal     bool
+	JSONOutput        bool
 	Stdout            io.Writer
 	Stderr            io.Writer
 	WorkingDir        string
@@ -51,6 +52,7 @@ func runWithConfig(args []string, config runConfig) int { //nolint:funlen // The
 	if err != nil {
 		return writeCommandError(config.Stderr, display.asJSON, &commandError{code: exitUsage, message: err.Error()})
 	}
+	config.JSONOutput = display.asJSON
 	catalog := commandCatalog()
 	bareWelcome := len(args) == 0 && !display.asJSON
 	if isHelpRequest(args) {
