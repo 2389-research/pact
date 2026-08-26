@@ -424,6 +424,23 @@ func TestDefaultNamespaceRejectsCorruptConfiguredNamespace(t *testing.T) {
 	}
 }
 
+func TestWriteLocalJSONMarksPostRenameSyncFailurePublished(t *testing.T) {
+	st := testStore(t)
+	fault := errors.New("injected local JSON directory sync failure")
+	originalSync := syncDirectoryFile
+	syncDirectoryFile = func(string) error { return fault }
+	t.Cleanup(func() { syncDirectoryFile = originalSync })
+
+	err := st.WriteLocalJSON("trust.json", map[string]any{"format": trustName, "roots": []any{"published"}}, 0o644)
+	if !errors.Is(err, fault) || !ReplacementPublished(err) {
+		t.Fatalf("WriteLocalJSON() error = %v, want published injected fault", err)
+	}
+	raw, readErr := st.ReadLocal("trust.json")
+	if readErr != nil || !bytes.Contains(raw, []byte("published")) {
+		t.Fatalf("ReadLocal() after sync failure = (%q, %v), want published bytes", raw, readErr)
+	}
+}
+
 func TestInitRefusesExistingStore(t *testing.T) {
 	repo := t.TempDir()
 	if result, err := Init(repo, "org/example/widget", time.Now()); err != nil || result.Status != InitCreated {

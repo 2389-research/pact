@@ -97,6 +97,18 @@ type LockError struct {
 	Release   error
 }
 
+type replacementPublishedError struct{ err error }
+
+func (err *replacementPublishedError) Error() string              { return err.err.Error() }
+func (err *replacementPublishedError) Unwrap() error              { return err.err }
+func (err *replacementPublishedError) ReplacementPublished() bool { return true }
+
+// ReplacementPublished reports whether a mutable-file replacement became visible before its write failed.
+func ReplacementPublished(err error) bool {
+	var published interface{ ReplacementPublished() bool }
+	return errors.As(err, &published) && published.ReplacementPublished()
+}
+
 func (err *LockError) Error() string {
 	causes := err.Unwrap()
 	if len(causes) == 0 {
@@ -868,7 +880,10 @@ func atomicReplace(path string, data []byte, mode fs.FileMode) (err error) {
 	if err := os.Rename(tempPath, path); err != nil {
 		return err
 	}
-	return syncDirectory(filepath.Dir(path))
+	if err := syncDirectoryFile(filepath.Dir(path)); err != nil {
+		return &replacementPublishedError{err: err}
+	}
+	return nil
 }
 
 func syncDirectory(path string) error {

@@ -333,10 +333,11 @@ func TestVerifyStrictEscalatesMissingExternalReferences(t *testing.T) {
 func TestVerifyRejectsSignatureSubstitution(t *testing.T) {
 	st, key := ledgerStoreAndKey(t)
 	commit := commitOne(t, st, key, "a", nil)
-	other, err := identity.GenerateKeyFile(filepath.Join(t.TempDir(), "other.key.json"), "Other", time.Now())
+	generated, err := identity.GenerateKeyFile(filepath.Join(t.TempDir(), "other.key.json"), "Other", time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
+	other := generated.Key
 	raw, err := st.Get(commit.ObjectID)
 	if err != nil {
 		t.Fatal(err)
@@ -387,10 +388,11 @@ func TestVerifyReportsMalformedSignatureFieldsWithoutPanicking(t *testing.T) {
 func TestVerifyReportsActorSignatureMismatch(t *testing.T) {
 	st, key := ledgerStoreAndKey(t)
 	commit := commitOne(t, st, key, "a", nil)
-	other, err := identity.GenerateKeyFile(filepath.Join(t.TempDir(), "other.key.json"), "Other", time.Now())
+	generated, err := identity.GenerateKeyFile(filepath.Join(t.TempDir(), "other.key.json"), "Other", time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
+	other := generated.Key
 	raw, err := st.Get(commit.ObjectID)
 	if err != nil {
 		t.Fatal(err)

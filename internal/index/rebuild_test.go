@@ -504,25 +504,46 @@ func TestRebuildReportsPostPublicationFaults(t *testing.T) {
 		{name: "published reopen", install: func(fault error) { beforePublishedValidation = func(string) error { return fault } }},
 	}
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			result, err := store.Init(t.TempDir(), "fixture/rebuild", time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC))
-			if err != nil {
-				t.Fatal(err)
+		for _, preexisting := range []bool{false, true} {
+			name := "create"
+			if preexisting {
+				name = "replace"
 			}
-			st := result.Store
-			resetIndexFailureSeams(t)
-			fault := errors.New("injected " + test.name + " failure")
-			test.install(fault)
-			if _, err := New(st).Rebuild(context.Background()); !errors.Is(err, fault) {
-				t.Fatalf("Rebuild() error = %v, want injected fault", err)
-			} else if test.name == "directory sync" {
-				assertQueryErrorCode(t, err, "index_publication_failed")
-			}
-			live := filepath.Join(st.Dir(), "index", liveIndexName)
-			if info, err := os.Lstat(live); err != nil || !info.Mode().IsRegular() {
-				t.Fatalf("post-publication fault did not leave published file: %v, %v", info, err)
-			}
-		})
+			t.Run(test.name+"/"+name, func(t *testing.T) {
+				initResult, err := store.Init(t.TempDir(), "fixture/rebuild", time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC))
+				if err != nil {
+					t.Fatal(err)
+				}
+				st := initResult.Store
+				manager := New(st)
+				if preexisting {
+					if _, err := manager.Rebuild(context.Background()); err != nil {
+						t.Fatal(err)
+					}
+				}
+				resetIndexFailureSeams(t)
+				fault := errors.New("injected " + test.name + " failure")
+				test.install(fault)
+				rebuildResult, err := manager.Rebuild(context.Background())
+				if !errors.Is(err, fault) {
+					t.Fatalf("Rebuild() error = %v, want injected fault", err)
+				}
+				if test.name == "directory sync" {
+					assertQueryErrorCode(t, err, "index_publication_failed")
+				}
+				if rebuildResult.Created != !preexisting || rebuildResult.Replaced != preexisting || rebuildResult.Index.State != "" {
+					t.Fatalf("Rebuild() result = %#v, want publication flags and no validated status", rebuildResult)
+				}
+				live := filepath.Join(st.Dir(), "index", liveIndexName)
+				if info, err := os.Lstat(live); err != nil || !info.Mode().IsRegular() {
+					t.Fatalf("post-publication fault did not leave published file: %v, %v", info, err)
+				}
+				status, err := manager.Status(context.Background())
+				if err != nil || status.Index.State != "current" {
+					t.Fatalf("Status() after published fault = (%#v, %v), want current live bytes", status, err)
+				}
+			})
+		}
 	}
 }
 

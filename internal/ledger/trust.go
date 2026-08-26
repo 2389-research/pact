@@ -29,6 +29,9 @@ var (
 	ErrSecretSafety = errors.New("ledger secret safety refusal")
 	// ErrMissingDependency marks a requested or referenced object that is unavailable.
 	ErrMissingDependency = errors.New("ledger dependency missing")
+
+	writeTrustJSON        = (*store.Store).WriteLocalJSON
+	withTrustMutationLock = (*store.Store).WithMutationLock
 )
 
 // Root is one locally trusted public identity.
@@ -39,29 +42,42 @@ type Root struct {
 	AddedAt   string `json:"added_at"`
 }
 
+// RootStatus reports whether a trusted root was created or already matched.
+type RootStatus string
+
+const (
+	RootCreated  RootStatus = "created"
+	RootExisting RootStatus = "existing"
+)
+
+// RootResult preserves a trusted root that became visible before a later error.
+type RootResult struct {
+	Root   Root
+	Status RootStatus
+}
+
 type trustFile struct {
 	Format string `json:"format"`
 	Roots  []Root `json:"roots"`
 }
 
 // AddRoot adds key's public identity to the local root set without ledger admission.
-func AddRoot(st *store.Store, key *identity.KeyFile, now time.Time) (bool, error) {
+func AddRoot(st *store.Store, key *identity.KeyFile, now time.Time) (result RootResult, err error) {
 	if st == nil || key == nil {
-		return false, fmt.Errorf("store and key are required")
+		return result, fmt.Errorf("store and key are required")
 	}
-	var created bool
-	err := st.WithMutationLock(func() error {
-		var err error
-		created, err = addRootLocked(st, key, now)
-		return err
+	err = withTrustMutationLock(st, func() error {
+		var lockedErr error
+		result, lockedErr = addRootLocked(st, key, now)
+		return lockedErr
 	})
-	return created, err
+	return result, err
 }
 
-func addRootLocked(st *store.Store, key *identity.KeyFile, now time.Time) (bool, error) {
+func addRootLocked(st *store.Store, key *identity.KeyFile, now time.Time) (result RootResult, err error) {
 	roots, err := loadRoots(st)
 	if err != nil {
-		return false, err
+		return result, err
 	}
 	public := base64.RawURLEncoding.EncodeToString(key.Public)
 	for _, root := range roots {
@@ -69,25 +85,29 @@ func addRootLocked(st *store.Store, key *identity.KeyFile, now time.Time) (bool,
 			continue
 		}
 		if root.PublicKey != public {
-			return false, fmt.Errorf("%w: conflicting trusted-root bytes for %s", ErrIntegrity, key.KeyID)
+			return result, fmt.Errorf("%w: conflicting trusted-root bytes for %s", ErrIntegrity, key.KeyID)
 		}
-		return false, nil
+		return RootResult{Root: root, Status: RootExisting}, nil
 	}
 	expectedID, err := identity.KeyID(key.Public)
 	if err != nil || expectedID != key.KeyID {
-		return false, fmt.Errorf("%w: trusted root key ID does not match public key", ErrIntegrity)
+		return result, fmt.Errorf("%w: trusted root key ID does not match public key", ErrIntegrity)
 	}
-	roots = append(roots, Root{
+	root := Root{
 		KeyID:     key.KeyID,
 		Actor:     key.Actor,
 		PublicKey: public,
 		AddedAt:   now.UTC().Format(time.RFC3339),
-	})
-	sort.Slice(roots, func(i, j int) bool { return roots[i].KeyID < roots[j].KeyID })
-	if err := st.WriteLocalJSON("trust.json", trustFile{Format: trustFormat, Roots: roots}, 0o644); err != nil {
-		return false, fmt.Errorf("%w: %w", ErrStore, err)
 	}
-	return true, nil
+	roots = append(roots, root)
+	sort.Slice(roots, func(i, j int) bool { return roots[i].KeyID < roots[j].KeyID })
+	if err := writeTrustJSON(st, "trust.json", trustFile{Format: trustFormat, Roots: roots}, 0o644); err != nil {
+		if store.ReplacementPublished(err) {
+			result = RootResult{Root: root, Status: RootCreated}
+		}
+		return result, fmt.Errorf("%w: %w", ErrStore, err)
+	}
+	return RootResult{Root: root, Status: RootCreated}, nil
 }
 
 // Roots returns trusted identities keyed by their stable PACT key IDs.

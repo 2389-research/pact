@@ -73,7 +73,7 @@ func runKeygen(args []string, stderr io.Writer) (map[string]any, error) {
 	if flags.NArg() != 0 || *actor == "" || *output == "" {
 		return nil, &commandError{code: exitUsage, message: "keygen requires --actor and --out"}
 	}
-	key, err := identity.GenerateKeyFile(*output, *actor, time.Now())
+	generated, err := identity.GenerateKeyFile(*output, *actor, time.Now())
 	if err != nil {
 		code := exitUsage
 		if errors.Is(err, identity.ErrProjectKeyOutput) {
@@ -81,6 +81,7 @@ func runKeygen(args []string, stderr io.Writer) (map[string]any, error) {
 		}
 		return nil, &commandError{code: code, message: err.Error()}
 	}
+	key := generated.Key
 	return map[string]any{
 		"operation":  "keygen",
 		"actor":      key.Actor,
@@ -109,7 +110,7 @@ func runTrustAdd(args []string, stderr io.Writer) (map[string]any, error) {
 	if err != nil {
 		return nil, commandErrorFor(err, exitUsage)
 	}
-	created, err := ledger.AddRoot(st, key, time.Now())
+	rootResult, err := ledger.AddRoot(st, key, time.Now())
 	if err != nil {
 		return nil, commandErrorFor(err, exitUnexpectedError)
 	}
@@ -117,7 +118,7 @@ func runTrustAdd(args []string, stderr io.Writer) (map[string]any, error) {
 		"operation":  "trust-add",
 		"key_id":     key.KeyID,
 		"actor":      key.Actor,
-		"created":    created,
+		"created":    rootResult.Status == ledger.RootCreated,
 		"trust_file": filepath.Join(st.Dir(), "trust.json"),
 		"note":       "local trust bootstrap is out-of-band configuration, not ledger history",
 	}, nil

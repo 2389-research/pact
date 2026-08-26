@@ -209,10 +209,11 @@ func ledgerStoreAndKey(t *testing.T) (*store.Store, *identity.KeyFile) {
 		t.Fatal(err)
 	}
 	st := result.Store
-	key, err := identity.GenerateKeyFile(t.TempDir()+"/alice.key.json", "Alice", time.Now())
+	generated, err := identity.GenerateKeyFile(t.TempDir()+"/alice.key.json", "Alice", time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
+	key := generated.Key
 	return st, key
 }
 

@@ -23,6 +23,11 @@ import (
 
 const keyFormat = "pact/key/v1"
 
+var (
+	syncKeyDirectory   = syncDirectory
+	removeKeyTemporary = os.Remove
+)
+
 // ErrProjectKeyOutput marks a key path inside an initialized PACT project root.
 var ErrProjectKeyOutput = errors.New("key output is within initialized project root")
 
@@ -42,6 +47,22 @@ type KeyFile struct {
 	CreatedAt time.Time
 }
 
+// GenerateStatus reports the publication outcome of key generation.
+type GenerateStatus string
+
+const (
+	// GenerateCreated means the requested key file became visible.
+	GenerateCreated GenerateStatus = "created"
+	// GenerateConflict means generation refused an existing target.
+	GenerateConflict GenerateStatus = "conflict"
+)
+
+// GenerateResult preserves a published key through later durability or cleanup errors.
+type GenerateResult struct {
+	Key    *KeyFile
+	Status GenerateStatus
+}
+
 type encodedKeyFile struct {
 	Format     string `json:"format"`
 	Algorithm  string `json:"algorithm"`
@@ -53,30 +74,31 @@ type encodedKeyFile struct {
 }
 
 // GenerateKeyFile creates a new owner-only key file without replacing an existing file.
-func GenerateKeyFile(path, actor string, now time.Time) (*KeyFile, error) {
-	actor = norm.NFC.String(strings.TrimSpace(actor))
-	if actor == "" || len([]rune(actor)) > 255 {
-		return nil, fmt.Errorf("actor label must be 1-255 characters")
+func GenerateKeyFile(path, actor string, now time.Time) (result GenerateResult, err error) {
+	actor, err = NormalizeActor(actor)
+	if err != nil {
+		return result, err
 	}
 	absPath, err := resolveOutputPath(path)
 	if err != nil {
-		return nil, fmt.Errorf("resolve key file path: %w", err)
+		return result, fmt.Errorf("resolve key file path: %w", err)
 	}
 	if initializedProjectAncestor(filepath.Dir(absPath)) {
-		return nil, fmt.Errorf("%w", ErrProjectKeyOutput)
+		return result, fmt.Errorf("%w", ErrProjectKeyOutput)
 	}
 	if _, err := os.Lstat(absPath); err == nil {
-		return nil, fmt.Errorf("refusing to overwrite existing key file: %s", absPath)
+		result.Status = GenerateConflict
+		return result, fmt.Errorf("refusing to overwrite existing key file %s: %w", absPath, fs.ErrExist)
 	} else if !errors.Is(err, fs.ErrNotExist) {
-		return nil, fmt.Errorf("inspect key output: %w", err)
+		return result, fmt.Errorf("inspect key output: %w", err)
 	}
 	public, private, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
-		return nil, fmt.Errorf("generate Ed25519 key: %w", err)
+		return result, fmt.Errorf("generate Ed25519 key: %w", err)
 	}
 	keyID, err := KeyID(public)
 	if err != nil {
-		return nil, err
+		return result, err
 	}
 	createdAt := now.UTC().Format(time.RFC3339)
 	encoded := encodedKeyFile{
@@ -91,12 +113,20 @@ func GenerateKeyFile(path, actor string, now time.Time) (*KeyFile, error) {
 	// #nosec G117 -- private_key is the required wire field; the file is created mode 0600 and rechecked before signing.
 	raw, err := json.MarshalIndent(encoded, "", "  ")
 	if err != nil {
-		return nil, fmt.Errorf("encode key file: %w", err)
+		return result, fmt.Errorf("encode key file: %w", err)
 	}
-	if err := writeNewFile(absPath, append(raw, '\n'), 0o600); err != nil {
-		return nil, err
+	key := &KeyFile{Path: absPath, Actor: actor, KeyID: keyID, Public: public, Private: private, CreatedAt: now.UTC()}
+	published, err := writeNewFile(absPath, append(raw, '\n'), 0o600)
+	if published {
+		result = GenerateResult{Key: key, Status: GenerateCreated}
 	}
-	return &KeyFile{Path: absPath, Actor: actor, KeyID: keyID, Public: public, Private: private, CreatedAt: now.UTC()}, nil
+	if err != nil {
+		if !published && errors.Is(err, fs.ErrExist) {
+			result.Status = GenerateConflict
+		}
+		return result, err
+	}
+	return result, nil
 }
 
 // LoadKeyFile reads and cross-checks public, private, and key-ID values.
@@ -127,8 +157,8 @@ func LoadKeyFile(path string, requirePrivate bool) (*KeyFile, error) {
 	if encoded.Format != keyFormat || encoded.Algorithm != "ed25519" {
 		return nil, fmt.Errorf("unsupported or malformed PACT key file: %s", resolvedPath)
 	}
-	actor := norm.NFC.String(strings.TrimSpace(encoded.Actor))
-	if actor == "" || len([]rune(actor)) > 255 {
+	actor, err := NormalizeActor(encoded.Actor)
+	if err != nil {
 		return nil, fmt.Errorf("key file has invalid actor label: %s", resolvedPath)
 	}
 	public, err := decodeBase64URL(encoded.PublicKey)
@@ -190,29 +220,63 @@ func LoadPublicKey(path string) (*KeyFile, error) {
 	return LoadKeyFile(path, false)
 }
 
-// LoadSigningKey loads a private key only when its lexical and resolved paths stay outside projectRoot.
-func LoadSigningKey(path, projectRoot string) (*KeyFile, error) {
+// ValidateSigningKeyPath validates a planned key path without reading or writing key bytes.
+func ValidateSigningKeyPath(path, projectRoot string) (string, error) {
 	lexicalPath, err := filepath.Abs(path)
 	if err != nil {
-		return nil, fmt.Errorf("resolve key file path: %w", err)
+		return "", fmt.Errorf("resolve key file path: %w", err)
 	}
-	resolvedRoot, err := filepath.EvalSymlinks(projectRoot)
+	lexicalRoot, err := filepath.Abs(projectRoot)
 	if err != nil {
-		return nil, fmt.Errorf("resolve project root: %w", err)
+		return "", fmt.Errorf("resolve project root: %w", err)
 	}
-	resolvedPath, err := filepath.EvalSymlinks(lexicalPath)
+	resolvedRoot, err := resolveOutputPath(projectRoot)
 	if err != nil {
-		return nil, fmt.Errorf("resolve key file path %s: %w", lexicalPath, err)
+		return "", fmt.Errorf("resolve project root: %w", err)
 	}
-	resolvedParent, err := filepath.EvalSymlinks(filepath.Dir(lexicalPath))
+	if _, statErr := os.Lstat(lexicalRoot); statErr == nil {
+		resolvedRoot, err = filepath.EvalSymlinks(lexicalRoot)
+		if err != nil {
+			return "", fmt.Errorf("resolve project root: %w", err)
+		}
+	} else if !errors.Is(statErr, fs.ErrNotExist) {
+		return "", fmt.Errorf("inspect project root: %w", statErr)
+	}
+	plannedPath, err := resolveOutputPath(lexicalPath)
 	if err != nil {
-		return nil, fmt.Errorf("resolve key file parent %s: %w", filepath.Dir(lexicalPath), err)
+		return "", fmt.Errorf("resolve key file path: %w", err)
 	}
-	lexicalTarget := filepath.Join(resolvedParent, filepath.Base(lexicalPath))
-	if pathWithin(lexicalTarget, resolvedRoot) || pathWithin(resolvedPath, resolvedRoot) {
-		return nil, fmt.Errorf("%w: signing key is within project root: %s", ErrSecretSafety, lexicalPath)
+	resolvedPath := plannedPath
+	if _, statErr := os.Lstat(lexicalPath); statErr == nil {
+		resolvedPath, err = filepath.EvalSymlinks(lexicalPath)
+		if err != nil {
+			return "", fmt.Errorf("resolve key file path: %w", err)
+		}
+	} else if !errors.Is(statErr, fs.ErrNotExist) {
+		return "", fmt.Errorf("inspect key file: %w", statErr)
 	}
-	return LoadKeyFile(resolvedPath, true)
+	if pathWithin(lexicalPath, lexicalRoot) || pathWithin(plannedPath, resolvedRoot) || pathWithin(resolvedPath, resolvedRoot) {
+		return "", fmt.Errorf("%w: signing key is within project root: %s", ErrSecretSafety, lexicalPath)
+	}
+	return lexicalPath, nil
+}
+
+// NormalizeActor returns one trimmed NFC actor label with the protocol length bound.
+func NormalizeActor(actor string) (string, error) {
+	normalized := norm.NFC.String(strings.TrimSpace(actor))
+	if normalized == "" || len([]rune(normalized)) > 255 {
+		return "", fmt.Errorf("actor label must be 1-255 characters")
+	}
+	return normalized, nil
+}
+
+// LoadSigningKey loads a private key only when its lexical and resolved paths stay outside projectRoot.
+func LoadSigningKey(path, projectRoot string) (*KeyFile, error) {
+	validatedPath, err := ValidateSigningKeyPath(path, projectRoot)
+	if err != nil {
+		return nil, err
+	}
+	return LoadKeyFile(validatedPath, true)
 }
 
 func pathWithin(path, root string) bool {
@@ -245,46 +309,47 @@ func decodeBase64URL(value string) ([]byte, error) {
 	return base64.RawURLEncoding.DecodeString(value)
 }
 
-func writeNewFile(path string, data []byte, mode fs.FileMode) (err error) {
+func writeNewFile(path string, data []byte, mode fs.FileMode) (published bool, err error) {
 	// #nosec G301 -- key parents are ordinary user-selected directories; the key file itself is mode 0600.
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
+		return false, err
 	}
 	temporary, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".")
 	if err != nil {
-		return err
+		return false, err
 	}
 	tempPath := temporary.Name()
 	defer func() {
-		if removeErr := os.Remove(tempPath); removeErr != nil && !errors.Is(removeErr, fs.ErrNotExist) && err == nil {
+		if removeErr := removeKeyTemporary(tempPath); removeErr != nil && !errors.Is(removeErr, fs.ErrNotExist) && err == nil {
 			err = removeErr
 		}
 	}()
 	if err := temporary.Chmod(mode); err != nil {
 		temporary.Close()
-		return err
+		return false, err
 	}
 	if _, err := temporary.Write(data); err != nil {
 		temporary.Close()
-		return err
+		return false, err
 	}
 	if err := temporary.Sync(); err != nil {
 		temporary.Close()
-		return err
+		return false, err
 	}
 	if err := temporary.Close(); err != nil {
-		return err
+		return false, err
 	}
 	if err := os.Link(tempPath, path); err != nil {
 		if errors.Is(err, fs.ErrExist) {
-			return fmt.Errorf("refusing to overwrite existing key file: %s", path)
+			return false, fmt.Errorf("refusing to overwrite existing key file %s: %w", path, fs.ErrExist)
 		}
-		return err
+		return false, err
 	}
-	if err := syncDirectory(filepath.Dir(path)); err != nil {
-		return err
+	published = true
+	if err := syncKeyDirectory(filepath.Dir(path)); err != nil {
+		return published, err
 	}
-	return nil
+	return published, nil
 }
 
 func syncDirectory(path string) error {

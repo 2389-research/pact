@@ -16,11 +16,99 @@ import (
 	"pact/internal/store"
 )
 
+func TestNormalizeActorCanonicalizesAndValidates(t *testing.T) {
+	got, err := NormalizeActor(" \te\u0301\n")
+	if err != nil {
+		t.Fatalf("NormalizeActor() error = %v", err)
+	}
+	if got != "é" {
+		t.Fatalf("NormalizeActor() = %q, want NFC-trimmed actor", got)
+	}
+	for name, actor := range map[string]string{
+		"empty":          " \t\n",
+		"over 255 runes": strings.Repeat("界", 256),
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := NormalizeActor(actor); err == nil {
+				t.Fatal("NormalizeActor() error = nil, want refusal")
+			}
+		})
+	}
+}
+
+func TestValidateSigningKeyPathAcceptsExternalTargetsWithoutWriting(t *testing.T) {
+	projectRoot := t.TempDir()
+	externalRoot := t.TempDir()
+	missing := filepath.Join(externalRoot, "missing", "alice.key.json")
+	wantMissing, err := filepath.Abs(missing)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := ValidateSigningKeyPath(missing, projectRoot)
+	if err != nil || got != wantMissing || !filepath.IsAbs(got) {
+		t.Fatalf("ValidateSigningKeyPath(missing) = (%q, %v), want (%q, nil)", got, err, wantMissing)
+	}
+	if _, err := os.Lstat(filepath.Dir(missing)); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("ValidateSigningKeyPath() created missing parent: %v", err)
+	}
+
+	existing := filepath.Join(externalRoot, "existing.key.json")
+	keyBytes := []byte("private-key-bytes-must-not-appear")
+	if err := os.WriteFile(existing, keyBytes, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	wantExisting, err := filepath.Abs(existing)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err = ValidateSigningKeyPath(existing, projectRoot)
+	if err != nil || got != wantExisting {
+		t.Fatalf("ValidateSigningKeyPath(existing) = (%q, %v), want (%q, nil)", got, err, wantExisting)
+	}
+}
+
+func TestValidateSigningKeyPathRejectsProjectContainmentWithoutLeakingKeyBytes(t *testing.T) {
+	projectRoot := t.TempDir()
+	externalRoot := t.TempDir()
+	link := filepath.Join(externalRoot, "project-link")
+	if err := os.Symlink(projectRoot, link); err != nil {
+		t.Fatal(err)
+	}
+	secret := "private-key-bytes-must-not-appear"
+	existing := filepath.Join(projectRoot, "existing.key.json")
+	if err := os.WriteFile(existing, []byte(secret), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	for name, path := range map[string]string{
+		"lexical":           filepath.Join(projectRoot, "missing", "alice.key.json"),
+		"resolved missing":  filepath.Join(link, "missing", "alice.key.json"),
+		"resolved existing": filepath.Join(link, "existing.key.json"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, err := ValidateSigningKeyPath(path, projectRoot)
+			if !errors.Is(err, ErrSecretSafety) {
+				t.Fatalf("ValidateSigningKeyPath() error = %v, want secret-safety refusal", err)
+			}
+			if strings.Contains(err.Error(), secret) {
+				t.Fatalf("ValidateSigningKeyPath() error leaked key bytes: %v", err)
+			}
+		})
+	}
+	if _, err := os.Lstat(filepath.Join(projectRoot, "missing")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("ValidateSigningKeyPath() created missing project parent: %v", err)
+	}
+}
+
 func TestGenerateKeyFileCreatesOwnerOnlyVerifiedKey(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "alice.key.json")
-	key, err := GenerateKeyFile(path, " Alice ", time.Date(2026, 8, 23, 12, 34, 56, 0, time.UTC))
+	result, err := GenerateKeyFile(path, " Alice ", time.Date(2026, 8, 23, 12, 34, 56, 0, time.UTC))
 	if err != nil {
 		t.Fatalf("GenerateKeyFile() error = %v", err)
+	}
+	key := result.Key
+	if result.Status != GenerateCreated {
+		t.Fatalf("GenerateKeyFile() status = %q, want created", result.Status)
 	}
 	if key.Actor != "Alice" || key.KeyID == "" || len(key.Public) != 32 || len(key.Private) != 64 {
 		t.Fatalf("generated key = %#v", key)
@@ -31,6 +119,73 @@ func TestGenerateKeyFileCreatesOwnerOnlyVerifiedKey(t *testing.T) {
 	loaded, err := LoadKeyFile(path, true)
 	if err != nil || loaded.KeyID != key.KeyID {
 		t.Fatalf("LoadKeyFile() = (%#v, %v)", loaded, err)
+	}
+}
+
+func TestGenerateKeyFileReportsCreatedAfterDirectorySyncFailure(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "alice.key.json")
+	fault := errors.New("injected key directory sync failure")
+	oldSync := syncKeyDirectory
+	syncKeyDirectory = func(string) error { return fault }
+	t.Cleanup(func() { syncKeyDirectory = oldSync })
+
+	result, err := GenerateKeyFile(path, "Alice", time.Now())
+	if !errors.Is(err, fault) {
+		t.Fatalf("GenerateKeyFile() error = %v, want injected fault", err)
+	}
+	assertPublishedGeneratedKey(t, result, path)
+}
+
+func TestGenerateKeyFileReportsCreatedAfterTemporaryCleanupFailure(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "alice.key.json")
+	fault := errors.New("injected key temporary cleanup failure")
+	oldRemove := removeKeyTemporary
+	removeKeyTemporary = func(string) error { return fault }
+	t.Cleanup(func() { removeKeyTemporary = oldRemove })
+
+	result, err := GenerateKeyFile(path, "Alice", time.Now())
+	if !errors.Is(err, fault) {
+		t.Fatalf("GenerateKeyFile() error = %v, want injected fault", err)
+	}
+	assertPublishedGeneratedKey(t, result, path)
+}
+
+func TestGenerateKeyFileClassifiesOnlyExistingTargetAsConflict(t *testing.T) {
+	directory := t.TempDir()
+	path := filepath.Join(directory, "alice.key.json")
+	original := []byte("existing target stays byte-for-byte unchanged")
+	if err := os.WriteFile(path, original, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	result, err := GenerateKeyFile(path, "Alice", time.Now())
+	if err == nil || result.Status != GenerateConflict || result.Key != nil {
+		t.Fatalf("GenerateKeyFile(existing) = (%#v, %v), want conflict without key", result, err)
+	}
+	if got, readErr := os.ReadFile(path); readErr != nil || !bytes.Equal(got, original) {
+		t.Fatalf("existing target = (%q, %v), want original bytes", got, readErr)
+	}
+
+	blockedParent := filepath.Join(directory, "blocked")
+	if err := os.WriteFile(blockedParent, []byte("not a directory"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	result, err = GenerateKeyFile(filepath.Join(blockedParent, "alice.key.json"), "Alice", time.Now())
+	if err == nil || result.Status == GenerateConflict {
+		t.Fatalf("GenerateKeyFile(random I/O failure) = (%#v, %v), want non-conflict error", result, err)
+	}
+}
+
+func assertPublishedGeneratedKey(t *testing.T, result GenerateResult, path string) {
+	t.Helper()
+	if result.Status != GenerateCreated || result.Key == nil {
+		t.Fatalf("GenerateKeyFile() result = %#v, want created key", result)
+	}
+	if mode := fileMode(t, path); mode != 0o600 {
+		t.Fatalf("published key mode = %#o, want 0600", mode)
+	}
+	loaded, err := LoadKeyFile(path, true)
+	if err != nil || loaded.KeyID != result.Key.KeyID {
+		t.Fatalf("LoadKeyFile() = (%#v, %v), want published key %s", loaded, err, result.Key.KeyID)
 	}
 }
 

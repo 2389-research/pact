@@ -146,6 +146,8 @@ func (m *Manager) rebuildLocked(ctx context.Context) (result RebuildResult, err 
 		return result, fmt.Errorf("publish index: %w: %w", &QueryError{Code: "index_publication_failed"}, err)
 	}
 	cleanupTemp = false
+	result.Created = !replaced
+	result.Replaced = replaced
 	if err := syncIndexDirectory(indexDirectory); err != nil {
 		return result, fmt.Errorf("sync published index directory: %w: %w", &QueryError{Code: "index_publication_failed"}, err)
 	}
@@ -166,7 +168,8 @@ func (m *Manager) rebuildLocked(ctx context.Context) (result RebuildResult, err 
 		return result, fmt.Errorf("validate canonical source after rebuild: %w", err)
 	}
 	status := Status{Index: info, Replica: replicaInfo(scan), Counts: sourceCounts(scan.Counts), Limits: LimitsInfo{Profile: ledger.LimitsProfile, Status: "within_limits"}}
-	return RebuildResult{Status: status, Created: !replaced, Replaced: replaced}, nil
+	result.Status = status
+	return result, nil
 }
 
 func proveCanonicalSourceUnchanged(ctx context.Context, st *store.Store, sourceFingerprint string) error {
