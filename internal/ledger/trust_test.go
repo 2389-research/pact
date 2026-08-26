@@ -36,10 +36,11 @@ func TestRootsContextHonorsCancellationDuringCanonicalWork(t *testing.T) {
 }
 
 func TestAddRootIsIdempotent(t *testing.T) {
-	st, err := store.Init(t.TempDir(), "org/example/widget", time.Now())
+	result, err := store.Init(t.TempDir(), "org/example/widget", time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
+	st := result.Store
 	key, err := identity.GenerateKeyFile(t.TempDir()+"/alice.key.json", "Alice", time.Now())
 	if err != nil {
 		t.Fatal(err)
@@ -59,10 +60,11 @@ func TestAddRootIsIdempotent(t *testing.T) {
 }
 
 func TestAddRootRejectsConflictingPublicBytes(t *testing.T) {
-	st, err := store.Init(t.TempDir(), "org/example/widget", time.Now())
+	result, err := store.Init(t.TempDir(), "org/example/widget", time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
+	st := result.Store
 	key, err := identity.GenerateKeyFile(t.TempDir()+"/alice.key.json", "Alice", time.Now())
 	if err != nil {
 		t.Fatal(err)
@@ -77,10 +79,11 @@ func TestAddRootRejectsConflictingPublicBytes(t *testing.T) {
 }
 
 func TestAddRootRefusesTrustFileWithoutExplicitRoots(t *testing.T) {
-	st, err := store.Init(t.TempDir(), "org/example/widget", time.Now())
+	result, err := store.Init(t.TempDir(), "org/example/widget", time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
+	st := result.Store
 	key, err := identity.GenerateKeyFile(filepath.Join(t.TempDir(), "alice.key.json"), "Alice", time.Now())
 	if err != nil {
 		t.Fatal(err)
@@ -100,10 +103,11 @@ func TestAddRootRefusesTrustFileWithoutExplicitRoots(t *testing.T) {
 }
 
 func TestRootsRejectsNonStrictTrustJSON(t *testing.T) {
-	st, err := store.Init(t.TempDir(), "org/example/widget", time.Now())
+	result, err := store.Init(t.TempDir(), "org/example/widget", time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
+	st := result.Store
 	path := filepath.Join(st.Dir(), "trust.json")
 	raw, err := os.ReadFile(path)
 	if err != nil {

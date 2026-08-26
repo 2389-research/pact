@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -19,13 +20,309 @@ import (
 	"pact/internal/canonical"
 )
 
+func TestInitResultReportsCreatedAndConflict(t *testing.T) {
+	repo := t.TempDir()
+	created, err := Init(repo, "org/example/widget", time.Now())
+	if err != nil || created.Status != InitCreated || created.Store == nil {
+		t.Fatalf("first Init() = (%#v, %v), want created result and store", created, err)
+	}
+
+	conflict, err := Init(repo, "org/example/widget", time.Now())
+	if conflict.Status != InitConflict || conflict.Store != nil || !errors.Is(err, ErrAlreadyInitialized) {
+		t.Fatalf("second Init() = (%#v, %v), want conflict result and ErrAlreadyInitialized", conflict, err)
+	}
+}
+
+func TestInitResultSurvivesPostPublicationFailure(t *testing.T) {
+	repo := t.TempDir()
+	syncErr := errors.New("injected repository sync failure")
+	originalBeforePublish := beforePublish
+	originalSync := syncDirectoryFile
+	beforePublish = func(_, _ string) error {
+		syncDirectoryFile = func(path string) error {
+			if path == resolvedPath(t, repo) {
+				return syncErr
+			}
+			return originalSync(path)
+		}
+		return nil
+	}
+	t.Cleanup(func() {
+		beforePublish = originalBeforePublish
+		syncDirectoryFile = originalSync
+	})
+
+	result, err := Init(repo, "org/example/widget", time.Now())
+	if result.Status != InitCreated || result.Store == nil || !errors.Is(err, syncErr) {
+		t.Fatalf("Init() = (%#v, %v), want published created result and sync error", result, err)
+	}
+	if opened, openErr := Open(repo); openErr != nil || opened.Dir() != result.Store.Dir() {
+		t.Fatalf("Open() after sync error = (%#v, %v), want published store", opened, openErr)
+	}
+}
+
+func TestInitResultCallbackFailureIsNotConflict(t *testing.T) {
+	repo := t.TempDir()
+	operationErr := errors.New("injected pre-publication callback failure")
+	original := beforePublish
+	beforePublish = func(_, _ string) error { return operationErr }
+	t.Cleanup(func() { beforePublish = original })
+
+	result, err := Init(repo, "org/example/widget", time.Now())
+	if result.Status == InitConflict || result.Store != nil || !errors.Is(err, operationErr) || errors.Is(err, ErrAlreadyInitialized) {
+		t.Fatalf("Init() = (%#v, %v), want operation failure without conflict classification", result, err)
+	}
+}
+
+func TestLockErrorPreservesOperationAndReleaseFailures(t *testing.T) {
+	st := testStore(t)
+	operationErr := errors.New("injected operation failure")
+	unlockErr := errors.New("injected unlock failure")
+	closeErr := errors.New("injected close failure")
+	injectLockReleaseErrors(t, unlockErr, closeErr)
+
+	err := st.WithMutationLock(func() error { return operationErr })
+	var lockErr *LockError
+	if !errors.As(err, &lockErr) || !errors.Is(err, operationErr) || !errors.Is(err, unlockErr) || !errors.Is(err, closeErr) {
+		t.Fatalf("WithMutationLock() error = %v, want LockError preserving operation and release failures", err)
+	}
+}
+
+func TestLockErrorReleaseOnlyUnwrapOmitsNilOperation(t *testing.T) {
+	releaseErr := errors.New("injected release failure")
+	err := &LockError{Release: releaseErr}
+	causes := err.Unwrap()
+	if len(causes) != 1 || !errors.Is(causes[0], releaseErr) {
+		t.Fatalf("LockError.Unwrap() = %#v, want only release error", causes)
+	}
+}
+
+func TestInitLocksRepositoryDirectory(t *testing.T) {
+	repo := t.TempDir()
+	original := beforePublish
+	beforePublish = func(_, _ string) error { return requireDirectoryLock(repo) }
+	t.Cleanup(func() { beforePublish = original })
+
+	result, err := Init(repo, "org/example/widget", time.Now())
+	if err != nil || result.Status != InitCreated {
+		t.Fatalf("Init() = (%#v, %v), want repository directory locked through publication", result, err)
+	}
+}
+
+func TestMutationLockLocksStoreDirectory(t *testing.T) {
+	st := testStore(t)
+	if err := st.WithMutationLock(func() error { return requireDirectoryLock(st.Dir()) }); err != nil {
+		t.Fatalf("WithMutationLock() error = %v, want .pact directory lock", err)
+	}
+}
+
+func TestInitSerializesAliases(t *testing.T) {
+	repo := t.TempDir()
+	alias := filepath.Join(t.TempDir(), "repo-alias")
+	if err := os.Symlink(repo, alias); err != nil {
+		t.Fatal(err)
+	}
+	contended := injectSecondLockContentionProbe(t)
+	originalBeforePublish := beforePublish
+	beforePublish = func(_, _ string) error {
+		<-contended
+		return nil
+	}
+	t.Cleanup(func() { beforePublish = originalBeforePublish })
+	now := time.Date(2026, 8, 26, 12, 34, 56, 0, time.UTC)
+	type initOutcome struct {
+		result InitResult
+		err    error
+	}
+	ready := make(chan struct{}, 2)
+	start := make(chan struct{})
+	outcomes := make(chan initOutcome, 2)
+	for _, path := range []string{repo, alias} {
+		go func() {
+			ready <- struct{}{}
+			<-start
+			result, err := Init(path, "org/example/widget", now)
+			outcomes <- initOutcome{result: result, err: err}
+		}()
+	}
+	<-ready
+	<-ready
+	close(start)
+
+	created, conflicts := 0, 0
+	for range 2 {
+		outcome := <-outcomes
+		switch outcome.result.Status {
+		case InitCreated:
+			created++
+			if outcome.result.Store == nil || outcome.err != nil {
+				t.Fatalf("created Init() = (%#v, %v), want published store", outcome.result, outcome.err)
+			}
+		case InitConflict:
+			conflicts++
+			if outcome.result.Store != nil || !errors.Is(outcome.err, ErrAlreadyInitialized) {
+				t.Fatalf("conflicting Init() = (%#v, %v), want ErrAlreadyInitialized", outcome.result, outcome.err)
+			}
+		default:
+			t.Fatalf("Init() = (%#v, %v), want created or conflict", outcome.result, outcome.err)
+		}
+	}
+	if created != 1 || conflicts != 1 {
+		t.Fatalf("Init() outcomes = %d created, %d conflicts; want one each", created, conflicts)
+	}
+
+	canonicalStore, err := Open(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	aliasStore, err := Open(alias)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"format.json", "trust.json"} {
+		canonicalBytes, err := canonicalStore.ReadLocal(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		aliasBytes, err := aliasStore.ReadLocal(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(canonicalBytes, aliasBytes) {
+			t.Fatalf("%s differs through repository alias", name)
+		}
+		var document map[string]any
+		if err := decodeStrictJSON(canonicalBytes, &document); err != nil {
+			t.Fatalf("decode %s: %v", name, err)
+		}
+		if document["format"] != map[string]string{"format.json": formatName, "trust.json": trustName}[name] {
+			t.Fatalf("%s format = %#v", name, document["format"])
+		}
+	}
+}
+
+func TestMutationLockSerializesAliases(t *testing.T) {
+	repo := t.TempDir()
+	result, err := Init(repo, "org/example/widget", time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	alias := filepath.Join(t.TempDir(), "repo-alias")
+	if err := os.Symlink(repo, alias); err != nil {
+		t.Fatal(err)
+	}
+	aliasStore, err := Open(alias)
+	if err != nil {
+		t.Fatal(err)
+	}
+	contended := injectSecondLockContentionProbe(t)
+
+	ready := make(chan struct{}, 2)
+	start := make(chan struct{})
+	done := make(chan error, 2)
+	var active atomic.Int32
+	var overlap atomic.Bool
+	for label, st := range map[string]*Store{"canonical": result.Store, "alias": aliasStore} {
+		go func() {
+			ready <- struct{}{}
+			<-start
+			done <- st.WithMutationLock(func() error {
+				<-contended
+				if active.Add(1) != 1 {
+					overlap.Store(true)
+				}
+				defer active.Add(-1)
+				order := make([]string, 0, 2)
+				raw, readErr := st.ReadLocal("alias-mutations.json")
+				if readErr == nil {
+					if err := decodeStrictJSON(raw, &order); err != nil {
+						return err
+					}
+				} else if !errors.Is(readErr, os.ErrNotExist) {
+					return readErr
+				}
+				order = append(order, label)
+				return st.WriteLocalJSON("alias-mutations.json", order, 0o644)
+			})
+		}()
+	}
+	<-ready
+	<-ready
+	close(start)
+	for range 2 {
+		if err := <-done; err != nil {
+			t.Fatal(err)
+		}
+	}
+	if overlap.Load() {
+		t.Fatal("mutation callbacks overlapped through repository alias")
+	}
+	raw, err := result.Store.ReadLocal("alias-mutations.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var order []string
+	if err := decodeStrictJSON(raw, &order); err != nil {
+		t.Fatal(err)
+	}
+	if len(order) != 2 || order[0] == order[1] {
+		t.Fatalf("persisted mutation order = %#v, want both serialized mutations", order)
+	}
+}
+
+func injectSecondLockContentionProbe(t *testing.T) <-chan struct{} {
+	t.Helper()
+	original := flockLockFile
+	var calls atomic.Int32
+	contended := make(chan struct{})
+	flockLockFile = func(lock *os.File, mode int) error {
+		if calls.Add(1) != 2 {
+			return original(lock, mode)
+		}
+		err := syscall.Flock(int(lock.Fd()), mode|syscall.LOCK_NB)
+		switch {
+		case err == nil:
+			unlockErr := syscall.Flock(int(lock.Fd()), syscall.LOCK_UN)
+			close(contended)
+			return errors.Join(errors.New("second directory lock did not contend"), unlockErr)
+		case errors.Is(err, syscall.EWOULDBLOCK), errors.Is(err, syscall.EAGAIN):
+			close(contended)
+			return original(lock, mode)
+		default:
+			close(contended)
+			return err
+		}
+	}
+	t.Cleanup(func() { flockLockFile = original })
+	return contended
+}
+
+func requireDirectoryLock(path string) error {
+	directory, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	defer directory.Close()
+	if err := syscall.Flock(int(directory.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+		if errors.Is(err, syscall.EWOULDBLOCK) || errors.Is(err, syscall.EAGAIN) {
+			return nil
+		}
+		return err
+	}
+	if err := syscall.Flock(int(directory.Fd()), syscall.LOCK_UN); err != nil {
+		return err
+	}
+	return errors.New("directory descriptor was not locked")
+}
+
 func TestInitCreatesReferenceLayout(t *testing.T) {
 	repo := t.TempDir()
 	now := time.Date(2026, 8, 23, 12, 34, 56, 0, time.UTC)
-	st, err := Init(repo, "org/example/widget", now)
+	result, err := Init(repo, "org/example/widget", now)
 	if err != nil {
 		t.Fatalf("Init() error = %v", err)
 	}
+	st := result.Store
 	if got, want := st.Dir(), resolvedPath(t, filepath.Join(repo, ".pact")); got != want {
 		t.Fatalf("store directory = %q, want %q", got, want)
 	}
@@ -50,10 +347,11 @@ func TestInitCreatesReferenceLayout(t *testing.T) {
 }
 
 func TestDefaultNamespaceReadsValidatedStoreMetadata(t *testing.T) {
-	st, err := Init(t.TempDir(), "org/example/widget", time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC))
+	result, err := Init(t.TempDir(), "org/example/widget", time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC))
 	if err != nil {
 		t.Fatal(err)
 	}
+	st := result.Store
 	namespace, err := st.DefaultNamespace()
 	if err != nil {
 		t.Fatal(err)
@@ -64,10 +362,11 @@ func TestDefaultNamespaceReadsValidatedStoreMetadata(t *testing.T) {
 }
 
 func TestDefaultNamespaceRejectsCorruptConfiguredNamespace(t *testing.T) {
-	st, err := Init(t.TempDir(), "org/example/widget", time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC))
+	result, err := Init(t.TempDir(), "org/example/widget", time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC))
 	if err != nil {
 		t.Fatal(err)
 	}
+	st := result.Store
 	if err := st.WriteLocalJSON("format.json", map[string]any{
 		"format":              "pact/store/v1",
 		"default_namespace":   "../escape",
@@ -85,11 +384,11 @@ func TestDefaultNamespaceRejectsCorruptConfiguredNamespace(t *testing.T) {
 
 func TestInitRefusesExistingStore(t *testing.T) {
 	repo := t.TempDir()
-	if _, err := Init(repo, "org/example/widget", time.Now()); err != nil {
+	if result, err := Init(repo, "org/example/widget", time.Now()); err != nil || result.Status != InitCreated {
 		t.Fatalf("first Init() error = %v", err)
 	}
-	if _, err := Init(repo, "org/example/widget", time.Now()); err == nil {
-		t.Fatal("second Init() error = nil, want refusal")
+	if result, err := Init(repo, "org/example/widget", time.Now()); result.Status != InitConflict || !errors.Is(err, ErrAlreadyInitialized) {
+		t.Fatalf("second Init() = (%#v, %v), want conflict and ErrAlreadyInitialized", result, err)
 	}
 }
 
@@ -99,12 +398,12 @@ func TestInitReturnsPublishedStoreWithBothReleaseErrors(t *testing.T) {
 	closeErr := errors.New("injected close failure")
 	restore := injectLockReleaseErrors(t, unlockErr, closeErr)
 
-	st, err := Init(repo, "org/example/widget", time.Now())
-	if st == nil || !errors.Is(err, unlockErr) || !errors.Is(err, closeErr) {
-		t.Fatalf("Init() = (%#v, %v), want published store and both release errors", st, err)
+	result, err := Init(repo, "org/example/widget", time.Now())
+	if result.Status != InitCreated || result.Store == nil || !errors.Is(err, unlockErr) || !errors.Is(err, closeErr) {
+		t.Fatalf("Init() = (%#v, %v), want published store and both release errors", result, err)
 	}
 	restore()
-	if opened, openErr := Open(repo); openErr != nil || opened.Dir() != st.Dir() {
+	if opened, openErr := Open(repo); openErr != nil || opened.Dir() != result.Store.Dir() {
 		t.Fatalf("Open() after release error = (%#v, %v)", opened, openErr)
 	}
 }
@@ -184,10 +483,11 @@ func TestInitAllowsRepositoryReachedThroughSymlink(t *testing.T) {
 	if err := os.Symlink(repo, link); err != nil {
 		t.Fatal(err)
 	}
-	st, err := Init(link, "org/example/widget", time.Now())
+	result, err := Init(link, "org/example/widget", time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
+	st := result.Store
 	if got, want := st.Dir(), resolvedPath(t, filepath.Join(repo, ".pact")); got != want {
 		t.Fatalf("store directory = %q, want %q", got, want)
 	}
@@ -216,23 +516,6 @@ func TestConcurrentInitHasOneWinner(t *testing.T) {
 	}
 	if successes != 1 {
 		t.Fatalf("successful Init calls = %d, want 1", successes)
-	}
-}
-
-func TestInitIgnoresUnlockedStaleLockFile(t *testing.T) {
-	repo := t.TempDir()
-	lockPath, err := initLockPath(repo)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.MkdirAll(filepath.Dir(lockPath), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(lockPath, []byte("stale"), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := Init(repo, "org/example/widget", time.Now()); err != nil {
-		t.Fatalf("Init() with stale lock error = %v", err)
 	}
 }
 
@@ -874,21 +1157,8 @@ func TestPutCanonicalSerializesRollbackAgainstIdenticalAdmission(t *testing.T) {
 	}
 }
 
-func TestStoreMutationLockSerializesAndIgnoresStaleFile(t *testing.T) {
+func TestStoreMutationLockSerializes(t *testing.T) {
 	st := testStore(t)
-	lockPath, err := mutationLockPath(st.repo)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if filepath.Dir(lockPath) == filepath.Clean(os.TempDir()) {
-		t.Fatalf("mutation lock is a predictable file directly under the shared temp directory: %s", lockPath)
-	}
-	if err := os.MkdirAll(filepath.Dir(lockPath), 0o700); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(lockPath, []byte("stale"), 0o600); err != nil {
-		t.Fatal(err)
-	}
 	entered := make(chan struct{})
 	release := make(chan struct{})
 	done := make(chan error, 2)
@@ -1033,11 +1303,11 @@ func assertStoreLockHelperBlocked(t *testing.T, path string) {
 
 func testStore(t *testing.T) *Store {
 	t.Helper()
-	st, err := Init(t.TempDir(), "org/example/widget", time.Date(2026, 8, 23, 0, 0, 0, 0, time.UTC))
+	result, err := Init(t.TempDir(), "org/example/widget", time.Date(2026, 8, 23, 0, 0, 0, 0, time.UTC))
 	if err != nil {
 		t.Fatal(err)
 	}
-	return st
+	return result.Store
 }
 
 func objectFile(st *Store, objectID string) string {

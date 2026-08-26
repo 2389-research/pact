@@ -74,10 +74,11 @@ func TestCheckpointSelectsCanonicalScopedFrontierAndSchemaRefs(t *testing.T) {
 
 func TestCheckpointWireVector(t *testing.T) {
 	fixedTime := time.Date(2026, 8, 23, 12, 0, 0, 0, time.UTC)
-	st, err := store.Init(t.TempDir(), "scope", fixedTime)
+	initResult, err := store.Init(t.TempDir(), "scope", fixedTime)
 	if err != nil {
 		t.Fatal(err)
 	}
+	st := initResult.Store
 	seed := make([]byte, ed25519.SeedSize)
 	for index := range seed {
 		seed[index] = byte(index)

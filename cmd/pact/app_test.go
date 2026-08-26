@@ -48,6 +48,15 @@ func TestRunInitAndHashEmitContractJSON(t *testing.T) {
 	}
 }
 
+func TestRunInitConflictUsesStoreExit(t *testing.T) {
+	repo := t.TempDir()
+	runJSON(t, []string{"init", "--repo", repo, "--namespace", "org/example/widget", "--json"})
+	result := runErrorJSON(t, []string{"init", "--repo", repo, "--namespace", "org/example/widget", "--json"}, exitStore)
+	if !strings.Contains(result["error"].(string), store.ErrAlreadyInitialized.Error()) {
+		t.Fatalf("second init error = %#v, want ErrAlreadyInitialized", result)
+	}
+}
+
 func TestRunKeygenAndTrustAddNeverLeakPrivateBytes(t *testing.T) {
 	keyPath := filepath.Join(t.TempDir(), "alice.key.json")
 	result := runJSON(t, []string{"keygen", "--actor", "Alice", "--out", keyPath, "--json"})

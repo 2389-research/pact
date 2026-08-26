@@ -5,7 +5,6 @@ package store
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -47,6 +46,7 @@ var (
 	beforePublish                         = func(_, _ string) error { return nil }
 	syncDirectoryFile                     = syncDirectory
 	readCanonicalFile                     = os.ReadFile
+	flockLockFile                         = func(lock *os.File, mode int) error { return syscall.Flock(int(lock.Fd()), mode) }
 	unlockLockFile                        = func(lock *os.File) error { return syscall.Flock(int(lock.Fd()), syscall.LOCK_UN) }
 	closeLockFile                         = func(lock *os.File) error { return lock.Close() }
 	afterGetBoundedStat                   = func(string) error { return nil }
@@ -77,6 +77,49 @@ type Store struct {
 	dir  string
 }
 
+// InitStatus reports whether initialization published a store or found a collision.
+type InitStatus string
+
+const (
+	InitCreated  InitStatus = "created"
+	InitConflict InitStatus = "conflict"
+)
+
+// InitResult reports the durable publication outcome of Init.
+type InitResult struct {
+	Store  *Store
+	Status InitStatus
+}
+
+// LockError preserves both an operation failure and any lock release failure.
+type LockError struct {
+	Operation error
+	Release   error
+}
+
+func (err *LockError) Error() string {
+	causes := err.Unwrap()
+	if len(causes) == 0 {
+		return "store lock failed"
+	}
+	return errors.Join(causes...).Error()
+}
+
+// Unwrap returns only the non-nil causes carried by the lock failure.
+func (err *LockError) Unwrap() []error {
+	if err == nil {
+		return nil
+	}
+	causes := make([]error, 0, 2)
+	if err.Operation != nil {
+		causes = append(causes, err.Operation)
+	}
+	if err.Release != nil {
+		causes = append(causes, err.Release)
+	}
+	return causes
+}
+
 // ObjectFile binds an immutable object path to the ID encoded in that path.
 type ObjectFile struct {
 	ID   string
@@ -84,27 +127,30 @@ type ObjectFile struct {
 }
 
 // Init creates an empty PACT store at repo.
-func Init(repo, namespace string, now time.Time) (result *Store, err error) {
+func Init(repo, namespace string, now time.Time) (result InitResult, err error) {
 	if err := validateNamespace(namespace); err != nil {
-		return nil, err
+		return result, err
 	}
 	absRepo, err := resolveRepository(repo)
 	if err != nil {
-		return nil, fmt.Errorf("resolve repository path: %w", err)
+		return result, fmt.Errorf("resolve repository path: %w", err)
 	}
 	lock, err := lockInit(absRepo)
 	if err != nil {
-		return nil, fmt.Errorf("lock store initialization: %w", err)
+		return result, fmt.Errorf("lock store initialization: %w", err)
 	}
 	defer releaseLock(lock, &err)
 
 	destination := filepath.Join(absRepo, ".pact")
 	if err := checkStoreDestination(destination); err != nil {
-		return nil, err
+		if errors.Is(err, ErrAlreadyInitialized) {
+			result.Status = InitConflict
+		}
+		return result, err
 	}
 	staging, err := os.MkdirTemp(absRepo, ".pact.init-")
 	if err != nil {
-		return nil, fmt.Errorf("create store staging directory: %w", err)
+		return result, fmt.Errorf("create store staging directory: %w", err)
 	}
 	defer func() {
 		if staging != "" {
@@ -121,7 +167,7 @@ func Init(repo, namespace string, now time.Time) (result *Store, err error) {
 		filepath.Join(staged.dir, "tmp"),
 	} {
 		if err := ensureRealDirectory(path); err != nil {
-			return nil, fmt.Errorf("create store layout: %w", err)
+			return result, fmt.Errorf("create store layout: %w", err)
 		}
 	}
 	createdAt := now.UTC().Format(time.RFC3339)
@@ -133,28 +179,36 @@ func Init(repo, namespace string, now time.Time) (result *Store, err error) {
 		"hash_algorithm":      "sha256",
 		"signature_algorithm": "ed25519",
 	}, 0o644); err != nil {
-		return nil, err
+		return result, err
 	}
 	if err := staged.WriteLocalJSON("trust.json", map[string]any{"format": trustName, "roots": []any{}}, 0o644); err != nil {
-		return nil, err
+		return result, err
 	}
 	if err := atomicReplace(filepath.Join(staged.dir, ".gitignore"), []byte("index/\ntmp/\nrefs/\n"), 0o644); err != nil {
-		return nil, fmt.Errorf("write store gitignore: %w", err)
+		return result, fmt.Errorf("write store gitignore: %w", err)
 	}
 	if err := beforePublish(staging, destination); err != nil {
-		return nil, err
+		return result, err
 	}
 	if err := checkStoreDestination(destination); err != nil {
-		return nil, err
+		if errors.Is(err, ErrAlreadyInitialized) {
+			result.Status = InitConflict
+		}
+		return result, err
 	}
 	if err := os.Rename(staging, destination); err != nil {
-		return nil, fmt.Errorf("publish initialized store: %w", err)
+		if errors.Is(err, fs.ErrExist) || errors.Is(err, syscall.ENOTEMPTY) {
+			result.Status = InitConflict
+			return result, fmt.Errorf("%w: publish initialized store: %w", ErrAlreadyInitialized, err)
+		}
+		return result, fmt.Errorf("publish initialized store: %w", err)
 	}
 	staging = ""
-	if err := syncDirectory(absRepo); err != nil {
-		return nil, fmt.Errorf("sync repository directory: %w", err)
+	result = InitResult{Store: &Store{repo: absRepo, dir: destination}, Status: InitCreated}
+	if err := syncDirectoryFile(absRepo); err != nil {
+		return result, fmt.Errorf("sync repository directory: %w", err)
 	}
-	return &Store{repo: absRepo, dir: destination}, nil
+	return result, nil
 }
 
 // Open verifies and opens an initialized PACT store at repo.
@@ -218,7 +272,7 @@ func (st *Store) WithReadLock(operation func() error) error {
 }
 
 func (st *Store) withLock(mode int, operation func() error) (err error) {
-	lock, err := lockStore(st.repo, mode)
+	lock, err := lockStore(st.dir, mode)
 	if err != nil {
 		if mode == syscall.LOCK_EX {
 			return fmt.Errorf("lock store mutation: %w", err)
@@ -241,7 +295,10 @@ func releaseLock(lock *os.File, resultErr *error) {
 	if closeErr != nil {
 		closeErr = fmt.Errorf("close store lock: %w", closeErr)
 	}
-	*resultErr = errors.Join(*resultErr, unlockErr, closeErr)
+	*resultErr = &LockError{
+		Operation: *resultErr,
+		Release:   errors.Join(unlockErr, closeErr),
+	}
 }
 
 // ReadLocal reads one named mutable local configuration file.
@@ -828,77 +885,29 @@ func syncDirectory(path string) error {
 }
 
 func lockInit(repo string) (*os.File, error) {
-	path, err := initLockPath(repo)
+	return lockDirectory(repo, syscall.LOCK_EX)
+}
+
+func lockStore(storeDirectory string, mode int) (*os.File, error) {
+	return lockDirectory(storeDirectory, mode)
+}
+
+func lockDirectory(path string, mode int) (*os.File, error) {
+	if err := ensureExistingRealDirectory(path); err != nil {
+		return nil, err
+	}
+	// #nosec G304,G703 -- path is a resolved repository or checked real store directory.
+	lock, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
-	if err := ensurePrivateLockDirectory(filepath.Dir(path)); err != nil {
-		return nil, err
-	}
-	// #nosec G304,G703 -- path is derived from a resolved repo digest under a checked private directory.
-	lock, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
-	if err != nil {
-		return nil, err
-	}
-	if err := syscall.Flock(int(lock.Fd()), syscall.LOCK_EX); err != nil {
-		lock.Close()
+	if err := flockLockFile(lock, mode); err != nil {
+		if closeErr := closeLockFile(lock); closeErr != nil {
+			return nil, errors.Join(err, fmt.Errorf("close store lock after flock failure: %w", closeErr))
+		}
 		return nil, err
 	}
 	return lock, nil
-}
-
-func lockStore(repo string, mode int) (*os.File, error) {
-	path, err := mutationLockPath(repo)
-	if err != nil {
-		return nil, err
-	}
-	if err := ensurePrivateLockDirectory(filepath.Dir(path)); err != nil {
-		return nil, err
-	}
-	// #nosec G304,G703 -- path is derived from a resolved repo digest under a checked private directory.
-	lock, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, 0o600)
-	if err != nil {
-		return nil, err
-	}
-	if err := syscall.Flock(int(lock.Fd()), mode); err != nil {
-		lock.Close()
-		return nil, err
-	}
-	return lock, nil
-}
-
-func mutationLockPath(repo string) (string, error) {
-	resolved, err := resolveRepository(repo)
-	if err != nil {
-		return "", err
-	}
-	digest := sha256.Sum256([]byte(resolved))
-	return filepath.Join(os.TempDir(), "pact-mutation-locks", fmt.Sprintf("%x.lock", digest)), nil
-}
-
-func ensurePrivateLockDirectory(path string) error {
-	// #nosec G703 -- callers derive path from a resolved repository digest under the private temp directory.
-	if err := os.MkdirAll(path, 0o700); err != nil {
-		return err
-	}
-	// #nosec G703 -- callers derive path from a resolved repository digest under the private temp directory.
-	info, err := os.Lstat(path)
-	if err != nil {
-		return err
-	}
-	if info.Mode()&fs.ModeSymlink != 0 || !info.IsDir() || info.Mode().Perm()&0o077 != 0 {
-		return fmt.Errorf("lock directory is not a private real directory: %s", path)
-	}
-	return nil
-}
-
-func initLockPath(repo string) (string, error) {
-	resolved, err := resolveRepository(repo)
-	if err != nil {
-		return "", err
-	}
-	digest := sha256.Sum256([]byte(resolved))
-	return filepath.Join(os.TempDir(), "pact-init-locks", fmt.Sprintf("%x.lock", digest)), nil
 }
 
 func checkStoreDestination(path string) error {

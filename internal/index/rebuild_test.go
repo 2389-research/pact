@@ -137,10 +137,11 @@ func mustReadFile(t *testing.T, path string) []byte {
 }
 
 func TestRebuildRefusesInvalidSourceAndCancellation(t *testing.T) {
-	st, err := store.Init(t.TempDir(), "fixture/rebuild", time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC))
+	result, err := store.Init(t.TempDir(), "fixture/rebuild", time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC))
 	if err != nil {
 		t.Fatal(err)
 	}
+	st := result.Store
 	if _, _, err := st.PutCanonical(map[string]any{"bad": true}); err != nil {
 		t.Fatal(err)
 	}
@@ -161,10 +162,11 @@ func TestRebuildRefusesInvalidSourceAndCancellation(t *testing.T) {
 }
 
 func TestRebuildCleansOnlySafeStaleTemps(t *testing.T) {
-	st, err := store.Init(t.TempDir(), "fixture/rebuild", time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC))
+	result, err := store.Init(t.TempDir(), "fixture/rebuild", time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC))
 	if err != nil {
 		t.Fatal(err)
 	}
+	st := result.Store
 	indexDir := filepath.Join(st.Dir(), "index")
 	stale := filepath.Join(indexDir, ".build-12345.sqlite3")
 	unrelated := filepath.Join(indexDir, ".build-not-a-db")
@@ -186,10 +188,11 @@ func TestRebuildCleansOnlySafeStaleTemps(t *testing.T) {
 }
 
 func TestRebuildRefusesSymlinkedTempWithoutFollowingIt(t *testing.T) {
-	st, err := store.Init(t.TempDir(), "fixture/rebuild", time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC))
+	result, err := store.Init(t.TempDir(), "fixture/rebuild", time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC))
 	if err != nil {
 		t.Fatal(err)
 	}
+	st := result.Store
 	target := filepath.Join(t.TempDir(), "target")
 	if err := os.WriteFile(target, []byte("do not touch"), 0o600); err != nil {
 		t.Fatal(err)
@@ -211,10 +214,11 @@ func TestRebuildRefusesSymlinkedTempWithoutFollowingIt(t *testing.T) {
 }
 
 func TestRebuildRefusesSymlinkedStoreBeforeTempCleanup(t *testing.T) {
-	st, err := store.Init(t.TempDir(), "fixture/rebuild", time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC))
+	result, err := store.Init(t.TempDir(), "fixture/rebuild", time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC))
 	if err != nil {
 		t.Fatal(err)
 	}
+	st := result.Store
 	realStore := filepath.Join(st.Root(), ".pact-real")
 	if err := os.Rename(st.Dir(), realStore); err != nil {
 		t.Fatal(err)
@@ -276,10 +280,11 @@ func TestRebuildPrePublicationFaultsPreserveOldBytes(t *testing.T) {
 }
 
 func TestRebuildFirstBuildFaultLeavesNoLiveFile(t *testing.T) {
-	st, err := store.Init(t.TempDir(), "fixture/rebuild", time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC))
+	result, err := store.Init(t.TempDir(), "fixture/rebuild", time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC))
 	if err != nil {
 		t.Fatal(err)
 	}
+	st := result.Store
 	resetIndexFailureSeams(t)
 	fault := errors.New("injected rename failure")
 	renameIndexFile = func(string, string) error { return fault }
@@ -317,10 +322,11 @@ func TestRebuildRefusesOversizeBuiltDatabaseBeforeRename(t *testing.T) {
 }
 
 func TestRebuildRefusesSidecarBeforePublication(t *testing.T) {
-	st, err := store.Init(t.TempDir(), "fixture/rebuild", time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC))
+	result, err := store.Init(t.TempDir(), "fixture/rebuild", time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC))
 	if err != nil {
 		t.Fatal(err)
 	}
+	st := result.Store
 	resetIndexFailureSeams(t)
 	beforeBuiltValidation = func(path string) error { return os.WriteFile(path+"-wal", []byte("unexpected"), 0o600) }
 	if _, err := New(st).Rebuild(context.Background()); err == nil {
@@ -499,10 +505,11 @@ func TestRebuildReportsPostPublicationFaults(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			st, err := store.Init(t.TempDir(), "fixture/rebuild", time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC))
+			result, err := store.Init(t.TempDir(), "fixture/rebuild", time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC))
 			if err != nil {
 				t.Fatal(err)
 			}
+			st := result.Store
 			resetIndexFailureSeams(t)
 			fault := errors.New("injected " + test.name + " failure")
 			test.install(fault)

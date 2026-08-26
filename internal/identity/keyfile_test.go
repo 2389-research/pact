@@ -154,10 +154,11 @@ func TestLoadKeyFileRejectsKeyIDMismatch(t *testing.T) {
 
 func TestLoadSigningKeyEnforcesExternalRegularOwnerOnlyFile(t *testing.T) {
 	repo := t.TempDir()
-	st, err := store.Init(repo, "org/example/widget", time.Now())
+	result, err := store.Init(repo, "org/example/widget", time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
+	st := result.Store
 	external := filepath.Join(t.TempDir(), "alice.key.json")
 	if _, err := GenerateKeyFile(external, "Alice", time.Now()); err != nil {
 		t.Fatal(err)

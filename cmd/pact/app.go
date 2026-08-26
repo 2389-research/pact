@@ -48,18 +48,18 @@ func runInit(args []string, stderr io.Writer) (map[string]any, error) {
 	if flags.NArg() != 0 || *namespace == "" {
 		return nil, &commandError{code: exitUsage, message: "init requires --namespace"}
 	}
-	st, err := store.Init(*repo, *namespace, time.Now())
+	result, err := store.Init(*repo, *namespace, time.Now())
 	if err != nil {
 		code := exitUnexpectedError
 		switch {
 		case errors.Is(err, store.ErrInvalidNamespace):
 			code = exitUsage
-		case errors.Is(err, store.ErrAlreadyInitialized):
+		case result.Status == store.InitConflict:
 			code = exitStore
 		}
 		return nil, &commandError{code: code, message: err.Error()}
 	}
-	return map[string]any{"operation": "init", "store": st.Dir(), "default_namespace": *namespace, "format": "pact/store/v1"}, nil
+	return map[string]any{"operation": "init", "store": result.Store.Dir(), "default_namespace": *namespace, "format": "pact/store/v1"}, nil
 }
 
 func runKeygen(args []string, stderr io.Writer) (map[string]any, error) {

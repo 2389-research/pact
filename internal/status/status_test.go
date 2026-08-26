@@ -14,10 +14,11 @@ import (
 )
 
 func TestInspectClassifiesMissingAndCurrentIndex(t *testing.T) {
-	st, err := store.Init(t.TempDir(), "org/example/widget", time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC))
+	initResult, err := store.Init(t.TempDir(), "org/example/widget", time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC))
 	if err != nil {
 		t.Fatal(err)
 	}
+	st := initResult.Store
 
 	attention, err := Inspect(context.Background(), st)
 	if err != nil {
@@ -46,10 +47,11 @@ func TestInspectClassifiesMissingAndCurrentIndex(t *testing.T) {
 }
 
 func TestInspectPreservesCancellation(t *testing.T) {
-	st, err := store.Init(t.TempDir(), "org/example/widget", time.Now())
+	result, err := store.Init(t.TempDir(), "org/example/widget", time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
+	st := result.Store
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	if _, err := Inspect(ctx, st); err != context.Canceled { //nolint:errorlint // The status contract preserves the exact context sentinel.
@@ -58,10 +60,11 @@ func TestInspectPreservesCancellation(t *testing.T) {
 }
 
 func TestInspectChecksCancellationBeforeMetadata(t *testing.T) {
-	st, err := store.Init(t.TempDir(), "org/example/widget", time.Now())
+	result, err := store.Init(t.TempDir(), "org/example/widget", time.Now())
 	if err != nil {
 		t.Fatal(err)
 	}
+	st := result.Store
 	if err := st.WriteLocalJSON("format.json", map[string]any{"format": "pact/unknown/v1"}, 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -73,10 +76,11 @@ func TestInspectChecksCancellationBeforeMetadata(t *testing.T) {
 }
 
 func TestInspectStopsBeforeIndexWhenCanonicalVerificationFails(t *testing.T) {
-	st, err := store.Init(t.TempDir(), "org/example/widget", time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC))
+	initResult, err := store.Init(t.TempDir(), "org/example/widget", time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC))
 	if err != nil {
 		t.Fatal(err)
 	}
+	st := initResult.Store
 	if _, _, err := st.PutCanonical(map[string]any{"format": "pact/unknown/v1"}); err != nil {
 		t.Fatal(err)
 	}

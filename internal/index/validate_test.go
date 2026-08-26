@@ -36,10 +36,11 @@ func TestValidateRejectsConnectionWithoutFixedReaderPragmas(t *testing.T) {
 }
 
 func TestStatusClassifiesCurrentCompleteReplica(t *testing.T) {
-	st, err := store.Init(t.TempDir(), "fixture/status", time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC))
+	result, err := store.Init(t.TempDir(), "fixture/status", time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC))
 	if err != nil {
 		t.Fatal(err)
 	}
+	st := result.Store
 	scan, err := ledger.Scan(context.Background(), st, ledger.ScanOptions{Limits: ledger.Phase2Limits})
 	if err != nil {
 		t.Fatal(err)
@@ -56,10 +57,11 @@ func TestStatusClassifiesCurrentCompleteReplica(t *testing.T) {
 }
 
 func TestStatusInvalidSourceRetainsStableCode(t *testing.T) {
-	st, err := store.Init(t.TempDir(), "fixture/invalid-status", time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC))
+	result, err := store.Init(t.TempDir(), "fixture/invalid-status", time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC))
 	if err != nil {
 		t.Fatal(err)
 	}
+	st := result.Store
 	if _, _, err := st.PutCanonical(map[string]any{"invalid": true}); err != nil {
 		t.Fatal(err)
 	}
@@ -71,10 +73,11 @@ func TestStatusInvalidSourceRetainsStableCode(t *testing.T) {
 }
 
 func TestStatusClassifiesMissingWithoutMutatingIndexDirectory(t *testing.T) {
-	st, err := store.Init(t.TempDir(), "fixture/status", time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC))
+	result, err := store.Init(t.TempDir(), "fixture/status", time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC))
 	if err != nil {
 		t.Fatal(err)
 	}
+	st := result.Store
 	temp := filepath.Join(st.Dir(), "index", ".build-leftover.sqlite3")
 	if err := os.WriteFile(temp, []byte("left alone"), 0o600); err != nil {
 		t.Fatal(err)
@@ -193,10 +196,11 @@ func TestStatusClassificationPrecedence(t *testing.T) {
 
 func TestStatusClassifiesValidSourceShrinkAsStale(t *testing.T) {
 	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
-	st, err := store.Init(t.TempDir(), "fixture/shrink", now)
+	result, err := store.Init(t.TempDir(), "fixture/shrink", now)
 	if err != nil {
 		t.Fatal(err)
 	}
+	st := result.Store
 	seed := make([]byte, ed25519.SeedSize)
 	private := ed25519.NewKeyFromSeed(seed)
 	public := private.Public().(ed25519.PublicKey)
@@ -340,10 +344,11 @@ func TestStatusValidationDamageMatrix(t *testing.T) {
 }
 
 func TestStatusMissingIndexDirectoryIsMissing(t *testing.T) {
-	st, err := store.Init(t.TempDir(), "fixture/status", time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC))
+	result, err := store.Init(t.TempDir(), "fixture/status", time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC))
 	if err != nil {
 		t.Fatal(err)
 	}
+	st := result.Store
 	if err := os.Remove(filepath.Join(st.Dir(), "index")); err != nil {
 		t.Fatal(err)
 	}

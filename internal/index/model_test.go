@@ -338,10 +338,11 @@ func TestProjectEmptyAndPartialReplicaMetadata(t *testing.T) {
 
 func emptyScanFixture(t *testing.T) ledger.ScanResult {
 	t.Helper()
-	st, err := store.Init(t.TempDir(), "fixture/empty", time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC))
+	result, err := store.Init(t.TempDir(), "fixture/empty", time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC))
 	if err != nil {
 		t.Fatal(err)
 	}
+	st := result.Store
 	scan, err := ledger.Scan(context.Background(), st, ledger.ScanOptions{})
 	if err != nil {
 		t.Fatal(err)
@@ -386,10 +387,11 @@ func TestSnapshotForbiddenCanonicalAndPrivateFields(t *testing.T) {
 func signedPartialScanFixture(t *testing.T) signedFixture {
 	t.Helper()
 	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
-	st, err := store.Init(t.TempDir(), "fixture/default", now)
+	result, err := store.Init(t.TempDir(), "fixture/default", now)
 	if err != nil {
 		t.Fatal(err)
 	}
+	st := result.Store
 	seed := make([]byte, ed25519.SeedSize)
 	for index := range seed {
 		seed[index] = byte(index)
