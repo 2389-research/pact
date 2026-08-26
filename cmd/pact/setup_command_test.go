@@ -537,7 +537,10 @@ func TestSetupWriterFailuresReturnUnexpectedAfterDurableApply(t *testing.T) {
 			created := []setuppkg.ActionStatus{
 				setuppkg.ActionCreated, setuppkg.ActionCreated, setuppkg.ActionCreated, setuppkg.ActionValid, setuppkg.ActionCreated,
 			}
-			assertTypedSetupActions(t, *output.setup, created)
+			names := []setuppkg.ActionName{
+				setuppkg.ActionStore, setuppkg.ActionKey, setuppkg.ActionTrust, setuppkg.ActionVerify, setuppkg.ActionIndex,
+			}
+			assertTypedSetupActions(t, *output.setup, names, created)
 
 			stdout := &setupPartialWriter{limit: 24}
 			config.Stdout = stdout
@@ -547,7 +550,7 @@ func TestSetupWriterFailuresReturnUnexpectedAfterDurableApply(t *testing.T) {
 			if stdout.accepted == 0 || !strings.Contains(stderr.String(), "setup output failed") {
 				t.Fatalf("setup writer failure output = accepted %d, stderr=%q", stdout.accepted, stderr.String())
 			}
-			assertTypedSetupActions(t, *output.setup, created)
+			assertTypedSetupActions(t, *output.setup, names, created)
 
 			var sink bytes.Buffer
 			rerun, err := runSetup([]string{"--repo", repo, "--namespace", "org/example/widget", "--actor", "Alice", "--key-file", keyFile}, io.Discard, config)
@@ -691,14 +694,14 @@ func assertSetupActions(t *testing.T, result map[string]any, statuses []setuppkg
 	}
 }
 
-func assertTypedSetupActions(t *testing.T, result setuppkg.Result, statuses []setuppkg.ActionStatus) {
+func assertTypedSetupActions(t *testing.T, result setuppkg.Result, names []setuppkg.ActionName, statuses []setuppkg.ActionStatus) {
 	t.Helper()
-	if len(result.Actions) != len(statuses) {
-		t.Fatalf("setup actions = %#v, want statuses %#v", result.Actions, statuses)
+	if len(result.Actions) != len(names) || len(result.Actions) != len(statuses) {
+		t.Fatalf("setup actions = %#v, want names %#v and statuses %#v", result.Actions, names, statuses)
 	}
 	for position, action := range result.Actions {
-		if action.Status != statuses[position] {
-			t.Fatalf("setup action %d = %#v, want status %s", position, action, statuses[position])
+		if action.Name != names[position] || action.Status != statuses[position] {
+			t.Fatalf("setup action %d = %#v, want (%s, %s)", position, action, names[position], statuses[position])
 		}
 	}
 }

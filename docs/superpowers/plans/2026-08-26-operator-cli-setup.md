@@ -24,11 +24,9 @@ gate. `go list -m -json github.com/creack/pty@latest` resolved `v1.1.24` on
 
 ## Progress
 
-**State:** Tasks 1-7 are implemented and independently approved on
-`wip/setup-cli`. Setup is the canonical bootstrap; fresh compiled-command
-dogfood and every final gate pass. Requirements and fresh-eyes reviewers
-approved the whole branch after all Critical and Important findings were fixed
-through TDD.
+**State:** Tasks 1-7 are complete and independently approved on
+`wip/setup-cli`. The branch is clean and unmerged, with every final gate
+passing, and awaits Doctor Biz's integration choice.
 
 **Delivered commits:**
 
@@ -38,9 +36,10 @@ through TDD.
 - Task 4: `43e32a3`, with convergence repairs `9e09dd6` and `0db1567`;
 - Task 5: `dbde27b`, with partial-result repair `e3f7172`;
 - Task 6: `99f1e52`, with terminal-safety repairs `843eaf3` and `1a541e4`.
+- Task 7: `0ef5ef1`.
 
-**Remaining work:** Land this exact closeout set. No setup implementation work
-remains, and the branch must not merge without Doctor Biz's explicit choice.
+**Integration:** No setup implementation work remains. Do not merge without
+Doctor Biz's explicit choice.
 
 ## Authority and Scope
 
