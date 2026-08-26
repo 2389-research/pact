@@ -669,6 +669,110 @@ func TestApplyNeverConvergesArbitraryOwnerErrors(t *testing.T) {
 	}
 }
 
+func TestApplyReturnsStoreReleaseErrorAfterValidatedCollision(t *testing.T) {
+	request := setupRequest(t)
+	mustInitStore(t, request)
+	releaseFault := errors.New("injected store lock release failure")
+	owners := defaultOwnerOperations
+	owners.initStore = func(string, string, time.Time) (store.InitResult, error) {
+		return store.InitResult{Status: store.InitConflict}, &store.LockError{
+			Operation: store.ErrAlreadyInitialized,
+			Release:   releaseFault,
+		}
+	}
+	before := snapshotSetupPaths(t, request.Repo, request.KeyFile)
+
+	partial, err := applyWithOwners(context.Background(), request, owners)
+	assertApplyFailure(t, partial, err, releaseFault, []Action{{Name: ActionStore, Status: ActionExisting}})
+	var lockErr *store.LockError
+	if !errors.As(err, &lockErr) || !errors.Is(err, store.ErrAlreadyInitialized) {
+		t.Fatalf("Apply() error = %v, want original store collision LockError", err)
+	}
+	after := snapshotSetupPaths(t, request.Repo, request.KeyFile)
+	if !reflect.DeepEqual(after, before) {
+		t.Fatal("store collision plus release failure changed setup files")
+	}
+}
+
+func TestApplyReturnsJoinedKeyErrorAfterValidatedCollision(t *testing.T) {
+	request := setupRequest(t)
+	mustInitStore(t, request)
+	mustGenerateKey(t, request, request.Actor)
+	cleanupFault := errors.New("injected key cleanup failure")
+	owners := defaultOwnerOperations
+	owners.generateKey = func(string, string, time.Time) (identity.GenerateResult, error) {
+		collision := &os.LinkError{Op: "link", Old: "temporary", New: request.KeyFile, Err: fs.ErrExist}
+		return identity.GenerateResult{Status: identity.GenerateConflict}, errors.Join(collision, cleanupFault)
+	}
+	before := snapshotSetupPaths(t, request.Repo, request.KeyFile)
+
+	partial, err := applyWithOwners(context.Background(), request, owners)
+	want := plannedActions(ActionExisting, ActionExisting, "", "", "")[:2]
+	assertApplyFailure(t, partial, err, cleanupFault, want)
+	if !errors.Is(err, fs.ErrExist) {
+		t.Fatalf("Apply() error = %v, want original key collision cause", err)
+	}
+	after := snapshotSetupPaths(t, request.Repo, request.KeyFile)
+	if !reflect.DeepEqual(after, before) {
+		t.Fatal("key collision plus cleanup failure changed setup files")
+	}
+}
+
+func TestApplyRejectsConflictStatusWithoutOwnerError(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		prepare func(*testing.T, Request)
+		install func(*ownerOperations)
+		want    []Action
+	}{
+		{
+			name:    "store",
+			prepare: func(t *testing.T, request Request) { mustInitStore(t, request) },
+			install: func(owners *ownerOperations) {
+				owners.initStore = func(string, string, time.Time) (store.InitResult, error) {
+					return store.InitResult{Status: store.InitConflict}, nil
+				}
+			},
+			want: []Action{},
+		},
+		{
+			name: "key",
+			prepare: func(t *testing.T, request Request) {
+				mustInitStore(t, request)
+				mustGenerateKey(t, request, request.Actor)
+			},
+			install: func(owners *ownerOperations) {
+				owners.generateKey = func(string, string, time.Time) (identity.GenerateResult, error) {
+					return identity.GenerateResult{Status: identity.GenerateConflict}, nil
+				}
+			},
+			want: []Action{{Name: ActionStore, Status: ActionExisting}},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			request := setupRequest(t)
+			test.prepare(t, request)
+			owners := defaultOwnerOperations
+			test.install(&owners)
+			before := snapshotSetupPaths(t, request.Repo, request.KeyFile)
+
+			partial, err := applyWithOwners(context.Background(), request, owners)
+			var applyErr *ApplyError
+			if !errors.As(err, &applyErr) || !errors.Is(err, errInvalidOwnerOutcome) || !strings.Contains(err.Error(), "invalid owner outcome") ||
+				!strings.Contains(err.Error(), test.name) {
+				t.Fatalf("Apply() error = %v, want specific invalid %s owner outcome", err, test.name)
+			}
+			if !reflect.DeepEqual(partial, applyErr.Result) || !reflect.DeepEqual(partial.Actions, test.want) {
+				t.Fatalf("Apply() partial result = %#v, want actions %#v", partial, test.want)
+			}
+			after := snapshotSetupPaths(t, request.Repo, request.KeyFile)
+			if !reflect.DeepEqual(after, before) {
+				t.Fatalf("nil-error %s conflict changed setup files", test.name)
+			}
+		})
+	}
+}
+
 func TestApplyReportsPublishedStoreBeforePostRenameFailure(t *testing.T) {
 	request := setupRequest(t)
 	fault := errors.New("injected store post-rename failure")

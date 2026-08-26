@@ -19,6 +19,8 @@ import (
 	"pact/internal/store"
 )
 
+var errInvalidOwnerOutcome = errors.New("invalid owner outcome")
+
 // Request describes the setup state an operator wants to reach.
 type Request struct {
 	Repo      string
@@ -152,18 +154,21 @@ func applyWithOwners(ctx context.Context, request Request, owners ownerOperation
 			return applyFailure(result, initErr)
 		}
 	case store.InitConflict:
-		if initErr == nil || !errors.Is(initErr, store.ErrAlreadyInitialized) {
-			return applyFailure(result, initErr)
+		if initErr == nil {
+			return applyFailure(result, invalidOwnerOutcome("store"))
 		}
 		//nolint:contextcheck // store owns the only validated opener and namespace reader.
 		opened, openErr := openMatchingStore(result.Repo, result.Namespace)
 		if openErr != nil {
-			return applyFailure(result, openErr)
+			return applyFailure(result, errors.Join(initErr, openErr))
 		}
 		initResult.Store = opened
 		result.Repo = opened.Root()
 		result.Store = opened.Dir()
 		result.Actions = append(result.Actions, Action{Name: ActionStore, Status: ActionExisting})
+		if !onlyCollisionCause(initErr, store.ErrAlreadyInitialized) {
+			return applyFailure(result, initErr)
+		}
 	default:
 		if initErr == nil {
 			initErr = fmt.Errorf("initialize store reported no publication outcome")
@@ -190,16 +195,19 @@ func applyWithOwners(ctx context.Context, request Request, owners ownerOperation
 			return applyFailure(result, keyErr)
 		}
 	case identity.GenerateConflict:
-		if keyErr == nil || !errors.Is(keyErr, fs.ErrExist) {
-			return applyFailure(result, keyErr)
+		if keyErr == nil {
+			return applyFailure(result, invalidOwnerOutcome("key"))
 		}
 		//nolint:contextcheck // identity owns the only validated private-key loader.
 		key, err = openMatchingKey(result.KeyFile, result.Repo, result.Actor)
 		if err != nil {
-			return applyFailure(result, err)
+			return applyFailure(result, errors.Join(keyErr, err))
 		}
 		result.Actions = append(result.Actions, Action{Name: ActionKey, Status: ActionExisting})
 		result.KeyID = key.KeyID
+		if !onlyCollisionCause(keyErr, fs.ErrExist) {
+			return applyFailure(result, keyErr)
+		}
 	default:
 		if keyErr == nil {
 			keyErr = fmt.Errorf("generate key reported no publication outcome")
@@ -289,6 +297,37 @@ func openMatchingKey(path, projectRoot, actor string) (*identity.KeyFile, error)
 
 func applyFailure(result Result, err error) (Result, error) {
 	return result, &ApplyError{Result: result, Err: err}
+}
+
+func invalidOwnerOutcome(owner string) error {
+	return fmt.Errorf("%w: %s conflict has no error", errInvalidOwnerOutcome, owner)
+}
+
+// onlyCollisionCause accepts normal wrapper chains but rejects any independent error leaf.
+func onlyCollisionCause(err, collision error) bool {
+	if err == nil {
+		return false
+	}
+	if multiple, ok := err.(interface{ Unwrap() []error }); ok {
+		causes := multiple.Unwrap()
+		if len(causes) == 0 {
+			return errors.Is(err, collision)
+		}
+		for _, cause := range causes {
+			if !onlyCollisionCause(cause, collision) {
+				return false
+			}
+		}
+		return true
+	}
+	if single, ok := err.(interface{ Unwrap() error }); ok {
+		cause := single.Unwrap()
+		if cause == nil {
+			return errors.Is(err, collision)
+		}
+		return onlyCollisionCause(cause, collision)
+	}
+	return errors.Is(err, collision)
 }
 
 type observedSetup struct {
