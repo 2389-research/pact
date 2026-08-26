@@ -8,19 +8,23 @@ import (
 	"io"
 	"os"
 	"strings"
+	"time"
 
 	statuspkg "pact/internal/status"
 )
 
 type runConfig struct {
-	Stdin          io.Reader
-	Stdout         io.Writer
-	Stderr         io.Writer
-	WorkingDir     string
-	StdoutTerminal bool
-	StderrTerminal bool
-	Width          int
-	Environment    map[string]string
+	Stdin             io.Reader
+	Stdout            io.Writer
+	Stderr            io.Writer
+	WorkingDir        string
+	StdoutTerminal    bool
+	StderrTerminal    bool
+	Width             int
+	Height            int
+	AnimationFrames   int
+	AnimationInterval time.Duration
+	Environment       map[string]string
 }
 
 type presentation struct {
@@ -46,7 +50,11 @@ func runWithConfig(args []string, config runConfig) int { //nolint:funlen // The
 		return writeCommandError(config.Stderr, display.asJSON, &commandError{code: exitUsage, message: err.Error()})
 	}
 	catalog := commandCatalog()
+	bareWelcome := len(args) == 0 && !display.asJSON
 	if isHelpRequest(args) {
+		if err := renderBareWelcomeIfNeeded(bareWelcome, config, display); err != nil {
+			return writeFailure(config.Stderr, display.asJSON, "help output failed")
+		}
 		if err := renderHelp(config.Stdout, catalog, helpPath(args)); err != nil {
 			var pathErr *helpPathError
 			if errors.As(err, &pathErr) {
@@ -85,6 +93,13 @@ func runWithConfig(args []string, config runConfig) int { //nolint:funlen // The
 		return writeFailure(config.Stderr, display.asJSON, "command output failed")
 	}
 	return 0
+}
+
+func renderBareWelcomeIfNeeded(bareWelcome bool, config runConfig, display presentation) error {
+	if !bareWelcome {
+		return nil
+	}
+	return renderBareWelcome(config.Stdout, config, display)
 }
 
 func writeStatus(config runConfig, display presentation, result statuspkg.Result) int {
@@ -131,6 +146,9 @@ func normalizedRunConfig(config runConfig) runConfig {
 	}
 	if config.Width <= 0 {
 		config.Width = 80
+	}
+	if config.Height <= 0 {
+		config.Height = 30
 	}
 	if config.Environment == nil {
 		config.Environment = map[string]string{}
