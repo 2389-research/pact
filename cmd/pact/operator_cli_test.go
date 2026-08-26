@@ -70,13 +70,8 @@ func TestRepositoryDiscoveryStopsAtUnsafeStoreEntry(t *testing.T) {
 	if code != exitStore {
 		t.Fatalf("unsafe discovery exit = %d, stderr=%q", code, stderr.String())
 	}
-	var envelope map[string]any
-	if err := json.Unmarshal(stderr.Bytes(), &envelope); err != nil {
-		t.Fatal(err)
-	}
-	details := envelope["details"].(map[string]any)
-	if details["repo"] != nested {
-		t.Fatalf("unsafe discovery chose parent: %#v", details)
+	if stdout.Len() != 0 || strings.Contains(stderr.String(), "pact setup") || !strings.Contains(stderr.String(), filepath.Join(nested, ".pact")) {
+		t.Fatalf("unsafe discovery diagnostic = stdout=%q stderr=%q", stdout.String(), stderr.String())
 	}
 }
 
@@ -134,6 +129,130 @@ func TestAttentionStatusUsesAttentionColor(t *testing.T) {
 	if strings.Contains(output.String(), "\x1b[32mattention") || !strings.Contains(output.String(), "\x1b[33mattention") {
 		t.Fatalf("attention color = %q", output.String())
 	}
+}
+
+func TestFailedStatusAutoColorUsesActualOutputTerminal(t *testing.T) {
+	for _, fixture := range []struct {
+		name string
+		repo func(*testing.T) string
+	}{
+		{name: "attention", repo: staleOperatorRepository},
+		{name: "broken", repo: brokenOperatorRepository},
+	} {
+		t.Run(fixture.name+"/redirected-stderr", func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			code := runWithConfig([]string{"status", "--repo", fixture.repo(t)}, runConfig{
+				Stdout: &stdout, Stderr: &stderr, StdoutTerminal: true, StderrTerminal: false, Width: 80,
+			})
+			if code == 0 || strings.Contains(stderr.String(), "\x1b[") {
+				t.Fatalf("redirected failed status = (%d, %q)", code, stderr.String())
+			}
+		})
+		t.Run(fixture.name+"/terminal-stderr", func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			code := runWithConfig([]string{"status", "--repo", fixture.repo(t)}, runConfig{
+				Stdout: &stdout, Stderr: &stderr, StdoutTerminal: false, StderrTerminal: true, Width: 80,
+			})
+			if code == 0 || !strings.Contains(stderr.String(), "\x1b[") {
+				t.Fatalf("terminal failed status = (%d, %q)", code, stderr.String())
+			}
+		})
+	}
+}
+
+func TestStatusAcceptsEqualsRepositoryFlag(t *testing.T) {
+	repo := healthyOperatorRepository(t)
+	var stdout, stderr bytes.Buffer
+	code := runWithConfig([]string{"status", "--repo=" + repo, "--json"}, runConfig{Stdout: &stdout, Stderr: &stderr, WorkingDir: repo, Width: 80})
+	if code != 0 {
+		t.Fatalf("status --repo= exit = %d, stderr=%q", code, stderr.String())
+	}
+	var result map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	resolvedRepo, err := filepath.EvalSymlinks(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result["repo"] != resolvedRepo {
+		t.Fatalf("status --repo= result = %#v", result)
+	}
+}
+
+func TestInvalidHelpPathUsesUsageDiagnosticAndWriterFailuresStayUnexpected(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	config := runConfig{Stdout: &stdout, Stderr: &stderr, Width: 80}
+	if code := runWithConfig([]string{"help", "index", "missing"}, config); code != exitUsage {
+		t.Fatalf("invalid help exit = %d, stderr=%q", code, stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "unknown help path: index missing") {
+		t.Fatalf("invalid help diagnostic = %q", stderr.String())
+	}
+	if code := runWithConfig([]string{"help", "index"}, runConfig{Stdout: closedOutput{}, Stderr: io.Discard, Width: 80}); code != exitUnexpectedError {
+		t.Fatalf("help writer failure exit = %d", code)
+	}
+}
+
+func TestStatusMissingExplicitRepositoryDoesNotCreateIt(t *testing.T) {
+	missing := filepath.Join(t.TempDir(), "missing-repository")
+	var stdout, stderr bytes.Buffer
+	code := runWithConfig([]string{"status", "--repo", missing, "--json"}, runConfig{Stdout: &stdout, Stderr: &stderr, Width: 80})
+	if code != exitStore {
+		t.Fatalf("missing repository exit = %d, stderr=%q", code, stderr.String())
+	}
+	if _, err := os.Stat(missing); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("missing repository was created: %v", err)
+	}
+}
+
+func TestStatusExistingRepositoryWithoutStoreGetsSetupAction(t *testing.T) {
+	repo := t.TempDir()
+	var stdout, stderr bytes.Buffer
+	code := runWithConfig([]string{"status", "--repo", repo, "--json"}, runConfig{Stdout: &stdout, Stderr: &stderr, Width: 80})
+	if code != exitStore || !strings.Contains(stderr.String(), "pact setup") {
+		t.Fatalf("existing repository without store = (%d, %q)", code, stderr.String())
+	}
+	if _, err := os.Lstat(filepath.Join(repo, ".pact")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("missing store was created: %v", err)
+	}
+}
+
+func TestStatusUnsafeStoreUsesValidationDiagnostic(t *testing.T) {
+	repo := t.TempDir()
+	if err := os.WriteFile(filepath.Join(repo, ".pact"), []byte("unsafe"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	code := runWithConfig([]string{"status", "--repo", repo, "--json"}, runConfig{Stdout: &stdout, Stderr: &stderr, Width: 80})
+	if code != exitStore || strings.Contains(stderr.String(), "pact setup") {
+		t.Fatalf("unsafe store diagnostic = (%d, %q)", code, stderr.String())
+	}
+}
+
+func staleOperatorRepository(t *testing.T) string {
+	t.Helper()
+	repo := t.TempDir()
+	keyPath := filepath.Join(t.TempDir(), "stale.key.json")
+	runJSON(t, []string{"init", "--repo", repo, "--namespace", "org/example/widget", "--json"})
+	runJSON(t, []string{"keygen", "--actor", "Alice", "--out", keyPath, "--json"})
+	runJSON(t, []string{"trust-add", "--repo", repo, "--key-file", keyPath, "--json"})
+	runJSON(t, []string{"index", "rebuild", "--repo", repo, "--json"})
+	writeCLIEvent(t, repo, keyPath, "stale", "widget-stale", "widget.stale", nil, nil)
+	return repo
+}
+
+func brokenOperatorRepository(t *testing.T) string {
+	t.Helper()
+	fixture := newCLIQueryFixture(t)
+	objects, err := filepath.Glob(filepath.Join(fixture.repo, ".pact", "objects", "sha256", "*", "*.json"))
+	if err != nil || len(objects) == 0 {
+		t.Fatalf("fixture objects = %v, %v", objects, err)
+	}
+	if err := os.WriteFile(objects[0], []byte(`{"corrupt":true}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return fixture.repo
 }
 
 func healthyOperatorRepository(t *testing.T) string {

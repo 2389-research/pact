@@ -6,7 +6,9 @@ import (
 	"context"
 	"errors"
 	"io"
+	"os"
 	"path/filepath"
+	"strings"
 
 	"pact/internal/index"
 	"pact/internal/ledger"
@@ -14,13 +16,22 @@ import (
 	"pact/internal/store"
 )
 
+var errStatusStoreMissing = errors.New("PACT store is missing")
+
 func runStatus(args []string, _ io.Writer, _ runConfig) (commandResult, error) {
-	if len(args) != 2 || args[0] != "--repo" {
+	repo, found := statusRepository(args)
+	if !found {
 		return commandResult{}, &commandError{code: exitUsage, message: "invalid status arguments"}
 	}
-	st, err := store.Open(args[1])
+	if err := preflightStatusRepository(repo); err != nil {
+		if errors.Is(err, errStatusStoreMissing) {
+			return commandResult{}, missingStatusError(repo)
+		}
+		return commandResult{}, commandErrorFor(err, exitStore)
+	}
+	st, err := store.Open(repo)
 	if err != nil {
-		return commandResult{}, missingStatusError(args[1], err)
+		return commandResult{}, commandErrorFor(err, exitStore)
 	}
 	result, err := statuspkg.Inspect(context.Background(), st)
 	if err != nil {
@@ -37,7 +48,39 @@ func runStatus(args []string, _ io.Writer, _ runConfig) (commandResult, error) {
 	}
 }
 
-func missingStatusError(repo string, err error) *commandError {
+func statusRepository(args []string) (string, bool) {
+	if len(args) == 2 && args[0] == "--repo" && args[1] != "" {
+		return args[1], true
+	}
+	if len(args) == 1 {
+		if repo, found := strings.CutPrefix(args[0], "--repo="); found && repo != "" {
+			return repo, true
+		}
+	}
+	return "", false
+}
+
+func preflightStatusRepository(repo string) error {
+	// #nosec G703 -- the adapter normalizes the explicit --repo path before this read-only preflight.
+	info, err := os.Stat(repo)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return errStatusStoreMissing
+		}
+		return err
+	}
+	if !info.IsDir() {
+		return errors.New("repository is not a directory")
+	}
+	// #nosec G703 -- .pact is a fixed entry beneath the normalized repository selected above.
+	_, err = os.Lstat(filepath.Join(repo, ".pact"))
+	if errors.Is(err, os.ErrNotExist) {
+		return errStatusStoreMissing
+	}
+	return err
+}
+
+func missingStatusError(repo string) *commandError {
 	resolved, resolveErr := filepath.Abs(repo)
 	if resolveErr != nil {
 		resolved = repo
@@ -47,9 +90,6 @@ func missingStatusError(repo string, err error) *commandError {
 		"repo": resolved, "store": filepath.Join(resolved, ".pact"), "default_namespace": "",
 		"verification": nil, "index": nil, "replica": nil, "counts": nil, "heads": nil,
 		"next_action": map[string]any{"reason": "no PACT store was found", "command": "pact setup"},
-	}
-	if !errors.Is(err, store.ErrNotInitialized) {
-		details["next_action"] = nil
 	}
 	return &commandError{code: exitStore, message: "no PACT store found; run: pact setup", details: details}
 }

@@ -8,6 +8,12 @@ import (
 	"strings"
 )
 
+type helpPathError struct{ path []string }
+
+func (err *helpPathError) Error() string {
+	return fmt.Sprintf("unknown help path: %s", strings.Join(err.path, " "))
+}
+
 func renderHelp(writer io.Writer, catalog []commandSpec, path []string) error {
 	if len(path) == 0 {
 		return renderTopHelp(writer, catalog)
@@ -18,7 +24,7 @@ func renderHelp(writer io.Writer, catalog []commandSpec, path []string) error {
 	if len(path) == 1 && path[0] == "index" {
 		return renderIndexHelp(writer, catalog)
 	}
-	return fmt.Errorf("unknown help path: %s", strings.Join(path, " "))
+	return &helpPathError{path: path}
 }
 
 func renderTopHelp(writer io.Writer, catalog []commandSpec) error {

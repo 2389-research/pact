@@ -24,8 +24,8 @@ type runConfig struct {
 }
 
 type presentation struct {
-	asJSON bool
-	color  bool
+	asJSON    bool
+	colorMode string
 }
 
 func run(args []string, stdout, stderr io.Writer) int {
@@ -41,13 +41,17 @@ func run(args []string, stdout, stderr io.Writer) int {
 
 func runWithConfig(args []string, config runConfig) int { //nolint:funlen // The adapter keeps all process-boundary decisions visible in one place.
 	config = normalizedRunConfig(config)
-	args, display, err := parsePresentation(args, config)
+	args, display, err := parsePresentation(args)
 	if err != nil {
 		return writeCommandError(config.Stderr, false, &commandError{code: exitUsage, message: err.Error()})
 	}
 	catalog := commandCatalog()
 	if isHelpRequest(args) {
 		if err := renderHelp(config.Stdout, catalog, helpPath(args)); err != nil {
+			var pathErr *helpPathError
+			if errors.As(err, &pathErr) {
+				return writeCommandError(config.Stderr, display.asJSON, &commandError{code: exitUsage, message: pathErr.Error()})
+			}
 			return writeFailure(config.Stderr, display.asJSON, "help output failed")
 		}
 		return 0
@@ -109,7 +113,11 @@ func writeStatus(config runConfig, display presentation, result statuspkg.Result
 		}
 		return writeCommandError(writer, true, &commandError{code: code, message: message, details: value})
 	}
-	if err := emitStatusHuman(writer, result, display.color); err != nil {
+	terminal := config.StdoutTerminal
+	if code != 0 {
+		terminal = config.StderrTerminal
+	}
+	if err := emitStatusHuman(writer, result, colorEnabled(display, config, terminal)); err != nil {
 		return writeFailure(config.Stderr, false, "status output failed")
 	}
 	return code
@@ -134,10 +142,9 @@ func normalizedRunConfig(config runConfig) runConfig {
 	return config
 }
 
-func parsePresentation(args []string, config runConfig) ([]string, presentation, error) {
+func parsePresentation(args []string) ([]string, presentation, error) {
 	result := make([]string, 0, len(args))
-	display := presentation{}
-	colorMode := "auto"
+	display := presentation{colorMode: "auto"}
 	for position := 0; position < len(args); position++ {
 		argument := args[position]
 		switch {
@@ -148,28 +155,31 @@ func parsePresentation(args []string, config runConfig) ([]string, presentation,
 				return nil, presentation{}, errors.New("--color requires auto, always, or never")
 			}
 			position++
-			colorMode = args[position]
+			display.colorMode = args[position]
 		case strings.HasPrefix(argument, "--color="):
-			colorMode = strings.TrimPrefix(argument, "--color=")
+			display.colorMode = strings.TrimPrefix(argument, "--color=")
 		default:
 			result = append(result, argument)
 		}
 	}
-	if colorMode != "auto" && colorMode != "always" && colorMode != "never" {
+	if display.colorMode != "auto" && display.colorMode != "always" && display.colorMode != "never" {
 		return nil, presentation{}, errors.New("--color requires auto, always, or never")
 	}
-	if display.asJSON {
-		return result, display, nil
-	}
-	switch colorMode {
-	case "always":
-		display.color = true
-	case "never":
-		display.color = false
-	default:
-		display.color = config.StdoutTerminal && config.Environment["NO_COLOR"] == "" && config.Environment["TERM"] != "dumb"
-	}
 	return result, display, nil
+}
+
+func colorEnabled(display presentation, config runConfig, terminal bool) bool {
+	if display.asJSON {
+		return false
+	}
+	switch display.colorMode {
+	case "always":
+		return true
+	case "never":
+		return false
+	default:
+		return terminal && config.Environment["NO_COLOR"] == "" && config.Environment["TERM"] != "dumb"
+	}
 }
 
 func isHelpRequest(args []string) bool {
