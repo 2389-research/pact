@@ -28,7 +28,7 @@ Add `$HOME/.local/bin` to `PATH` if it is not already present.
 
 ## Operator CLI foundation
 
-Running bare `pact` in a terminal plays a brief rotating signed-and-sealed
+On a capable terminal, bare `pact` plays a brief rotating signed-and-sealed
 welcome, then prints top-level help. Redirected bare output prints one static
 frame, plain under the default automatic color policy; `--color always` may
 color that frame. `pact help` and `pact --help` skip the animation and remain

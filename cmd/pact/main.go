@@ -9,22 +9,25 @@ import (
 )
 
 func main() {
-	width := 80
-	height := 30
-	if detectedWidth, detectedHeight, err := term.GetSize(int(os.Stdout.Fd())); err == nil {
-		if detectedWidth > 0 {
-			width = detectedWidth
-		}
-		if detectedHeight > 0 {
-			height = detectedHeight
-		}
-	}
+	stdoutTerminal := term.IsTerminal(int(os.Stdout.Fd()))
+	detectedWidth, detectedHeight, geometryError := term.GetSize(int(os.Stdout.Fd()))
+	width, height, animationFrames := terminalAnimationConfig(stdoutTerminal, detectedWidth, detectedHeight, geometryError)
 	os.Exit(runWithConfig(os.Args[1:], runConfig{
 		Stdin: os.Stdin, Stdout: os.Stdout, Stderr: os.Stderr, WorkingDir: workingDirectory(),
-		StdoutTerminal: term.IsTerminal(int(os.Stdout.Fd())), StderrTerminal: term.IsTerminal(int(os.Stderr.Fd())),
-		Width: width, Height: height, AnimationFrames: sealAnimationFrames, AnimationInterval: sealAnimationInterval,
+		StdoutTerminal: stdoutTerminal, StderrTerminal: term.IsTerminal(int(os.Stderr.Fd())),
+		Width: width, Height: height, AnimationFrames: animationFrames, AnimationInterval: sealAnimationInterval,
 		Environment: environmentMap(os.Environ()),
 	}))
+}
+
+func terminalAnimationConfig(stdoutTerminal bool, detectedWidth, detectedHeight int, geometryError error) (int, int, int) {
+	if geometryError != nil || detectedWidth <= 0 || detectedHeight <= 0 {
+		if stdoutTerminal {
+			return 80, 30, 0
+		}
+		return 80, 30, sealAnimationFrames
+	}
+	return detectedWidth, detectedHeight, sealAnimationFrames
 }
 
 func workingDirectory() string {

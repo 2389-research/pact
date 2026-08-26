@@ -16,6 +16,9 @@ const (
 )
 
 func renderBareWelcome(writer io.Writer, config runConfig, display presentation) error {
+	if config.StdoutTerminal && config.AnimationFrames == 0 {
+		return nil
+	}
 	globeWidth, ok := sealGlobeWidth(config.Width, config.Height)
 	if !ok {
 		return nil
