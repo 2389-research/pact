@@ -17,22 +17,23 @@ import (
 	"pact/internal/store"
 )
 
-func TestSafeKeyDiagnosticOmitsPrivateBytes(t *testing.T) {
-	marker := "distinctive-private-byte-marker"
+func TestSafeKeyDiagnosticOmitsKeyBytes(t *testing.T) {
+	publicMarker := "distinctive-public-byte-marker"
+	privateMarker := "distinctive-private-byte-marker"
 	result := GenerateResult{Status: GenerateCreated, Key: &KeyFile{
 		Path:    "/safe/alice.key.json",
 		KeyID:   "ed25519:sha256:safe-id",
-		Public:  []byte("public"),
-		Private: []byte(marker),
+		Public:  []byte(publicMarker),
+		Private: []byte(privateMarker),
 	}}
 
 	diagnostic := safeKeyDiagnostic(result.Status, result.Key)
-	if strings.Contains(diagnostic, marker) {
-		t.Fatalf("safe diagnostic leaked private marker %q", marker)
+	if diagnosticContainsKeyBytes(diagnostic, publicMarker, privateMarker) {
+		t.Fatal("safe diagnostic included key bytes")
 	}
-	for _, safeField := range []string{"created", "safe-id", "/safe/alice.key.json", "public_len=6", "private_len=31"} {
+	for _, safeField := range []string{"created", "safe-id", "/safe/alice.key.json", "public_len=30", "private_len=31"} {
 		if !strings.Contains(diagnostic, safeField) {
-			t.Fatalf("safe diagnostic %q omitted %q", diagnostic, safeField)
+			t.Fatalf("safe diagnostic omitted field %q", safeField)
 		}
 	}
 }
@@ -436,6 +437,10 @@ func safeKeyDiagnostic(status GenerateStatus, key *KeyFile) string {
 		len(key.Public),
 		len(key.Private),
 	)
+}
+
+func diagnosticContainsKeyBytes(diagnostic, publicMarker, privateMarker string) bool {
+	return strings.Contains(diagnostic, publicMarker) || strings.Contains(diagnostic, privateMarker)
 }
 
 func fileMode(t *testing.T, path string) os.FileMode {
