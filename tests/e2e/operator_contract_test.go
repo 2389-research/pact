@@ -24,7 +24,7 @@ func runOperatorCLIContract(t *testing.T) {
 
 	bareHelp := runOperatorProcess(t, binary, workspace, nil)
 	assertCleanHelp(t, bareHelp)
-	if !strings.Contains(bareHelp.Stdout, "signed & sealed") || strings.Contains(bareHelp.Stdout, "\x1b[") {
+	if strings.Count(bareHelp.Stdout, "signed & sealed") != 1 || strings.Count(bareHelp.Stdout, "Usage:") != 1 || strings.Contains(bareHelp.Stdout, "\x1b[") {
 		t.Fatalf("bare help branding = %#v", bareHelp)
 	}
 

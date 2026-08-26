@@ -30,8 +30,9 @@ Add `$HOME/.local/bin` to `PATH` if it is not already present.
 
 Running bare `pact` in a terminal plays a brief rotating signed-and-sealed
 welcome, then prints top-level help. Redirected bare output prints one static
-frame, plain under the default automatic color policy. `pact help` and
-`pact --help` skip the animation and remain immediate. `pact help index` shows
+frame, plain under the default automatic color policy; `--color always` may
+color that frame. `pact help` and `pact --help` skip the animation and remain
+immediate. `pact help index` shows
 the nested index commands, and `pact COMMAND --help` remains seal-free.
 
 Commands that need an existing repository, including `status`, `heads`,
