@@ -89,6 +89,19 @@ func TestValidateSigningKeyPathAcceptsExternalTargetsWithoutWriting(t *testing.T
 	}
 }
 
+func TestInspectSecretSafetyErrorClassifiesTaintedErrorWithoutEchoingIt(t *testing.T) {
+	secret := "private-key-bytes-must-not-appear"
+	tainted := fmt.Errorf("%w: %s", ErrSecretSafety, secret)
+	leaked, correctIdentity := inspectSecretSafetyError(tainted, secret)
+	if !leaked || !correctIdentity {
+		t.Fatal("tainted secret-safety error was not classified")
+	}
+	leaked, correctIdentity = inspectSecretSafetyError(ErrSecretSafety, secret)
+	if leaked || !correctIdentity {
+		t.Fatal("safe secret-safety error was misclassified")
+	}
+}
+
 func TestValidateSigningKeyPathRejectsProjectContainmentWithoutLeakingKeyBytes(t *testing.T) {
 	projectRoot := t.TempDir()
 	externalRoot := t.TempDir()
@@ -109,11 +122,12 @@ func TestValidateSigningKeyPathRejectsProjectContainmentWithoutLeakingKeyBytes(t
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, err := ValidateSigningKeyPath(path, projectRoot)
-			if !errors.Is(err, ErrSecretSafety) {
-				t.Fatalf("ValidateSigningKeyPath() error = %v, want secret-safety refusal", err)
+			leaked, correctIdentity := inspectSecretSafetyError(err, secret)
+			if leaked {
+				t.Fatal("ValidateSigningKeyPath() error leaked key bytes")
 			}
-			if strings.Contains(err.Error(), secret) {
-				t.Fatalf("ValidateSigningKeyPath() error leaked key bytes: %v", err)
+			if !correctIdentity {
+				t.Fatal("ValidateSigningKeyPath() did not return a secret-safety refusal")
 			}
 		})
 	}
@@ -441,6 +455,13 @@ func safeKeyDiagnostic(status GenerateStatus, key *KeyFile) string {
 
 func diagnosticContainsKeyBytes(diagnostic, publicMarker, privateMarker string) bool {
 	return strings.Contains(diagnostic, publicMarker) || strings.Contains(diagnostic, privateMarker)
+}
+
+func inspectSecretSafetyError(err error, secret string) (leaked, correctIdentity bool) {
+	if err == nil {
+		return false, false
+	}
+	return strings.Contains(err.Error(), secret), errors.Is(err, ErrSecretSafety)
 }
 
 func fileMode(t *testing.T, path string) os.FileMode {
