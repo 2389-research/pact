@@ -132,9 +132,9 @@ func setupPromptDefaults(request setuppkg.Request) setupDefaults {
 }
 
 func readSetupValue(reader *bufio.Reader, writer io.Writer, label, example, observed string) (string, error) {
-	prompt := fmt.Sprintf("%s (example: %s): ", label, example)
+	prompt := fmt.Sprintf("%s (example: %s): ", escapeSetupTerminalText(label), escapeSetupTerminalText(example))
 	if observed != "" {
-		prompt = fmt.Sprintf("%s [%s]: ", label, observed)
+		prompt = fmt.Sprintf("%s [%s]: ", escapeSetupTerminalText(label), escapeSetupTerminalText(observed))
 	}
 	value, err := readSetupLine(reader, writer, prompt)
 	if err != nil {

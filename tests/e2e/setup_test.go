@@ -170,9 +170,6 @@ func TestSetupRealPTYPromptContract(t *testing.T) {
 		keyFile := filepath.Join(workspace, "pty-cancel.key.json")
 		transcript := runSetupPTY(t, binary, workspace, repo, keyFile, "no", setupCancelledMarker)
 		assertSetupPTYTranscript(t, transcript)
-		if strings.Count(transcript, "PACT setup plan") != 1 || strings.Count(transcript, "Continue? [y/N]") != 1 {
-			t.Fatalf("cancel PTY plan/confirmation count = %q", transcript)
-		}
 		if _, err := os.Lstat(repo); !errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("cancel PTY wrote repo: %v", err)
 		}
@@ -373,7 +370,18 @@ func assertSetupPTYTranscript(t *testing.T, transcript string) {
 			t.Fatalf("PTY prompt order = %q", transcript)
 		}
 	}
-	if !strings.Contains(transcript, "PACT setup plan") {
-		t.Fatalf("PTY transcript lacks plan: %q", transcript)
+	if strings.Count(transcript, "PACT setup plan") != 1 || strings.Count(transcript, "Continue? [y/N]") != 1 {
+		t.Fatalf("PTY transcript plan/confirmation count = %q", transcript)
+	}
+	planPosition := strings.Index(transcript, "PACT setup plan")
+	confirmationPosition := strings.Index(transcript, "Continue? [y/N]")
+	if planPosition < 0 || planPosition >= confirmationPosition {
+		t.Fatalf("PTY plan does not precede confirmation: %q", transcript)
+	}
+	plan := transcript[planPosition:confirmationPosition]
+	for _, action := range []string{"store   planned", "key     planned", "trust   planned", "verify  planned", "index   planned"} {
+		if !strings.Contains(plan, action) {
+			t.Fatalf("PTY plan before confirmation lacks %q: %q", action, transcript)
+		}
 	}
 }

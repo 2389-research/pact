@@ -195,6 +195,40 @@ func TestSetupTerminalAcceptsObservedDefaultsAndExplicitYes(t *testing.T) {
 	}
 }
 
+func TestSetupTerminalEscapesObservedDefaultsAndPlanWithoutChangingRequest(t *testing.T) {
+	repo := t.TempDir()
+	actor := "Alice\nFORGED ACTOR\x1b[31m"
+	keyFile := filepath.Join(t.TempDir(), "key\nFORGED PATH\x1b[2J.json")
+	var initialOut, initialErr bytes.Buffer
+	initial := setupRunConfig(repo, &initialOut, &initialErr, false)
+	if code := runWithConfig([]string{
+		"setup", "--namespace", "org/example/widget", "--actor", actor, "--key-file", keyFile, "--json",
+	}, initial); code != 0 {
+		t.Fatalf("hostile fixture setup exit = %d, stderr=%q", code, initialErr.String())
+	}
+
+	var stderr bytes.Buffer
+	config := setupRunConfig(repo, io.Discard, &stderr, true)
+	config.Stdin = strings.NewReader("\n\nyes\n")
+	output, err := runSetup([]string{"--repo", repo, "--key-file", keyFile}, io.Discard, config)
+	if err != nil || output.setup == nil {
+		t.Fatalf("escaped prompted setup = (%#v, %v), stderr=%q", output.setup, err, stderr.String())
+	}
+	if output.setup.Actor != actor || output.setup.KeyFile != keyFile {
+		t.Fatalf("setup changed raw request = actor %q key %q", output.setup.Actor, output.setup.KeyFile)
+	}
+	for _, raw := range []string{"\x1b", "\nFORGED ACTOR", "\nFORGED PATH"} {
+		if strings.Contains(stderr.String(), raw) {
+			t.Fatalf("setup terminal output contains raw control sequence %q: %q", raw, stderr.String())
+		}
+	}
+	for _, escaped := range []string{escapeSetupTerminalText(actor), escapeSetupTerminalText(keyFile)} {
+		if !strings.Contains(stderr.String(), escaped) {
+			t.Fatalf("setup terminal output lacks escaped value %q: %q", escaped, stderr.String())
+		}
+	}
+}
+
 func TestSetupTerminalFreshExamplesAreNotDefaults(t *testing.T) {
 	repo := filepath.Join(t.TempDir(), "unwritten-project")
 	keyFile := filepath.Join(t.TempDir(), "alice.key.json")
@@ -233,6 +267,14 @@ func TestSetupInputAllowsExact64KiBWithCRLF(t *testing.T) {
 	got, err := readSetupLine(reader, io.Discard, "")
 	if err != nil || got != want {
 		t.Fatalf("exact 64 KiB CRLF input = (%d bytes, %v), want %d bytes", len(got), err, len(want))
+	}
+}
+
+func TestSetupTerminalTextEscapesControlsAndPreservesPrintableUnicode(t *testing.T) {
+	input := "Björk/東京\\A\nB\rC\tD\x00E\x07F\x1b[31mG\x7fH\u009bI"
+	want := `Björk/東京\\A\nB\rC\tD\x00E\x07F\x1b[31mG\x7fH\x9bI`
+	if got := escapeSetupTerminalText(input); got != want {
+		t.Fatalf("escaped terminal text = %q, want %q", got, want)
 	}
 }
 
@@ -278,6 +320,52 @@ func TestSetupHumanColorAndNarrowMeaning(t *testing.T) {
 	for _, fragment := range []string{"PACT setup", "Repo", "Key file", "store   created", "key     created", "trust   created", "verify  valid", "index   created", "ready"} {
 		if !strings.Contains(plain, fragment) {
 			t.Fatalf("narrow setup lacks %q: %q", fragment, plain)
+		}
+	}
+}
+
+func TestSetupHumanRenderersEscapeFactsErrorsAndActions(t *testing.T) {
+	hostile := "safe\\text\nFORGED\x1b[31m"
+	result := setuppkg.Result{
+		Status: setupCancelledStatus, Repo: hostile + "/repo", Store: hostile + "/store",
+		Namespace: hostile + "/namespace", Actor: hostile + "/actor", KeyFile: hostile + "/key", KeyID: hostile + "/id",
+		Actions: []setuppkg.Action{{Name: setuppkg.ActionName(hostile), Status: setuppkg.ActionStatus(hostile)}},
+	}
+	var success, failure bytes.Buffer
+	ready := result
+	ready.Status = "ready"
+	if err := emitSetupHuman(&success, ready, false, 80); err != nil {
+		t.Fatal(err)
+	}
+	if err := emitSetupErrorHuman(&failure, result, &commandError{code: exitUsage, message: hostile + "/error"}, false); err != nil {
+		t.Fatal(err)
+	}
+	for name, output := range map[string]string{"success": success.String(), "failure": failure.String()} {
+		if strings.Contains(output, "\x1b") || strings.Contains(output, "\nFORGED") {
+			t.Fatalf("%s setup output contains raw terminal controls: %q", name, output)
+		}
+		if !strings.Contains(output, escapeSetupTerminalText(hostile)) {
+			t.Fatalf("%s setup output lacks escaped terminal text: %q", name, output)
+		}
+	}
+}
+
+func TestSetupJSONKeepsControlCharactersAsStructuredValues(t *testing.T) {
+	hostile := "safe\\text\nvalue\x1b[31m"
+	raw, err := json.Marshal(setupResultMap(setuppkg.Result{
+		Status: "ready", Repo: hostile, Store: hostile, Namespace: hostile,
+		Actor: hostile, KeyFile: hostile, KeyID: hostile,
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(raw, []byte{'\n'}) || bytes.Contains(raw, []byte{'\x1b'}) {
+		t.Fatalf("setup JSON contains raw terminal controls: %q", raw)
+	}
+	decoded := decodeSetupJSON(t, raw)
+	for _, name := range []string{"repo", "store", "namespace", "actor", "key_file", "key_id"} {
+		if decoded[name] != hostile {
+			t.Fatalf("setup JSON %s = %q, want raw structured value %q", name, decoded[name], hostile)
 		}
 	}
 }

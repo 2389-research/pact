@@ -6,9 +6,46 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	setuppkg "pact/internal/setup"
 )
+
+func escapeSetupTerminalText(value string) string {
+	var output strings.Builder
+	for len(value) != 0 {
+		character, size := utf8.DecodeRuneInString(value)
+		if character == utf8.RuneError && size == 1 {
+			fmt.Fprintf(&output, "\\x%02x", value[0])
+			value = value[1:]
+			continue
+		}
+		value = value[size:]
+		switch character {
+		case '\\':
+			output.WriteString(`\\`)
+		case '\n':
+			output.WriteString(`\n`)
+		case '\r':
+			output.WriteString(`\r`)
+		case '\t':
+			output.WriteString(`\t`)
+		default:
+			switch {
+			case unicode.IsPrint(character):
+				output.WriteRune(character)
+			case character <= 0xff:
+				fmt.Fprintf(&output, "\\x%02x", character)
+			case character <= 0xffff:
+				fmt.Fprintf(&output, "\\u%04x", character)
+			default:
+				fmt.Fprintf(&output, "\\U%08x", character)
+			}
+		}
+	}
+	return output.String()
+}
 
 func setupResultMap(result setuppkg.Result) map[string]any {
 	actions := make([]map[string]any, len(result.Actions))
@@ -47,9 +84,10 @@ func writeSetupError(config runConfig, display presentation, result setuppkg.Res
 
 func emitSetupHuman(writer io.Writer, result setuppkg.Result, color bool, _ int) error {
 	var output strings.Builder
-	fmt.Fprintf(&output, "PACT setup\nRepo      %s\nStore     %s\nKey file  %s\n", result.Repo, result.Store, result.KeyFile)
+	fmt.Fprintf(&output, "PACT setup\nRepo      %s\nStore     %s\nKey file  %s\n",
+		escapeSetupTerminalText(result.Repo), escapeSetupTerminalText(result.Store), escapeSetupTerminalText(result.KeyFile))
 	if result.KeyID != "" {
-		fmt.Fprintf(&output, "Key ID    %s\n", result.KeyID)
+		fmt.Fprintf(&output, "Key ID    %s\n", escapeSetupTerminalText(result.KeyID))
 	}
 	if result.Status == setupCancelledStatus {
 		fmt.Fprintf(&output, "\n%s\n", setupCancelledStatus)
@@ -69,7 +107,9 @@ func emitSetupHuman(writer io.Writer, result setuppkg.Result, color bool, _ int)
 
 func emitSetupPlan(writer io.Writer, plan setuppkg.Plan) error {
 	var output strings.Builder
-	fmt.Fprintf(&output, "\nPACT setup plan\nRepo       %s\nNamespace  %s\nActor      %s\nKey file   %s\n\nPlan\n", plan.Repo, plan.Namespace, plan.Actor, plan.KeyFile)
+	fmt.Fprintf(&output, "\nPACT setup plan\nRepo       %s\nNamespace  %s\nActor      %s\nKey file   %s\n\nPlan\n",
+		escapeSetupTerminalText(plan.Repo), escapeSetupTerminalText(plan.Namespace),
+		escapeSetupTerminalText(plan.Actor), escapeSetupTerminalText(plan.KeyFile))
 	writeSetupActions(&output, plan.Actions, false)
 	output.WriteByte('\n')
 	_, err := io.WriteString(writer, output.String())
@@ -78,7 +118,7 @@ func emitSetupPlan(writer io.Writer, plan setuppkg.Plan) error {
 
 func emitSetupErrorHuman(writer io.Writer, result setuppkg.Result, commandErr *commandError, color bool) error {
 	var output strings.Builder
-	fmt.Fprintf(&output, "PACT error: %s\n", commandErr.message)
+	fmt.Fprintf(&output, "PACT error: %s\n", escapeSetupTerminalText(commandErr.message))
 	writeSetupFact(&output, "Repo", result.Repo)
 	writeSetupFact(&output, "Store", result.Store)
 	writeSetupFact(&output, "Namespace", result.Namespace)
@@ -95,16 +135,16 @@ func emitSetupErrorHuman(writer io.Writer, result setuppkg.Result, commandErr *c
 
 func writeSetupFact(output *strings.Builder, label, value string) {
 	if value != "" {
-		fmt.Fprintf(output, "%-9s %s\n", label, value)
+		fmt.Fprintf(output, "%-9s %s\n", escapeSetupTerminalText(label), escapeSetupTerminalText(value))
 	}
 }
 
 func writeSetupActions(output *strings.Builder, actions []setuppkg.Action, color bool) {
 	for _, action := range actions {
-		status := string(action.Status)
+		status := escapeSetupTerminalText(string(action.Status))
 		if color {
 			status = "\x1b[32m" + status + "\x1b[0m"
 		}
-		fmt.Fprintf(output, "  %-7s %s\n", action.Name, status)
+		fmt.Fprintf(output, "  %-7s %s\n", escapeSetupTerminalText(string(action.Name)), status)
 	}
 }
