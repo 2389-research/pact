@@ -79,37 +79,57 @@ func emitQueryResult(writer io.Writer, asJSON bool, page index.QueryPage) error 
 	if asJSON {
 		return index.WriteQueryPageJSON(context.Background(), writer, page)
 	}
-	emitQueryHuman(writer, page)
+	return emitQueryHuman(writer, page)
+}
+
+func emitQueryHuman(writer io.Writer, page index.QueryPage) error {
+	if err := fprintf(writer, "PACT %s\n", page.Operation); err != nil {
+		return err
+	}
+	if err := fprintf(writer, "index state: %v\ncoverage: %v\n", page.Index.State, page.Index.Coverage); err != nil {
+		return err
+	}
+	if err := fprintf(writer, "local replica completeness: %v (global completeness: %v)\n", page.Replica.Completeness, page.Replica.GlobalCompleteness); err != nil {
+		return err
+	}
+	if err := emitFiltersHuman(writer, page.Filters); err != nil {
+		return err
+	}
+	if err := fprintf(writer, "causal batches use known local dependencies; this is not a total order\n"); err != nil {
+		return err
+	}
+	for _, batch := range page.Batches {
+		if err := fprintf(writer, "causal batch %d (complete in page: %v)\n", batch.Batch, batch.CompleteInPage); err != nil {
+			return err
+		}
+		for _, item := range batch.Items {
+			if err := emitEventHuman(writer, item); err != nil {
+				return err
+			}
+		}
+	}
+	if err := fprintf(writer, "unresolved events (separate from ordered causal batches):\n"); err != nil {
+		return err
+	}
+	for _, item := range page.Unresolved {
+		if err := emitEventHuman(writer, item); err != nil {
+			return err
+		}
+	}
+	if page.Page.NextCursor != nil {
+		return fprintf(writer, "continuation: %s\n", *page.Page.NextCursor)
+	}
 	return nil
 }
 
-func emitQueryHuman(writer io.Writer, page index.QueryPage) {
-	fprintf(writer, "PACT %s\n", page.Operation)
-	fprintf(writer, "index state: %v\ncoverage: %v\n", page.Index.State, page.Index.Coverage)
-	fprintf(writer, "local replica completeness: %v (global completeness: %v)\n", page.Replica.Completeness, page.Replica.GlobalCompleteness)
-	emitFiltersHuman(writer, page.Filters)
-	fprintf(writer, "causal batches use known local dependencies; this is not a total order\n")
-	for _, batch := range page.Batches {
-		fprintf(writer, "causal batch %d (complete in page: %v)\n", batch.Batch, batch.CompleteInPage)
-		for _, item := range batch.Items {
-			emitEventHuman(writer, item)
-		}
+func emitEventHuman(writer io.Writer, item index.EventItem) error {
+	if err := fprintf(writer, "  %s  %s  %s\n", item.EventRef, item.Type, strconv.Quote(item.Subject)); err != nil {
+		return err
 	}
-	fprintf(writer, "unresolved events (separate from ordered causal batches):\n")
-	for _, item := range page.Unresolved {
-		emitEventHuman(writer, item)
-	}
-	if page.Page.NextCursor != nil {
-		fprintf(writer, "continuation: %s\n", *page.Page.NextCursor)
-	}
+	return fprintf(writer, "    observed_at (advisory): %s\n", item.ObservedAt)
 }
 
-func emitEventHuman(writer io.Writer, item index.EventItem) {
-	fprintf(writer, "  %s  %s  %s\n", item.EventRef, item.Type, strconv.Quote(item.Subject))
-	fprintf(writer, "    observed_at (advisory): %s\n", item.ObservedAt)
-}
-
-func emitFiltersHuman(writer io.Writer, filters index.Filters) {
+func emitFiltersHuman(writer io.Writer, filters index.Filters) error {
 	families := []struct {
 		name   string
 		values []string
@@ -130,12 +150,17 @@ func emitFiltersHuman(writer io.Writer, filters index.Filters) {
 			quoted[position] = strconv.Quote(value)
 		}
 		if !wrote {
-			fprintf(writer, "applied filters:\n")
+			if err := fprintf(writer, "applied filters:\n"); err != nil {
+				return err
+			}
 			wrote = true
 		}
-		fprintf(writer, "  %s: %s\n", family.name, strings.Join(quoted, ", "))
+		if err := fprintf(writer, "  %s: %s\n", family.name, strings.Join(quoted, ", ")); err != nil {
+			return err
+		}
 	}
 	if !wrote {
-		fprintf(writer, "applied filters: none\n")
+		return fprintf(writer, "applied filters: none\n")
 	}
+	return nil
 }

@@ -15,7 +15,6 @@ import (
 
 	"pact/internal/canonical"
 	"pact/internal/identity"
-	"pact/internal/index"
 	"pact/internal/ledger"
 	"pact/internal/store"
 )
@@ -37,80 +36,6 @@ type commandError struct {
 }
 
 func (err *commandError) Error() string { return err.message }
-
-func run(args []string, stdout, stderr io.Writer) int { //nolint:funlen,gocyclo // The fixed top-level command dispatch keeps every CLI operation visible in one switch.
-	if len(args) == 0 {
-		emitError(stderr, false, &commandError{code: exitUsage, message: "a command is required"})
-		return exitUsage
-	}
-	command := args[0]
-	commandArgs, asJSON := takeJSONFlag(args[1:])
-	flagOutput := stderr
-	if asJSON {
-		flagOutput = io.Discard
-	}
-	var result map[string]any
-	var queryResult *index.QueryPage
-	var err error
-	switch command {
-	case "init":
-		result, err = runInit(commandArgs, flagOutput)
-	case "keygen":
-		result, err = runKeygen(commandArgs, flagOutput)
-	case "trust-add":
-		result, err = runTrustAdd(commandArgs, flagOutput)
-	case "hash":
-		result, err = runHash(commandArgs, flagOutput)
-	case "commit":
-		result, err = runCommit(commandArgs, flagOutput)
-	case "heads":
-		result, err = runHeads(commandArgs, flagOutput)
-	case "show":
-		result, err = runShow(commandArgs, flagOutput)
-	case "verify":
-		result, err = runVerify(commandArgs, flagOutput)
-	case "checkpoint":
-		result, err = runCheckpoint(commandArgs, flagOutput)
-	case "index":
-		result, err = runIndex(commandArgs, flagOutput)
-	case "log":
-		var page index.QueryPage
-		page, err = runLog(commandArgs, flagOutput)
-		if err == nil {
-			queryResult = &page
-		}
-	case "query":
-		var page index.QueryPage
-		page, err = runQuery(commandArgs, flagOutput)
-		if err == nil {
-			queryResult = &page
-		}
-	default:
-		err = &commandError{code: exitUsage, message: fmt.Sprintf("unknown command: %s", command)}
-	}
-	if err != nil {
-		code := exitUnexpectedError
-		var expected *commandError
-		if errors.As(err, &expected) {
-			code = expected.code
-		}
-		if expected != nil {
-			emitError(stderr, asJSON, expected)
-		} else {
-			emitError(stderr, asJSON, &commandError{code: code, message: err.Error()})
-		}
-		return code
-	}
-	if queryResult != nil {
-		if err := emitQueryResult(stdout, asJSON, *queryResult); err != nil {
-			emitError(stderr, asJSON, &commandError{code: exitUnexpectedError, message: "query output failed"})
-			return exitUnexpectedError
-		}
-	} else {
-		emitResult(stdout, asJSON, result)
-	}
-	return 0
-}
 
 func runInit(args []string, stderr io.Writer) (map[string]any, error) {
 	flags := flag.NewFlagSet("init", flag.ContinueOnError)
@@ -239,48 +164,32 @@ func commandErrorFor(err error, defaultCode int) *commandError {
 	return &commandError{code: code, message: err.Error()}
 }
 
-func takeJSONFlag(args []string) ([]string, bool) {
-	result := make([]string, 0, len(args))
-	asJSON := false
-	for _, argument := range args {
-		if argument == "--json" {
-			asJSON = true
-			continue
-		}
-		result = append(result, argument)
-	}
-	return result, asJSON
-}
-
-func emitResult(writer io.Writer, asJSON bool, result map[string]any) {
+func emitResult(writer io.Writer, asJSON bool, result map[string]any) error {
 	if asJSON {
-		if err := json.NewEncoder(writer).Encode(result); err != nil {
-			return
-		}
-		return
+		return json.NewEncoder(writer).Encode(result)
 	}
 	switch result["operation"] {
 	case "index-status", "index-rebuild":
-		emitIndexHuman(writer, result)
+		return emitIndexHuman(writer, result)
 	default:
-		fmt.Fprintf(writer, "PACT %s\n", result["operation"])
+		_, err := fmt.Fprintf(writer, "PACT %s\n", result["operation"])
+		return err
 	}
 }
 
-func emitError(writer io.Writer, asJSON bool, err *commandError) {
+func emitError(writer io.Writer, asJSON bool, err *commandError) error {
 	if asJSON {
 		result := map[string]any{"ok": false, "error": err.message, "exit_code": err.code}
 		if err.details != nil {
 			result["details"] = err.details
 		}
-		if encodeErr := json.NewEncoder(writer).Encode(result); encodeErr != nil {
-			return
-		}
-		return
+		return json.NewEncoder(writer).Encode(result)
 	}
-	fprintf(writer, "PACT error: %s\n", err.message)
+	_, writeErr := fmt.Fprintf(writer, "PACT error: %s\n", err.message)
+	return writeErr
 }
 
-func fprintf(writer io.Writer, format string, values ...any) {
-	_, _ = fmt.Fprintf(writer, format, values...)
+func fprintf(writer io.Writer, format string, values ...any) error {
+	_, err := fmt.Fprintf(writer, format, values...)
+	return err
 }

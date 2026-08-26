@@ -13,20 +13,6 @@ import (
 	"pact/internal/store"
 )
 
-func runIndex(args []string, stderr io.Writer) (map[string]any, error) {
-	if len(args) == 0 {
-		return nil, &commandError{code: exitUsage, message: "index requires one subcommand"}
-	}
-	switch args[0] {
-	case "status":
-		return runIndexStatus(args[1:], stderr)
-	case "rebuild":
-		return runIndexRebuild(args[1:], stderr)
-	default:
-		return nil, &commandError{code: exitUsage, message: "unknown index subcommand"}
-	}
-}
-
 func runIndexStatus(args []string, stderr io.Writer) (map[string]any, error) {
 	flags := flag.NewFlagSet("index status", flag.ContinueOnError)
 	flags.SetOutput(stderr)
@@ -121,20 +107,31 @@ func indexCommandError(err error) error {
 	return &commandError{code: exitUnexpectedError, message: "index operation failed"}
 }
 
-func emitIndexHuman(writer io.Writer, result map[string]any) {
+func emitIndexHuman(writer io.Writer, result map[string]any) error {
 	info, infoOK := result["index"].(map[string]any)
 	replica, replicaOK := result["replica"].(map[string]any)
 	if !infoOK || !replicaOK {
-		return
+		return errors.New("index result is malformed")
 	}
-	fprintf(writer, "PACT %s\n", result["operation"])
-	fprintf(writer, "index state: %v\n", info["state"])
-	fprintf(writer, "coverage: %v\n", info["coverage"])
-	fprintf(writer, "local replica completeness: %v (global completeness: %v)\n", replica["completeness"], replica["global_completeness"])
-	fprintf(writer, "rebuild required: %v\n", info["rebuild_required"])
+	if err := fprintf(writer, "PACT %s\n", result["operation"]); err != nil {
+		return err
+	}
+	if err := fprintf(writer, "index state: %v\n", info["state"]); err != nil {
+		return err
+	}
+	if err := fprintf(writer, "coverage: %v\n", info["coverage"]); err != nil {
+		return err
+	}
+	if err := fprintf(writer, "local replica completeness: %v (global completeness: %v)\n", replica["completeness"], replica["global_completeness"]); err != nil {
+		return err
+	}
+	if err := fprintf(writer, "rebuild required: %v\n", info["rebuild_required"]); err != nil {
+		return err
+	}
 	if result["operation"] == "index-rebuild" {
-		fprintf(writer, "created: %v\nreplaced: %v\n", result["created"], result["replaced"])
+		return fprintf(writer, "created: %v\nreplaced: %v\n", result["created"], result["replaced"])
 	}
+	return nil
 }
 
 func queryCommandError(err error) error {
