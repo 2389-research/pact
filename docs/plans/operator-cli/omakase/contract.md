@@ -8,6 +8,7 @@
 - Design: `docs/superpowers/specs/2026-08-25-operator-cli-design.md`.
 - Plan: `docs/superpowers/plans/2026-08-25-operator-cli-foundation.md`.
 - Shared test helper: `tests/e2e/operator_contract_test.go`.
+- Scenario contract commit: `5f1565878a16e536658158c7f758c6c838f0a213`.
 
 ## Required Wrapper
 
