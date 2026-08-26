@@ -258,6 +258,7 @@ func TestCommandCatalogListsEveryLeafFlag(t *testing.T) {
 		path string
 		want []string
 	}{
+		{path: "setup", want: []string{"--actor", "--color", "--json", "--key-file", "--namespace", "--repo"}},
 		{path: "init", want: []string{"--color", "--json", "--namespace", "--repo"}},
 		{path: "keygen", want: []string{"--actor", "--color", "--json", "--out"}},
 		{path: "trust-add", want: []string{"--color", "--json", "--key-file", "--repo"}},

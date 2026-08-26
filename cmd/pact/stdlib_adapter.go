@@ -15,6 +15,7 @@ import (
 
 type runConfig struct {
 	Stdin             io.Reader
+	StdinTerminal     bool
 	Stdout            io.Writer
 	Stderr            io.Writer
 	WorkingDir        string
@@ -24,6 +25,7 @@ type runConfig struct {
 	Height            int
 	AnimationFrames   int
 	AnimationInterval time.Duration
+	Now               func() time.Time
 	Environment       map[string]string
 }
 
@@ -76,6 +78,9 @@ func runWithConfig(args []string, config runConfig) int { //nolint:funlen // The
 	if err != nil {
 		var commandErr *commandError
 		if errors.As(err, &commandErr) {
+			if output.setup != nil {
+				return writeSetupError(config, display, *output.setup, commandErr)
+			}
 			return writeCommandError(config.Stderr, display.asJSON, commandErr)
 		}
 		return writeCommandError(config.Stderr, display.asJSON, &commandError{code: exitUnexpectedError, message: err.Error()})
@@ -88,6 +93,9 @@ func runWithConfig(args []string, config runConfig) int { //nolint:funlen // The
 	}
 	if output.status != nil {
 		return writeStatus(config, display, *output.status)
+	}
+	if output.setup != nil {
+		return writeSetup(config, display, *output.setup)
 	}
 	if err := emitResult(config.Stdout, display.asJSON, output.result); err != nil {
 		return writeFailure(config.Stderr, display.asJSON, "command output failed")
@@ -149,6 +157,9 @@ func normalizedRunConfig(config runConfig) runConfig {
 	}
 	if config.Height <= 0 {
 		config.Height = 30
+	}
+	if config.Now == nil {
+		config.Now = time.Now
 	}
 	if config.Environment == nil {
 		config.Environment = map[string]string{}

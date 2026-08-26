@@ -4,6 +4,7 @@ package main
 
 import (
 	"os"
+	"time"
 
 	"golang.org/x/term"
 )
@@ -14,9 +15,9 @@ func main() {
 	width, height, animationFrames := terminalAnimationConfig(stdoutTerminal, detectedWidth, detectedHeight, geometryError)
 	os.Exit(runWithConfig(os.Args[1:], runConfig{
 		Stdin: os.Stdin, Stdout: os.Stdout, Stderr: os.Stderr, WorkingDir: workingDirectory(),
-		StdoutTerminal: stdoutTerminal, StderrTerminal: term.IsTerminal(int(os.Stderr.Fd())),
+		StdinTerminal: term.IsTerminal(int(os.Stdin.Fd())), StdoutTerminal: stdoutTerminal, StderrTerminal: term.IsTerminal(int(os.Stderr.Fd())),
 		Width: width, Height: height, AnimationFrames: animationFrames, AnimationInterval: sealAnimationInterval,
-		Environment: environmentMap(os.Environ()),
+		Now: time.Now, Environment: environmentMap(os.Environ()),
 	}))
 }
 

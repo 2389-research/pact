@@ -6,6 +6,7 @@ import (
 	"io"
 
 	"pact/internal/index"
+	setuppkg "pact/internal/setup"
 	statuspkg "pact/internal/status"
 )
 
@@ -20,6 +21,7 @@ const (
 type commandResult struct {
 	result map[string]any
 	page   *index.QueryPage
+	setup  *setuppkg.Result
 	status *statuspkg.Result
 }
 
@@ -50,6 +52,7 @@ func commandCatalog() []commandSpec {
 		}, local...)
 	}
 	return []commandSpec{
+		{[]string{"setup"}, "Get started", "Configure a usable local PACT ledger.", "pact setup [--repo PATH] --namespace NAMESPACE --actor ACTOR --key-file PATH [--json]", []string{"pact setup --namespace org/example/widget --actor Alice --key-file ../alice.key.json"}, repositoryCreate, runSetup, withPresentationFlags(commandFlag{usage: "--repo PATH", description: "project root"}, commandFlag{usage: "--namespace NAMESPACE", description: "default namespace"}, commandFlag{usage: "--actor ACTOR", description: "label the signing identity"}, commandFlag{usage: "--key-file PATH", description: "external signing key file"})},
 		{[]string{"init"}, "Get started", "Initialize a PACT store.", "pact init --namespace NAMESPACE [--repo PATH]", []string{"pact init --namespace org/example/widget"}, repositoryCreate, mapHandler(runInit), withPresentationFlags(commandFlag{usage: "--namespace NAMESPACE", description: "default namespace"}, commandFlag{usage: "--repo PATH", description: "project root"})},
 		{[]string{"keygen"}, "Get started", "Create an external signing key.", "pact keygen --actor ACTOR --out PATH", []string{"pact keygen --actor Alice --out alice.key.json"}, repositoryNone, mapHandler(runKeygen), withPresentationFlags(commandFlag{usage: "--actor ACTOR", description: "label the signing identity"}, commandFlag{usage: "--out PATH", description: "write the external key file"})},
 		{[]string{"trust-add"}, "Get started", "Trust a public signing identity.", "pact trust-add --key-file PATH [--repo PATH]", []string{"pact trust-add --key-file alice.public.json"}, repositoryOpen, mapHandler(runTrustAdd), withPresentationFlags(commandFlag{usage: "--key-file PATH", description: "external key file"}, commandFlag{usage: "--repo PATH", description: "project root"})},
