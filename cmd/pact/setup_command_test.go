@@ -218,6 +218,48 @@ func TestSetupApplyErrorRendersOnlyProvenPartialActions(t *testing.T) {
 	}
 }
 
+func TestSetupZeroActionApplyErrorRendersSafeResolvedFacts(t *testing.T) {
+	repo := t.TempDir()
+	keyFile := filepath.Join(t.TempDir(), "alice.key.json")
+	if err := os.WriteFile(filepath.Join(repo, ".pact"), []byte("unsafe store entry"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var stdout, stderr bytes.Buffer
+	config := setupRunConfig(repo, &stdout, &stderr, false)
+	code := runWithConfig([]string{
+		"setup", "--namespace", "org/example/widget", "--actor", "Alice", "--key-file", keyFile,
+	}, config)
+	if code != exitStore || stdout.Len() != 0 {
+		t.Fatalf("zero-action setup = exit %d, stdout=%q stderr=%q", code, stdout.String(), stderr.String())
+	}
+	resolvedRepo, err := filepath.Abs(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolvedKey, err := filepath.Abs(keyFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, fragment := range []string{
+		"PACT error:", "Repo      " + resolvedRepo, "Namespace org/example/widget", "Actor     Alice", "Key file  " + resolvedKey,
+	} {
+		if !strings.Contains(stderr.String(), fragment) {
+			t.Fatalf("zero-action setup lacks %q: %q", fragment, stderr.String())
+		}
+	}
+	for _, forbidden := range []string{
+		"Store     ", "Key ID    ", "Completed setup actions", "\n  store", "\n  key", "\n  trust", "\n  verify", "\n  index",
+		"private_key", "public_key", "\x1b[",
+	} {
+		if strings.Contains(stderr.String(), forbidden) {
+			t.Fatalf("zero-action setup contains %q: %q", forbidden, stderr.String())
+		}
+	}
+	if _, err := os.Lstat(keyFile); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("zero-action failure wrote key: %v", err)
+	}
+}
+
 func TestNormalizedRunConfigSuppliesClock(t *testing.T) {
 	if normalizedRunConfig(runConfig{}).Now == nil {
 		t.Fatal("normalized run config lacks a clock")

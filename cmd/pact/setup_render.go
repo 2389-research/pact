@@ -61,11 +61,13 @@ func emitSetupHuman(writer io.Writer, result setuppkg.Result, color bool, _ int)
 func emitSetupErrorHuman(writer io.Writer, result setuppkg.Result, commandErr *commandError, color bool) error {
 	var output strings.Builder
 	fmt.Fprintf(&output, "PACT error: %s\n", commandErr.message)
+	writeSetupFact(&output, "Repo", result.Repo)
+	writeSetupFact(&output, "Store", result.Store)
+	writeSetupFact(&output, "Namespace", result.Namespace)
+	writeSetupFact(&output, "Actor", result.Actor)
+	writeSetupFact(&output, "Key file", result.KeyFile)
+	writeSetupFact(&output, "Key ID", result.KeyID)
 	if len(result.Actions) != 0 {
-		fmt.Fprintf(&output, "Repo      %s\n", result.Repo)
-		writeSetupFact(&output, "Store", result.Store)
-		writeSetupFact(&output, "Key file", result.KeyFile)
-		writeSetupFact(&output, "Key ID", result.KeyID)
 		output.WriteString("\nCompleted setup actions\n")
 		writeSetupActions(&output, result.Actions, color)
 	}
