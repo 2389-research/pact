@@ -83,3 +83,6 @@
   `QueryPage` serializer and must propagate writer errors.
 - `errors.Join(err, nil)` wraps a lone error on current Go. When cancellation
   identity is a contract, join a cleanup error only when that error is non-nil.
+- The tested standard-library CLI adapter won: one command catalog owns
+  dispatch and help, and `golang.org/x/term` is the only remaining CLI
+  dependency.

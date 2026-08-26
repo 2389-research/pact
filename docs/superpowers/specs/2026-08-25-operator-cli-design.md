@@ -3,7 +3,7 @@
 
 # PACT Operator CLI Design
 
-**Status:** Approved by Doctor Biz in written form on 2026-08-25.
+**Status:** Foundation implemented; setup and renderer plans pending.
 
 ## Goal
 

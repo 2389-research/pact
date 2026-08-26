@@ -32,10 +32,26 @@ official `x/term` package documents `IsTerminal` and `GetSize`. Sources:
 
 ## Progress
 
-**State:** Planned. No implementation task has started.
+**State:** Foundation complete. Task 6 terminal hardening is `5beb98c`; Task 7
+boundary repairs are `ed1e88aa745e1b3a3a46dde9766a584206299fb0`. This
+documentation closeout commit remains pending.
 
-**Next step:** Task 1, followed by Task 2 and the shared trial contract before
-any command-adapter worktree is created.
+**Completed evidence:**
+
+- Task 1: `5dd153c` (`refactor: expose store status metadata`).
+- Task 2: `83c4ac1` (`feat: add operator status model`).
+- Task 3: `5f15658` (`test: define operator CLI contract`) and `a2d8874`
+  (`docs: pin operator CLI trial contract`).
+- Task 4: `f81a540` (`feat: add standard library operator CLI foundation`)
+  and `76e4a6b` (`fix: harden standard library operator CLI candidate`).
+- Task 5: `cc09670` (`docs: select operator CLI foundation`) and `bf5eca6`
+  (`docs: record operator CLI trial cleanup`).
+- Task 6: `5beb98c` (`test: harden operator CLI output`).
+- Task 7 boundary repairs: `ed1e88aa745e1b3a3a46dde9766a584206299fb0`
+  (`fix: harden operator CLI boundaries`).
+- Task 7 documentation: this documentation closeout commit (pending).
+
+**Next plan:** `2026-08-25-operator-cli-setup.md`.
 
 ## Global Constraints
 
@@ -1405,11 +1421,19 @@ env -u GOROOT mise exec -- git commit -m "test: harden operator CLI output"
 **Files:**
 
 - Modify: `README.md`
+- Modify: `tests/e2e/cli_test.go`
 - Modify: `docs/superpowers/specs/2026-08-25-operator-cli-design.md`
 - Modify: `docs/superpowers/plans/2026-08-25-operator-cli-foundation.md`
 - Modify: `docs/plans/operator-cli/omakase/result.md`
 - Modify: `gotchas.md` only for a new durable architectural fact discovered
   during implementation
+
+**Review-required files:**
+
+- Modify: `cmd/pact/command_catalog.go`, `cmd/pact/help_render.go`,
+  `cmd/pact/repository.go`, and `cmd/pact/stdlib_adapter.go`.
+- Modify: `cmd/pact/app_test.go`, `cmd/pact/operator_cli_test.go`, and
+  `cmd/pact/testdata/status/attention-80.golden`.
 
 **Interfaces:**
 
@@ -1473,16 +1497,28 @@ Expected: every automated gate passes; help exits 0; status discovers this
 repository and truthfully reports its current ledger and index state. Remove
 only the explicit `/tmp/pact-operator-cli` scratch binary after inspection.
 
-- [ ] **Step 4: Commit the foundation closeout**
+- [x] **Step 4: Commit reviewed boundary repairs**
+
+After the final review is clean, commit the focused adapter, test, and golden
+repairs separately from the documentation closeout:
 
 ```bash
 git status --short
-git add README.md tests/e2e/cli_test.go docs/superpowers/specs/2026-08-25-operator-cli-design.md docs/superpowers/plans/2026-08-25-operator-cli-foundation.md docs/plans/operator-cli/omakase/result.md
+git add cmd/pact/app_test.go cmd/pact/command_catalog.go cmd/pact/help_render.go cmd/pact/operator_cli_test.go cmd/pact/repository.go cmd/pact/stdlib_adapter.go cmd/pact/testdata/status/attention-80.golden
+env -u GOROOT mise exec -- git commit -m "fix: harden operator CLI boundaries"
+```
+
+- [ ] **Step 5: Commit the foundation documentation closeout**
+
+```bash
+git status --short
+git add README.md tests/e2e/cli_test.go docs/superpowers/specs/2026-08-25-operator-cli-design.md docs/superpowers/plans/2026-08-25-operator-cli-foundation.md docs/plans/operator-cli/omakase/result.md gotchas.md
 env -u GOROOT mise exec -- git commit -m "docs: record operator CLI foundation"
 git status --short --branch
 ```
 
-Expected: the commit passes every hook and the worktree is clean.
+Expected: each commit passes every hook. The worktree is clean after the
+documentation closeout.
 
 ## Author Self-Review
 

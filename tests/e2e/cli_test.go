@@ -98,6 +98,17 @@ func TestREADMEInstallCommandPlacesPactAtDocumentedDestination(t *testing.T) {
 	if !bytes.Contains(readme, []byte(commandText)) || !bytes.Contains(readme, []byte(`$HOME/.local/bin/pact`)) {
 		t.Fatalf("README does not document the exact install command and destination")
 	}
+	for _, fragment := range []string{
+		"pact status",
+		"pact help",
+		"--color auto|always|never",
+		"walks up through parent directories",
+		"pact index rebuild",
+	} {
+		if !bytes.Contains(readme, []byte(fragment)) {
+			t.Fatalf("README lacks %q", fragment)
+		}
+	}
 	installDir := t.TempDir()
 	install := exec.Command("env", "-u", "GOROOT", "mise", "exec", "--", "env", "GOBIN="+installDir, "go", "install", "./cmd/pact")
 	install.Dir = root

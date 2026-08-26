@@ -26,6 +26,40 @@ env -u GOROOT mise exec -- env GOBIN="$HOME/.local/bin" go install ./cmd/pact
 
 Add `$HOME/.local/bin` to `PATH` if it is not already present.
 
+## Operator CLI foundation
+
+Running `pact` with no arguments prints top-level help to stdout and exits
+zero. `pact help` does the same, while `pact help index` shows the nested
+index commands. `pact --help` and `pact COMMAND --help` also succeed with
+help on stdout.
+
+Commands that need an existing repository, including `status`, `heads`,
+`show`, `verify`, `log`, `query`, and `index`, discover it from the working
+directory: PACT walks up through parent directories until it finds `.pact`.
+An explicit `--repo PATH` is authoritative. PACT resolves that exact path and
+does not search its parents.
+
+`pact status` performs strict verification and checks whether indexed reads
+are ready; it never creates or rebuilds an index. A `healthy` status writes its
+summary to stdout and exits 0. An `attention` status means canonical state is
+valid but the index needs work; it writes the summary and `pact index rebuild`
+to stderr, then exits 9. A `broken` status writes its summary to stderr and
+uses the matching verification exit code: 4 for integrity or authorization
+failure, or 9 when missing dependencies are the only failure. A missing PACT
+store is a store error with exit code 3. With `--json`, healthy output is one
+JSON result on stdout; a non-healthy result is one JSON error envelope on
+stderr.
+
+Human output accepts `--color auto|always|never`. `auto` is the default and
+adds color only on a suitable terminal; `NO_COLOR` and `TERM=dumb` disable it.
+`always` forces color, `never` disables it, and JSON output never contains ANSI
+escapes.
+
+Setup remains deferred: this foundation does not ship `pact setup`. Use the
+explicit bootstrap lifecycle below to create a repository, key, and trusted
+root. Rebuild the derived index explicitly with `pact index rebuild` after a
+canonical write makes it stale.
+
 ## Build and run an operator lifecycle
 
 The commands below run from this repository and need `mise`, `go`, and `jq`.

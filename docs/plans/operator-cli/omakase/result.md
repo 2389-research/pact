@@ -125,11 +125,8 @@ despite passing the broad gates.
 
 ## Known Weaknesses
 
-- Medium — stdlib captures terminal width but the renderer does not consume it;
-  no 60-, 80-, or 120-column golden output exists. Task 6 owns responsive
-  rendering and those goldens.
-- Low — command help lacks rich per-flag descriptions. Task 6 owns the help
-  and diagnostic contract hardening.
+- Medium — Log, query, and show still need renderer plans, including their own
+  width-aware output contracts.
 
 ## Cleanup
 
