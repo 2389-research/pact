@@ -3,8 +3,7 @@
 
 # PACT Operator CLI Design
 
-**Status:** Approved in conversation on 2026-08-25; awaiting Doctor Biz's
-review of this written form.
+**Status:** Approved by Doctor Biz in written form on 2026-08-25.
 
 ## Goal
 
@@ -223,6 +222,10 @@ second JSON document to stdout.
 
 Status never creates or rebuilds an index. It does not store a cached health
 claim or report integrity that it did not check.
+
+When canonical verification fails before safe index inspection, `index` is
+JSON `null` and human output says `not inspected`. PACT does not label an index
+missing merely because invalid source bytes prevented inspection.
 
 The new JSON result has one compact summary rather than embedding every object
 from `verify --json`:
