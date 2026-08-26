@@ -41,6 +41,14 @@ func TestPlainSealKeepsLandAndWaterDistinct(t *testing.T) {
 	}
 }
 
+func TestPlainSealLinesHaveNoTrailingSpaces(t *testing.T) {
+	for lineNumber, line := range strings.Split(strings.TrimSuffix(sealFrameText(40, 0, false), "\n"), "\n") {
+		if strings.HasSuffix(line, " ") {
+			t.Fatalf("plain seal line %d has trailing spaces: %q", lineNumber+1, line)
+		}
+	}
+}
+
 func TestSealGlobeWidthFitsTerminal(t *testing.T) {
 	for _, test := range []struct {
 		name          string

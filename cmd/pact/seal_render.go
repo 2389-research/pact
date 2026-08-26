@@ -262,7 +262,7 @@ func plaque(width int, color bool) []string {
 	ribbon := strings.Repeat("~", (inner-1)/2) + "|" + strings.Repeat("~", inner-1-(inner-1)/2)
 	raw := []string{
 		ribbon,
-		" " + strings.Repeat("_", inner) + " ",
+		" " + strings.Repeat("_", inner),
 		"|" + pad("P  A  C  T") + "|",
 		"|" + pad("signed & sealed") + "|",
 		"|" + strings.Repeat("_", inner) + "|",
