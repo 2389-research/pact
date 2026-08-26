@@ -16,6 +16,13 @@
 - Doctor Biz's product order is tool-first: build a usable `pact` CLI against
   the bundled Python behavior, then use the tool to refine its own contract.
   Do not block the MVP on completing every later protocol decision.
+- PACT's human operator is primarily a reader, reviewer, and troubleshooter;
+  agents author and commit ledger events. Human CLI comfort should not add an
+  event-authoring workflow unless a concrete human-authoring need appears.
+- PACT's human terminal output must be visually polished as a product feature.
+  Treat hierarchy, spacing, alignment, restrained color, and narrow-terminal
+  behavior as tested CLI contracts rather than optional cleanup. Use native
+  terminal patterns; do not import web-dashboard or card-layout conventions.
 - Doctor Biz prefers Omakase for feature builds: compare distinct approaches
   in isolated worktrees, run one scenario contract, and keep the tested winner
   unless Doctor Biz asks for a different workflow.
