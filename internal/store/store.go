@@ -181,6 +181,26 @@ func (st *Store) Dir() string { return st.dir }
 // Root returns the resolved absolute project root used to open this store.
 func (st *Store) Root() string { return st.repo }
 
+// DefaultNamespace returns the validated namespace stored in format.json.
+func (st *Store) DefaultNamespace() (string, error) {
+	if st == nil {
+		return "", fmt.Errorf("store is required")
+	}
+	raw, err := st.ReadLocal("format.json")
+	if err != nil {
+		return "", err
+	}
+	var format map[string]any
+	if err := decodeStrictJSON(raw, &format); err != nil || format["format"] != formatName {
+		return "", fmt.Errorf("%w: malformed store format at %s", ErrIntegrity, filepath.Join(st.dir, "format.json"))
+	}
+	namespace, ok := format["default_namespace"].(string)
+	if !ok || validateNamespace(namespace) != nil {
+		return "", fmt.Errorf("%w: invalid default namespace at %s", ErrIntegrity, filepath.Join(st.dir, "format.json"))
+	}
+	return namespace, nil
+}
+
 // WithMutationLock serializes one store mutation across processes.
 func (st *Store) WithMutationLock(operation func() error) error {
 	if st == nil || operation == nil {

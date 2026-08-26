@@ -49,6 +49,40 @@ func TestInitCreatesReferenceLayout(t *testing.T) {
 	}
 }
 
+func TestDefaultNamespaceReadsValidatedStoreMetadata(t *testing.T) {
+	st, err := Init(t.TempDir(), "org/example/widget", time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	namespace, err := st.DefaultNamespace()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if namespace != "org/example/widget" {
+		t.Fatalf("default namespace = %q", namespace)
+	}
+}
+
+func TestDefaultNamespaceRejectsCorruptConfiguredNamespace(t *testing.T) {
+	st, err := Init(t.TempDir(), "org/example/widget", time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.WriteLocalJSON("format.json", map[string]any{
+		"format":              "pact/store/v1",
+		"default_namespace":   "../escape",
+		"created_at":          "2026-08-25T12:00:00Z",
+		"canonicalization":    "pact-json-v1",
+		"hash_algorithm":      "sha256",
+		"signature_algorithm": "ed25519",
+	}, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.DefaultNamespace(); !errors.Is(err, ErrIntegrity) {
+		t.Fatalf("DefaultNamespace() error = %v, want ErrIntegrity", err)
+	}
+}
+
 func TestInitRefusesExistingStore(t *testing.T) {
 	repo := t.TempDir()
 	if _, err := Init(repo, "org/example/widget", time.Now()); err != nil {

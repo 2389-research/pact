@@ -12,7 +12,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"pact/internal/canonical"
 	"pact/internal/identity"
 	"pact/internal/store"
 )
@@ -124,7 +123,7 @@ func prepareCommit(st *store.Store, batch EventBatch, options CommitOptions, com
 	}
 	if namespace == "" {
 		var err error
-		namespace, err = defaultNamespace(st)
+		namespace, err = st.DefaultNamespace()
 		if err != nil {
 			return preparedCommit{}, err
 		}
@@ -438,25 +437,6 @@ func validateSigningKey(key *identity.KeyFile) error {
 		return fmt.Errorf("commit private/public key mismatch")
 	}
 	return nil
-}
-func defaultNamespace(st *store.Store) (string, error) {
-	raw, err := st.ReadLocal("format.json")
-	if err != nil {
-		return "", err
-	}
-	value, err := canonical.Parse(raw)
-	if err != nil {
-		return "", err
-	}
-	object, ok := value.(map[string]any)
-	if !ok {
-		return "", fmt.Errorf("malformed store format")
-	}
-	namespace, ok := object["default_namespace"].(string)
-	if !ok {
-		return "", fmt.Errorf("malformed store format")
-	}
-	return namespace, validateNamespace(namespace)
 }
 func batchEvents(events []Event) []any {
 	result := make([]any, len(events))

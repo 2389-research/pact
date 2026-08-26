@@ -116,10 +116,15 @@ func (err *ShowError) Unwrap() error { return ErrIntegrity }
 
 // Verify scans every canonical object and evaluates its layered ledger state.
 func Verify(st *store.Store, strict bool) (VerifyResult, error) {
-	if st == nil {
-		return VerifyResult{}, fmt.Errorf("store is required")
+	return VerifyContext(context.Background(), st, strict)
+}
+
+// VerifyContext evaluates the ledger while preserving caller cancellation.
+func VerifyContext(ctx context.Context, st *store.Store, strict bool) (VerifyResult, error) {
+	if st == nil || ctx == nil {
+		return VerifyResult{}, fmt.Errorf("store and context are required")
 	}
-	scan, err := scanWithReadLock(context.Background(), st, ScanOptions{Strict: strict, Limits: Phase2Limits})
+	scan, err := scanWithReadLock(ctx, st, ScanOptions{Strict: strict, Limits: Phase2Limits})
 	if err != nil {
 		return VerifyResult{}, err
 	}

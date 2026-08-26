@@ -21,6 +21,15 @@ import (
 	"pact/internal/store"
 )
 
+func TestVerifyContextPreservesCancellationIdentity(t *testing.T) {
+	st, _ := ledgerStoreAndKey(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := VerifyContext(ctx, st, true); !errors.Is(err, context.Canceled) {
+		t.Fatalf("VerifyContext() error = %v, want context.Canceled", err)
+	}
+}
+
 func TestCommitParentStructuralValidationHonorsMidLoopCancellation(t *testing.T) {
 	parents := make([]any, 256)
 	for index := range parents {
