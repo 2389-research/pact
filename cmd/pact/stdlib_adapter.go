@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	setuppkg "pact/internal/setup"
 	statuspkg "pact/internal/status"
 )
 
@@ -74,18 +75,15 @@ func runWithConfig(args []string, config runConfig) int { //nolint:funlen // The
 	}
 	commandArgs, err := normalizeRepositoryArgs(args[consumed:], spec.repository, config.WorkingDir)
 	if err != nil {
-		return writeCommandError(config.Stderr, display.asJSON, &commandError{code: exitUsage, message: err.Error()})
+		return writeDispatchedCommandError(config, display, spec, commandResult{}, &commandError{code: exitUsage, message: err.Error()})
 	}
 	output, err := spec.handler(commandArgs, io.Discard, config)
 	if err != nil {
 		var commandErr *commandError
 		if errors.As(err, &commandErr) {
-			if output.setup != nil {
-				return writeSetupError(config, display, *output.setup, commandErr)
-			}
-			return writeCommandError(config.Stderr, display.asJSON, commandErr)
+			return writeDispatchedCommandError(config, display, spec, output, commandErr)
 		}
-		return writeCommandError(config.Stderr, display.asJSON, &commandError{code: exitUnexpectedError, message: err.Error()})
+		return writeDispatchedCommandError(config, display, spec, output, &commandError{code: exitUnexpectedError, message: err.Error()})
 	}
 	if output.page != nil {
 		if err := emitQueryResult(config.Stdout, display.asJSON, *output.page); err != nil {
@@ -103,6 +101,17 @@ func runWithConfig(args []string, config runConfig) int { //nolint:funlen // The
 		return writeFailure(config.Stderr, display.asJSON, "command output failed")
 	}
 	return 0
+}
+
+func writeDispatchedCommandError(config runConfig, display presentation, spec commandSpec, output commandResult, commandErr *commandError) int {
+	if len(spec.path) == 1 && spec.path[0] == "setup" {
+		result := setuppkg.Result{}
+		if output.setup != nil {
+			result = *output.setup
+		}
+		return writeSetupError(config, display, result, commandErr)
+	}
+	return writeCommandError(config.Stderr, display.asJSON, commandErr)
 }
 
 func renderBareWelcomeIfNeeded(bareWelcome bool, config runConfig, display presentation) error {

@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"pact/internal/identity"
 	setuppkg "pact/internal/setup"
 )
 
@@ -271,10 +272,14 @@ func TestSetupInputAllowsExact64KiBWithCRLF(t *testing.T) {
 }
 
 func TestSetupTerminalTextEscapesControlsAndPreservesPrintableUnicode(t *testing.T) {
-	input := "Björk/東京\\A\nB\rC\tD\x00E\x07F\x1b[31mG\x7fH\u009bI"
-	want := `Björk/東京\\A\nB\rC\tD\x00E\x07F\x1b[31mG\x7fH\x9bI`
-	if got := escapeSetupTerminalText(input); got != want {
+	input := "Björk/東京\\A\nB\rC\tD\x00E\x07F\x1b[31mG\x7fH\u009bI" + string([]byte{0xff}) + "J\u200bK"
+	want := `Björk/東京\\A\nB\rC\tD\x00E\x07F\x1b[31mG\x7fH\x9bI\xffJ\u200bK`
+	got := escapeSetupTerminalText(input)
+	if got != want {
 		t.Fatalf("escaped terminal text = %q, want %q", got, want)
+	}
+	if bytes.Contains([]byte(got), []byte{0xff}) || strings.ContainsRune(got, '\u200b') {
+		t.Fatalf("escaped terminal text retained raw invalid or non-printable bytes: %q", got)
 	}
 }
 
@@ -367,6 +372,42 @@ func TestSetupJSONKeepsControlCharactersAsStructuredValues(t *testing.T) {
 		if decoded[name] != hostile {
 			t.Fatalf("setup JSON %s = %q, want raw structured value %q", name, decoded[name], hostile)
 		}
+	}
+}
+
+func TestSetupPreApplyErrorEscapesHumanAndPreservesJSONError(t *testing.T) {
+	repo := filepath.Join(t.TempDir(), "repo\nFORGED REPO\x1b[31m")
+	keyFile := filepath.Join(repo, "key\nFORGED KEY\x1b[2J.json")
+	_, cause := identity.ValidateSigningKeyPath(keyFile, repo)
+	if cause == nil {
+		t.Fatal("unsafe setup fixture unexpectedly passed key validation")
+	}
+	args := []string{
+		"setup", "--repo", repo, "--namespace", "org/example/widget", "--actor", "Alice", "--key-file", keyFile,
+	}
+
+	var humanOut, humanErr bytes.Buffer
+	if code := runWithConfig(args, setupRunConfig(t.TempDir(), &humanOut, &humanErr, false)); code != exitSecretSafety {
+		t.Fatalf("unsafe human setup exit = %d, stderr=%q", code, humanErr.String())
+	}
+	if humanOut.Len() != 0 || bytes.Contains(humanErr.Bytes(), []byte{'\x1b'}) || strings.Contains(humanErr.String(), "\nFORGED") {
+		t.Fatalf("unsafe human setup exposed terminal controls: stdout=%q stderr=%q", humanOut.String(), humanErr.String())
+	}
+	if !strings.Contains(humanErr.String(), escapeSetupTerminalText(cause.Error())) {
+		t.Fatalf("unsafe human setup lacks escaped error %q: %q", escapeSetupTerminalText(cause.Error()), humanErr.String())
+	}
+
+	var jsonOut, jsonErr bytes.Buffer
+	jsonArgs := append(append([]string(nil), args...), "--json")
+	if code := runWithConfig(jsonArgs, setupRunConfig(t.TempDir(), &jsonOut, &jsonErr, false)); code != exitSecretSafety {
+		t.Fatalf("unsafe JSON setup exit = %d, stderr=%q", code, jsonErr.String())
+	}
+	if jsonOut.Len() != 0 || bytes.Contains(jsonErr.Bytes(), []byte{'\x1b'}) || strings.Contains(jsonErr.String(), "\nFORGED") {
+		t.Fatalf("unsafe JSON setup exposed literal terminal controls: stdout=%q stderr=%q", jsonOut.String(), jsonErr.String())
+	}
+	diagnostic := decodeSetupJSON(t, jsonErr.Bytes())
+	if diagnostic["error"] != cause.Error() || diagnostic["exit_code"] != float64(exitSecretSafety) {
+		t.Fatalf("unsafe setup JSON diagnostic = %#v, want raw error %q", diagnostic, cause.Error())
 	}
 }
 
