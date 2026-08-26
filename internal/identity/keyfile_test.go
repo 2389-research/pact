@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,6 +16,26 @@ import (
 
 	"pact/internal/store"
 )
+
+func TestSafeKeyDiagnosticOmitsPrivateBytes(t *testing.T) {
+	marker := "distinctive-private-byte-marker"
+	result := GenerateResult{Status: GenerateCreated, Key: &KeyFile{
+		Path:    "/safe/alice.key.json",
+		KeyID:   "ed25519:sha256:safe-id",
+		Public:  []byte("public"),
+		Private: []byte(marker),
+	}}
+
+	diagnostic := safeKeyDiagnostic(result.Status, result.Key)
+	if strings.Contains(diagnostic, marker) {
+		t.Fatalf("safe diagnostic leaked private marker %q", marker)
+	}
+	for _, safeField := range []string{"created", "safe-id", "/safe/alice.key.json", "public_len=6", "private_len=31"} {
+		if !strings.Contains(diagnostic, safeField) {
+			t.Fatalf("safe diagnostic %q omitted %q", diagnostic, safeField)
+		}
+	}
+}
 
 func TestNormalizeActorCanonicalizesAndValidates(t *testing.T) {
 	got, err := NormalizeActor(" \te\u0301\n")
@@ -111,14 +132,14 @@ func TestGenerateKeyFileCreatesOwnerOnlyVerifiedKey(t *testing.T) {
 		t.Fatalf("GenerateKeyFile() status = %q, want created", result.Status)
 	}
 	if key.Actor != "Alice" || key.KeyID == "" || len(key.Public) != 32 || len(key.Private) != 64 {
-		t.Fatalf("generated key = %#v", key)
+		t.Fatalf("generated key = %s", safeKeyDiagnostic(result.Status, key))
 	}
 	if mode := fileMode(t, path); mode != 0o600 {
 		t.Fatalf("key mode = %#o, want 0600", mode)
 	}
 	loaded, err := LoadKeyFile(path, true)
 	if err != nil || loaded.KeyID != key.KeyID {
-		t.Fatalf("LoadKeyFile() = (%#v, %v)", loaded, err)
+		t.Fatalf("LoadKeyFile() = (%s, %v)", safeKeyDiagnostic("", loaded), err)
 	}
 }
 
@@ -159,7 +180,7 @@ func TestGenerateKeyFileClassifiesOnlyExistingTargetAsConflict(t *testing.T) {
 	}
 	result, err := GenerateKeyFile(path, "Alice", time.Now())
 	if err == nil || result.Status != GenerateConflict || result.Key != nil {
-		t.Fatalf("GenerateKeyFile(existing) = (%#v, %v), want conflict without key", result, err)
+		t.Fatalf("GenerateKeyFile(existing) = (%s, %v), want conflict without key", safeKeyDiagnostic(result.Status, result.Key), err)
 	}
 	if got, readErr := os.ReadFile(path); readErr != nil || !bytes.Equal(got, original) {
 		t.Fatalf("existing target = (%q, %v), want original bytes", got, readErr)
@@ -171,21 +192,21 @@ func TestGenerateKeyFileClassifiesOnlyExistingTargetAsConflict(t *testing.T) {
 	}
 	result, err = GenerateKeyFile(filepath.Join(blockedParent, "alice.key.json"), "Alice", time.Now())
 	if err == nil || result.Status == GenerateConflict {
-		t.Fatalf("GenerateKeyFile(random I/O failure) = (%#v, %v), want non-conflict error", result, err)
+		t.Fatalf("GenerateKeyFile(random I/O failure) = (%s, %v), want non-conflict error", safeKeyDiagnostic(result.Status, result.Key), err)
 	}
 }
 
 func assertPublishedGeneratedKey(t *testing.T, result GenerateResult, path string) {
 	t.Helper()
 	if result.Status != GenerateCreated || result.Key == nil {
-		t.Fatalf("GenerateKeyFile() result = %#v, want created key", result)
+		t.Fatalf("GenerateKeyFile() result = %s, want created key", safeKeyDiagnostic(result.Status, result.Key))
 	}
 	if mode := fileMode(t, path); mode != 0o600 {
 		t.Fatalf("published key mode = %#o, want 0600", mode)
 	}
 	loaded, err := LoadKeyFile(path, true)
 	if err != nil || loaded.KeyID != result.Key.KeyID {
-		t.Fatalf("LoadKeyFile() = (%#v, %v), want published key %s", loaded, err, result.Key.KeyID)
+		t.Fatalf("LoadKeyFile() = (%s, %v), want published key %s", safeKeyDiagnostic("", loaded), err, result.Key.KeyID)
 	}
 }
 
@@ -367,7 +388,7 @@ func TestLoadSigningKeyEnforcesExternalRegularOwnerOnlyFile(t *testing.T) {
 		t.Fatal(resolveErr)
 	}
 	if err != nil || loaded.Path != resolvedExternal {
-		t.Fatalf("LoadSigningKey(outside symlink) = (%#v, %v), want resolved external key", loaded, err)
+		t.Fatalf("LoadSigningKey(outside symlink) = (%s, %v), want resolved external key", safeKeyDiagnostic("", loaded), err)
 	}
 }
 
@@ -399,8 +420,22 @@ func TestLoadPublicKeyAllowsReadablePublicOnlyFile(t *testing.T) {
 		t.Fatal(resolveErr)
 	}
 	if err != nil || len(loaded.Private) != 0 || loaded.Path != resolvedPath {
-		t.Fatalf("LoadPublicKey() = (%#v, %v)", loaded, err)
+		t.Fatalf("LoadPublicKey() = (%s, %v)", safeKeyDiagnostic("", loaded), err)
 	}
+}
+
+func safeKeyDiagnostic(status GenerateStatus, key *KeyFile) string {
+	if key == nil {
+		return fmt.Sprintf("status=%q key_nil=true", status)
+	}
+	return fmt.Sprintf(
+		"status=%q key_nil=false key_id=%q path=%q public_len=%d private_len=%d",
+		status,
+		key.KeyID,
+		key.Path,
+		len(key.Public),
+		len(key.Private),
+	)
 }
 
 func fileMode(t *testing.T, path string) os.FileMode {
