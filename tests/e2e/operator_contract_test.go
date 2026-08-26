@@ -22,10 +22,19 @@ func runOperatorCLIContract(t *testing.T) {
 	binary := filepath.Join(workspace, "pact")
 	buildBinary(t, root, binary)
 
-	assertCleanHelp(t, runOperatorProcess(t, binary, workspace, nil))
-	assertCleanHelp(t, runOperatorProcess(t, binary, workspace, nil, "--help"))
-	assertCleanHelp(t, runOperatorProcess(t, binary, workspace, nil, "help"))
-	assertCleanHelp(t, runOperatorProcess(t, binary, workspace, nil, "status", "--help"))
+	bareHelp := runOperatorProcess(t, binary, workspace, nil)
+	assertCleanHelp(t, bareHelp)
+	if !strings.Contains(bareHelp.Stdout, "signed & sealed") || strings.Contains(bareHelp.Stdout, "\x1b[") {
+		t.Fatalf("bare help branding = %#v", bareHelp)
+	}
+
+	for _, args := range [][]string{{"--help"}, {"help"}, {"status", "--help"}} {
+		explicitHelp := runOperatorProcess(t, binary, workspace, nil, args...)
+		assertCleanHelp(t, explicitHelp)
+		if strings.Contains(explicitHelp.Stdout, "signed & sealed") || strings.Contains(explicitHelp.Stdout, "\x1b[") {
+			t.Fatalf("explicit help branding for %q = %#v", args, explicitHelp)
+		}
+	}
 
 	typo := runOperatorProcess(t, binary, workspace, nil, "statsu")
 	if typo.Code != 2 || typo.Stdout != "" || !strings.Contains(typo.Stderr, "status") {

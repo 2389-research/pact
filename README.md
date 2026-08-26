@@ -28,10 +28,11 @@ Add `$HOME/.local/bin` to `PATH` if it is not already present.
 
 ## Operator CLI foundation
 
-Running `pact` with no arguments prints top-level help to stdout and exits
-zero. `pact help` does the same, while `pact help index` shows the nested
-index commands. `pact --help` and `pact COMMAND --help` also succeed with
-help on stdout.
+Running bare `pact` in a terminal plays a brief rotating signed-and-sealed
+welcome, then prints top-level help. Redirected bare output prints one static
+frame, plain under the default automatic color policy. `pact help` and
+`pact --help` skip the animation and remain immediate. `pact help index` shows
+the nested index commands, and `pact COMMAND --help` remains seal-free.
 
 Commands that need an existing repository, including `status`, `heads`,
 `show`, `verify`, `log`, `query`, and `index`, discover it from the working
