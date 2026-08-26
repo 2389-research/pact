@@ -1,0 +1,15 @@
+PACT  Healthy
+/work/pact
+Namespace  org/example/widget
+
+Ledger
+  Strict verification  passed
+  Objects 0  Commits 0  Checkpoints 0  Events 0  Heads 0
+
+Replica
+  Local completeness   locally closed
+  Global completeness  unknown
+
+Index
+  State     current
+  Coverage  complete

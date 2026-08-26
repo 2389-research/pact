@@ -117,7 +117,7 @@ func writeStatus(config runConfig, display presentation, result statuspkg.Result
 	if code != 0 {
 		terminal = config.StderrTerminal
 	}
-	if err := emitStatusHuman(writer, result, colorEnabled(display, config, terminal)); err != nil {
+	if err := emitStatusHuman(writer, result, colorEnabled(display, config, terminal), config.Width); err != nil {
 		return writeFailure(config.Stderr, false, "status output failed")
 	}
 	return code

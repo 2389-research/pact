@@ -1,0 +1,14 @@
+PACT  Broken
+/work/pact
+Namespace  org/example/widget
+
+Ledger
+  Strict verification  failed
+  Objects 0  Commits 0  Checkpoints 0  Events 0
+  Heads 0
+
+Replica
+  Local completeness   locally closed
+  Global completeness  unknown
+
+Index  not inspected

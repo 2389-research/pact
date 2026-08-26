@@ -1,0 +1,18 @@
+PACT  Attention
+/work/pact
+Namespace  org/example/widget
+
+Ledger
+  Strict verification  passed
+  Objects 0  Commits 0  Checkpoints 0  Events 0
+  Heads 0
+
+Replica
+  Local completeness   locally closed
+  Global completeness  unknown
+
+Index
+  State     stale
+  Coverage  complete
+
+Run  pact index rebuild

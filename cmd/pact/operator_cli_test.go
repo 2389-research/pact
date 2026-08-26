@@ -123,10 +123,10 @@ func TestStatusColorPrecedenceAndJSONPlainness(t *testing.T) {
 
 func TestAttentionStatusUsesAttentionColor(t *testing.T) {
 	var output bytes.Buffer
-	if err := emitStatusHuman(&output, statuspkg.Result{Health: statuspkg.HealthAttention}, true); err != nil {
+	if err := emitStatusHuman(&output, statuspkg.Result{Health: statuspkg.HealthAttention}, true, 80); err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(output.String(), "\x1b[32mattention") || !strings.Contains(output.String(), "\x1b[33mattention") {
+	if strings.Contains(output.String(), "\x1b[32mAttention") || !strings.Contains(output.String(), "\x1b[33mAttention") {
 		t.Fatalf("attention color = %q", output.String())
 	}
 }

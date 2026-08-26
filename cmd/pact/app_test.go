@@ -12,7 +12,9 @@ import (
 	"strings"
 	"testing"
 
+	"pact/internal/index"
 	"pact/internal/ledger"
+	statuspkg "pact/internal/status"
 	"pact/internal/store"
 )
 
@@ -490,6 +492,153 @@ func TestRunVerifyFailureIncludesLayeredDetailsAndCommitUsesIntegrityExit(t *tes
 	if result["exit_code"] != float64(4) {
 		t.Fatalf("commit error JSON = %#v", result)
 	}
+}
+
+func TestStatusGoldenOutput(t *testing.T) {
+	tests := []struct {
+		name   string
+		width  int
+		result statuspkg.Result
+		golden string
+	}{
+		{name: "healthy/60", width: 60, result: statusGoldenResult(statuspkg.HealthHealthy, "current"), golden: "healthy-60.golden"},
+		{name: "healthy/80", width: 80, result: statusGoldenResult(statuspkg.HealthHealthy, "current"), golden: "healthy-80.golden"},
+		{name: "healthy/120", width: 120, result: statusGoldenResult(statuspkg.HealthHealthy, "current"), golden: "healthy-120.golden"},
+		{name: "attention/80", width: 80, result: statusGoldenResult(statuspkg.HealthAttention, "stale"), golden: "attention-80.golden"},
+		{name: "broken/80", width: 80, result: statusGoldenResult(statuspkg.HealthBroken, ""), golden: "broken-80.golden"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var output bytes.Buffer
+			if err := emitStatusHuman(&output, test.result, false, test.width); err != nil {
+				t.Fatal(err)
+			}
+			want, err := os.ReadFile(filepath.Join("testdata", "status", test.golden))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := output.Bytes(); !bytes.Equal(got, want) {
+				t.Fatalf("status output at width %d:\n%s", test.width, got)
+			}
+		})
+	}
+}
+
+func TestColorStatusOutputPreservesPlainWordsAndOrder(t *testing.T) {
+	result := statusGoldenResult(statuspkg.HealthHealthy, "current")
+	var plain, colored bytes.Buffer
+	if err := emitStatusHuman(&plain, result, false, 80); err != nil {
+		t.Fatal(err)
+	}
+	if err := emitStatusHuman(&colored, result, true, 80); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(colored.String(), "\x1b[") {
+		t.Fatalf("forced color output has no ANSI sequence: %q", colored.String())
+	}
+	if got := stripANSI(colored.String()); got != plain.String() {
+		t.Fatalf("ANSI-stripped output differs from plain output:\nplain:\n%s\nstripped:\n%s", plain.String(), got)
+	}
+}
+
+func TestStatusHumanCountsEachLocalHead(t *testing.T) {
+	result := statusGoldenResult(statuspkg.HealthHealthy, "current")
+	result.Verification.Heads = map[string][]string{"org/example/widget": {"sha256:one", "sha256:two"}}
+	var output bytes.Buffer
+	if err := emitStatusHuman(&output, result, false, 80); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(output.String(), "Heads 2") {
+		t.Fatalf("status heads = %q", output.String())
+	}
+}
+
+func TestStatusJSONRetainsStableSummary(t *testing.T) {
+	repo := healthyOperatorRepository(t)
+	var stdout, stderr bytes.Buffer
+	code := runWithConfig([]string{"status", "--repo", repo, "--json"}, runConfig{Stdout: &stdout, Stderr: &stderr, Width: 80})
+	if code != 0 {
+		t.Fatalf("status JSON exit = %d, stderr=%q", code, stderr.String())
+	}
+	var result map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &result); err != nil {
+		t.Fatal(err)
+	}
+	verification, ok := result["verification"].(map[string]any)
+	if !ok || result["operation"] != "status" || result["health"] != "healthy" ||
+		result["default_namespace"] != "org/example/widget" || verification["strict"] != true || verification["ok"] != true ||
+		result["next_action"] != nil {
+		t.Fatalf("status JSON = %#v", result)
+	}
+}
+
+func TestWriterStatusOutputFailuresMapToUnexpectedExit(t *testing.T) {
+	tests := []struct {
+		name string
+		repo func(*testing.T) string
+		args []string
+	}{
+		{name: "healthy human", repo: healthyOperatorRepository, args: []string{"status"}},
+		{name: "healthy JSON", repo: healthyOperatorRepository, args: []string{"status", "--json"}},
+		{name: "attention human", repo: staleOperatorRepository, args: []string{"status"}},
+		{name: "attention JSON", repo: staleOperatorRepository, args: []string{"status", "--json"}},
+		{name: "broken human", repo: brokenOperatorRepository, args: []string{"status"}},
+		{name: "broken JSON", repo: brokenOperatorRepository, args: []string{"status", "--json"}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			repo := test.repo(t)
+			args := append(append([]string{}, test.args...), "--repo", repo)
+			if code := runWithConfig(args, runConfig{Stdout: closedOutput{}, Stderr: closedOutput{}, Width: 80}); code != exitUnexpectedError {
+				t.Fatalf("status writer failure exit = %d, want %d", code, exitUnexpectedError)
+			}
+		})
+	}
+}
+
+func stripANSI(value string) string {
+	result := make([]byte, 0, len(value))
+	for position := 0; position < len(value); {
+		if value[position] == '\x1b' && position+1 < len(value) && value[position+1] == '[' {
+			position += 2
+			for position < len(value) && (value[position] < '@' || value[position] > '~') {
+				position++
+			}
+			if position < len(value) {
+				position++
+			}
+			continue
+		}
+		result = append(result, value[position])
+		position++
+	}
+	return string(result)
+}
+
+func statusGoldenResult(health statuspkg.Health, indexState string) statuspkg.Result {
+	result := statuspkg.Result{
+		Health:           health,
+		Repo:             "/work/pact",
+		Store:            "/work/pact/.pact",
+		DefaultNamespace: "org/example/widget",
+		Verification: ledger.VerifyResult{
+			OK:     health != statuspkg.HealthBroken,
+			Strict: true,
+			Counts: ledger.VerifyCounts{},
+			Heads:  map[string][]string{},
+			Completeness: ledger.Completeness{
+				Scope:  "local_object_set",
+				Status: "locally_closed",
+			},
+		},
+	}
+	if health == statuspkg.HealthAttention {
+		result.NextAction = &statuspkg.NextAction{Reason: "indexed reads are not ready", Command: "pact index rebuild"}
+	}
+	if health != statuspkg.HealthBroken {
+		result.Index = &index.Status{Index: index.IndexInfo{State: indexState, Coverage: "complete"}}
+	}
+	return result
 }
 
 func runJSON(t *testing.T, args []string) map[string]any {
