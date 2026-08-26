@@ -33,8 +33,8 @@ official `x/term` package documents `IsTerminal` and `GetSize`. Sources:
 ## Progress
 
 **State:** Foundation complete. Task 6 terminal hardening is `5beb98c`; Task 7
-boundary repairs are `ed1e88aa745e1b3a3a46dde9766a584206299fb0`. This
-documentation closeout commit remains pending.
+boundary repairs are `ed1e88aa745e1b3a3a46dde9766a584206299fb0`, and its
+documentation closeout is `1388aaf76c228dbb965dae12459e542ed524ec7f`.
 
 **Completed evidence:**
 
@@ -49,7 +49,8 @@ documentation closeout commit remains pending.
 - Task 6: `5beb98c` (`test: harden operator CLI output`).
 - Task 7 boundary repairs: `ed1e88aa745e1b3a3a46dde9766a584206299fb0`
   (`fix: harden operator CLI boundaries`).
-- Task 7 documentation: this documentation closeout commit (pending).
+- Task 7 documentation: `1388aaf76c228dbb965dae12459e542ed524ec7f`
+  (`docs: record operator CLI foundation`).
 
 **Next plan:** `2026-08-25-operator-cli-setup.md`.
 
