@@ -86,3 +86,5 @@
 - The tested standard-library CLI adapter won: one command catalog owns
   dispatch and help, and `golang.org/x/term` is the only remaining CLI
   dependency.
+- For help branding, Doctor Biz wants the rotating signed-and-sealed globe on
+  bare `pact` only. Explicit `pact help` and `pact --help` must stay immediate.
