@@ -144,7 +144,7 @@ The reviewers explicitly confirmed:
 
 No known shipping concern remains. The PTY tests target the Unix PTY API used
 by the supported development and CI systems; they do not claim Windows PTY
-coverage. The branch has not been merged.
+coverage. This review record was written before integration.
 
 ## Later final-review repairs
 
@@ -181,4 +181,5 @@ env -u GOROOT mise exec -- go build -o /tmp/pact-setup-final-eb4dc5f/pact ./cmd/
 env -u GOROOT mise exec -- pre-commit run --all-files
 ```
 
-The branch has not been merged.
+Doctor Biz authorized a local merge into `main` on 2026-08-26; integration
+follows this record.

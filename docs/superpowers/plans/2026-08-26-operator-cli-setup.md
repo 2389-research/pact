@@ -28,7 +28,8 @@ gate. `go list -m -json github.com/creack/pty@latest` resolved `v1.1.24` on
 `wip/setup-cli`. A later whole-branch review found three gaps in secret-safe
 E2E diagnostics, setup domain exit routing, and cleanup-error identity. TDD
 repairs and fresh-eyes follow-ups are committed, the independent rereview is
-clean, and every post-fix gate passes. The branch remains unmerged.
+clean, and every post-fix gate passes. Doctor Biz authorized a local merge
+into `main` on 2026-08-26.
 
 **Delivered commits:**
 
@@ -41,8 +42,9 @@ clean, and every post-fix gate passes. The branch remains unmerged.
 - Task 7: `0ef5ef1`, with closeout repair `8a66c55`;
 - final whole-branch repairs: `bcf954d`, `0d71c62`, and `eb4dc5f`.
 
-**Integration:** No setup implementation work remains. Do not merge without
-Doctor Biz's explicit choice.
+**Integration:** No setup implementation work remains. Doctor Biz explicitly
+authorized the local merge into `main`; verify the merged result before
+deleting the feature branch.
 
 ## Authority and Scope
 
