@@ -1,30 +1,40 @@
 # Generic PACT Walkthrough
 
-This walkthrough creates a project ledger, records an observation and an
-assertion atomically, creates a correction without editing history, and signs a
-checkpoint.
+This walkthrough uses the bundled Python v0.1 conformance oracle. It creates a
+project ledger, records an observation and an assertion atomically, creates a
+correction without editing history, and signs a checkpoint. For the current Go
+CLI, see the repository root README.
 
-Set the skill path:
+Set the skill, project, and writable work paths:
 
 ```bash
 PACT_SKILL=/path/to/pact-ledger
-PACT="python3 $PACT_SKILL/scripts/pact.py"
 PROJECT=/path/to/project
 KEY=~/.config/pact/keys/operator.json
+WORK_DIR="$(mktemp -d)"
+EVIDENCE_DIR="$WORK_DIR/evidence"
+EVENT_BATCH="$WORK_DIR/event-batch.json"
+CORRECTION_BATCH="$WORK_DIR/correction-batch.json"
+POLICY_FILE=/path/to/current-policy.json
+REPLICA=/path/to/replica-b
+
+pact_ref() {
+  python3 "$PACT_SKILL/scripts/pact.py" "$@"
+}
 ```
 
 ## 1. Initialize and bootstrap trust
 
 ```bash
-$PACT init \
+pact_ref init \
   --repo "$PROJECT" \
   --namespace org/example/project/widget
 
-$PACT keygen \
+pact_ref keygen \
   --actor human/operator \
   --out "$KEY"
 
-$PACT trust-add \
+pact_ref trust-add \
   --repo "$PROJECT" \
   --key-file "$KEY"
 ```
@@ -35,32 +45,36 @@ bootstrap configuration, not a self-proving ledger event.
 ## 2. Capture and hash external evidence
 
 ```bash
-mkdir -p /external/evidence
-make test > /external/evidence/build-42.log 2>&1
-$PACT hash /external/evidence/build-42.log
+mkdir -p "$EVIDENCE_DIR"
+(cd "$PROJECT" && make test) > "$EVIDENCE_DIR/build-42.log" 2>&1
+pact_ref hash "$EVIDENCE_DIR/build-42.log"
+cp "$PACT_SKILL/examples/event-batch.json" "$EVENT_BATCH"
 ```
 
-Put the resulting digest and locator into a copy of `event-batch.json`. The bytes
-stay outside the ledger.
+Replace `make test` with the workflow command that creates the evidence. Put its
+resulting digest and locator into `$EVENT_BATCH`. The evidence bytes stay outside
+the ledger.
 
 ## 3. Append an atomic commit
 
 ```bash
-$PACT commit \
+pact_ref commit \
   --repo "$PROJECT" \
   --key-file "$KEY" \
-  --events event-batch.json
+  --events "$EVENT_BATCH"
 ```
 
-The output contains one commit ID and two stable event references. The command
-observation and the verification assertion become visible together.
+The output contains one commit ID and confirms that it contains two events. The
+command observation and the verification assertion become visible together.
+Copy the stable `#interpret` event reference from the `log` output in the next
+step; step 5 uses it to refer to the assertion.
 
 ## 4. Inspect and verify
 
 ```bash
-$PACT verify --repo "$PROJECT" --strict
-$PACT heads --repo "$PROJECT"
-$PACT log --repo "$PROJECT"
+pact_ref verify --repo "$PROJECT" --strict
+pact_ref heads --repo "$PROJECT"
+pact_ref log --repo "$PROJECT"
 ```
 
 The log's display order is advisory. Parent links and event references carry
@@ -68,28 +82,36 @@ causal meaning.
 
 ## 5. Correct prior knowledge
 
-Copy `correction-batch.json`, replacing its placeholder target with the actual
-assertion event reference, then append it:
+Copy the checked-in correction batch, replace its placeholder target with the
+actual assertion event reference, then append it:
 
 ```bash
-$PACT commit \
-  --repo "$PROJECT" \
-  --key-file "$KEY" \
-  --events correction-batch.json
+cp "$PACT_SKILL/examples/correction-batch.json" "$CORRECTION_BATCH"
 ```
 
-The original assertion remains in immutable history. A projection can now show
-that it was later invalidated and why.
+Edit `$CORRECTION_BATCH` so its `target_event_ref` and `supersedes` entry name
+the actual `interpret` event reference from step 3. Then append it:
+
+```bash
+pact_ref commit \
+  --repo "$PROJECT" \
+  --key-file "$KEY" \
+  --events "$CORRECTION_BATCH"
+```
+
+The original assertion remains in immutable history. A projector whose named
+policy recognizes the correction can show that the assertion was later disputed
+or invalidated and why.
 
 ## 6. Sign an official frontier
 
 Use the digest of a real external policy artifact:
 
 ```bash
-POLICY=$($PACT hash /external/policies/current-policy.json --json \
+POLICY=$(pact_ref hash "$POLICY_FILE" --json \
   | python3 -c 'import json,sys; print(json.load(sys.stdin)["digest"])')
 
-$PACT checkpoint \
+pact_ref checkpoint \
   --repo "$PROJECT" \
   --key-file "$KEY" \
   --scope org/example/project/widget \
@@ -104,8 +126,16 @@ make every assertion inside the frontier true.
 ## 7. Replicate by immutable object union
 
 ```bash
-$PACT sync-dir \
-  --repo /path/to/replica-b \
+pact_ref init \
+  --repo "$REPLICA" \
+  --namespace org/example/project/widget
+
+pact_ref trust-add \
+  --repo "$REPLICA" \
+  --key-file "$KEY"
+
+pact_ref sync-dir \
+  --repo "$REPLICA" \
   --from "$PROJECT"
 ```
 

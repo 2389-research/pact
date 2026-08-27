@@ -55,9 +55,10 @@
   index contents never need canonical repair. Restore `.pact/index` as a real
   directory and remove unsafe live paths or SQLite sidecars when needed, then
   run an explicit `pact index rebuild`.
-- Every successful commit or checkpoint makes an existing index stale. Indexed
-  reads refuse stale state until an explicit rebuild; `show` and canonical
-  verification remain available.
+- A commit or checkpoint that publishes a new canonical object makes an
+  existing index stale. An idempotent append of an existing object does not.
+  Indexed reads refuse stale state until an explicit rebuild; `show` and
+  canonical verification remain available.
 - Causal batches encode known local dependency edges as a partial order.
   `observed_at` is advisory, numeric batch order is not a total order, and
   local closure never proves global completeness.
@@ -88,6 +89,9 @@
 - The tested standard-library CLI adapter won: one command catalog owns
   dispatch and help, and `golang.org/x/term` is the only remaining CLI
   dependency.
+- The Go verifier authorizes locally trusted roots. It checks authority-field
+  structure but does not evaluate delegation causality or revocation semantics;
+  non-root authorization remains indeterminate.
 - The animated seal belongs only to bare `pact`. Explicit `pact help` and
   `pact --help` must remain immediate; redirected bare output gets one static
   frame and follows the normal color policy.

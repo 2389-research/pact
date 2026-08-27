@@ -10,7 +10,7 @@ description: >-
   PACT is domain-neutral: audit, verification, research, deployment, operations,
   and other skills may use it without PACT knowing their ontology.
 metadata:
-  version: "0.2.0"
+  version: "0.2.1"
 ---
 
 # PACT Ledger
@@ -197,7 +197,10 @@ Before any mutation:
 
 1. Determine the project root and requested namespace. Do not guess an
    organization or project namespace when the user supplied one.
-2. Search for an existing `.pact/` directory at the project root.
+2. Search the project scope for existing `.pact/` directories before mutation.
+   The CLI's automatic discovery stops at the nearest ancestor; it does not
+   detect competing ledgers for you. Use an explicit `--repo` when scope is
+   uncertain.
    - If exactly one exists, use it in place.
    - If nested or competing ledgers exist, stop mutation and report their paths
      and namespace declarations. Do not merge by guessing.
@@ -375,10 +378,12 @@ The commit procedure is:
 6. Build the signed commit envelope.
 7. Hash the complete canonical envelope to obtain the object ID.
 8. Write to a temporary file in `.pact/tmp/`.
-9. `fsync` when supported.
-10. Atomically rename into `.pact/objects/sha256/...`.
+9. `fsync` the temporary file.
+10. Atomically publish into `.pact/objects/sha256/...` with a no-overwrite hard
+    link.
 11. Re-read the object, recompute its ID, and verify its signature.
-12. Update or rebuild the disposable index.
+12. Do not update the disposable index. A newly admitted object makes a current
+    index stale; run `pact index rebuild --repo .` before the next indexed read.
 
 Use:
 
@@ -439,12 +444,14 @@ Verification must check, at minimum:
 8. referenced local events exist;
 9. cross-commit event references are well formed and resolvable when the replica
    claims completeness;
-10. delegation references are structurally valid and causally prior;
-11. known causal revocations are reported;
-12. trusted-root and delegation-based authorization status is reported
-    separately from signature status;
-13. checkpoint frontiers reference existing heads and exact policy/schema IDs;
-14. index rows can be regenerated from objects.
+10. authority references and epochs are structurally valid; the current CLI does
+    not evaluate delegation causality or revocation semantics;
+11. root-trust authorization is reported separately from signature status, while
+    delegation-based authorization remains `indeterminate`;
+12. checkpoint frontier commits exist and match their named namespaces; checkpoint
+    creation, not later verification, snapshots the current heads;
+13. index state is reported when available; `pact index rebuild` explicitly
+    regenerates index rows from canonical objects.
 
 Do not resolve every external evidence reference during ordinary verification.
 Evidence checking is lazy unless the user explicitly requests evidence access.
@@ -698,7 +705,9 @@ fails. Do not “repair” immutable history by editing object bytes.
 
 Complete only when:
 
-- event batch is schema-valid;
+- event batch is valid against the fixed core envelope; domain payload schema
+  validation is complete only when a separate validator actually resolves and
+  checks the named schema;
 - no secret hazard remains;
 - parents represent the actor’s observed frontier;
 - body digest and signature verify;

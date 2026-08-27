@@ -1,5 +1,9 @@
 # PACT Ledger Skill
 
+This README documents the bundled Python v0.1 conformance oracle. For the
+current Go CLI, see the [root README](../../README.md) or run `pact quickstart`
+to emit the standalone agent skill.
+
 PACT is a reusable agent skill and reference implementation for a **local-first,
 append-only, content-addressed, signed semantic ledger**.
 
@@ -34,7 +38,8 @@ payload schemas, and projection policy. PACT supplies the common machinery:
 - external evidence references and digests;
 - capability delegation, epochs, leases, and revocation semantics;
 - signed checkpoints;
-- transport-neutral object sync;
+- a transport-neutral replication contract, with directory-backed object union
+  in the Python oracle;
 - deterministic projection contracts;
 - rebuildable SQLite indexing;
 - CLI-first integration.
@@ -63,7 +68,7 @@ whether that assertion is accepted for a particular purpose.
 - `examples/` — generic event batches and walkthrough.
 - `tests/` — reference CLI tests.
 
-## Quick start
+## Python oracle quick start
 
 Install the only runtime dependency used for signing:
 

@@ -18,6 +18,10 @@ evidence.
 
 ## Install
 
+Development and source installation require Go 1.26 or later. The commands in
+this repository use `mise exec`; configure `mise` to expose Go 1.26 or later,
+or replace that wrapper with your equivalent toolchain command.
+
 Install `pact` at the exact destination `$HOME/.local/bin/pact`:
 
 ```sh
@@ -58,8 +62,8 @@ adds color only on a suitable terminal; `NO_COLOR` and `TERM=dumb` disable it.
 `always` forces color, `never` disables it, and JSON output never contains ANSI
 escapes.
 
-`pact setup` is the canonical bootstrap. A fully flagged command never prompts
-and is safe for automation:
+`pact setup` is the canonical bootstrap. A fully flagged command never prompts;
+with `--json`, it emits machine-readable output for automation:
 
 ```sh
 pact setup \
@@ -83,6 +87,12 @@ store, key, and trust root, verifies canonical state, and accepts or rebuilds
 the derived index. It never overwrites a conflicting namespace, actor, key, or
 trust root. Run the same command after an interrupted setup to resume from the
 last durable action.
+
+Write the standalone agent skill without initializing a repository:
+
+```sh
+pact quickstart > SKILL.md
+```
 
 ## Build and run an operator lifecycle
 
@@ -174,9 +184,9 @@ a full strict store verification before it persists checkpoint bytes.
 
 ## Index and query operations
 
-The shipped command inventory is `setup`, `init`, `keygen`, `trust-add`, `hash`,
-`commit`, `status`, `heads`, `show`, `verify`, `checkpoint`, `index status`,
-`index rebuild`, `log`, and `query`.
+The shipped command inventory is `quickstart`, `setup`, `init`, `keygen`,
+`trust-add`, `hash`, `commit`, `status`, `heads`, `show`, `verify`,
+`checkpoint`, `index status`, `index rebuild`, `log`, and `query`.
 
 The live SQLite file is `.pact/index/pact-v1.sqlite3`. It is derived,
 disposable, and never canonical ledger history. Removing it does not remove an
@@ -286,9 +296,9 @@ malformed cursor is `cursor_invalid`; and an oversized stored index is
 `corrupt`.
 
 Every query hashes the bounded canonical object set and verifies selected
-canonical commits. Rebuild scans all bounded canonical bytes and holds the
-exclusive store lock through publication, so large repositories make queries
-costly and pause writers during rebuild. This simple fixed-snapshot tradeoff is
+canonical commits, so query work grows with the canonical object set. Rebuild
+scans all bounded canonical bytes and holds the exclusive store lock through
+publication, pausing writers during rebuild. This fixed-snapshot tradeoff is
 intentional for the local Phase 2 scope.
 
 Phase 3 payload and schema meaning, network sync, policy
@@ -297,8 +307,8 @@ trusted timestamps, hardware key service, or global completeness claim.
 
 ## Repository gate
 
-Run the full Go gate, compiled scratch index lifecycle, and bundled Python
-reference suite with:
+Install `uv`, then run the full Go gate, compiled scratch index lifecycle, and
+bundled Python reference suite with:
 
 ```sh
 env -u GOROOT mise exec -- ./scripts/check
