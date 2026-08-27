@@ -97,6 +97,12 @@ func runWithConfig(args []string, config runConfig) int { //nolint:funlen // The
 	if output.setup != nil {
 		return writeSetup(config, display, *output.setup)
 	}
+	if output.document != "" {
+		if _, err := io.Copy(config.Stdout, strings.NewReader(output.document)); err != nil {
+			return writeFailure(config.Stderr, display.asJSON, "quickstart output failed")
+		}
+		return 0
+	}
 	if err := emitResult(config.Stdout, display.asJSON, output.result); err != nil {
 		return writeFailure(config.Stderr, display.asJSON, "command output failed")
 	}

@@ -9,14 +9,8 @@ description: >-
   beneath mutable CSVs, reports, dashboards, and other derived artifacts.
   PACT is domain-neutral: audit, verification, research, deployment, operations,
   and other skills may use it without PACT knowing their ontology.
-compatibility: >-
-  Requires filesystem access and Python 3.11 or later for the bundled reference
-  CLI. Ed25519 signing requires the Python cryptography package. No network
-  service is required. Sync is transport-neutral and can use local directories,
-  removable media, SSH-mounted paths, object storage adapters, or another
-  implementation of the same object-exchange contract.
 metadata:
-  version: "0.1.0"
+  version: "0.2.0"
 ---
 
 # PACT Ledger
@@ -57,7 +51,7 @@ The default project-local layout is:
   format.json                 # local format/configuration metadata
   trust.json                  # local verifier trust roots; bootstrap is out-of-band
   objects/sha256/aa/...       # canonical immutable signed objects
-  index/pact.sqlite3          # disposable, rebuildable query index
+  index/pact-v1.sqlite3       # disposable, rebuildable query index
   refs/                       # mutable local labels/caches; never canonical proof
   tmp/                        # atomic-write staging; safe to clean
 ```
@@ -71,19 +65,17 @@ The canonical record is the set of valid content-addressed objects. SQLite,
 refs, labels, reports, CSVs, and dashboards are projections or caches and may be
 rebuilt.
 
-### Bundled reference implementation boundary
+### Current implementation boundary
 
-The bundled CLI/library is executable scaffolding and a conformance tool. It
-implements canonical objects, Ed25519 signing, atomic append, DAG validation,
-root/direct-delegation diagnostics, signed checkpoints, indexing, querying, and
-directory replica union. It does **not** execute arbitrary external payload
-schemas or projection policies, provide trusted time, evaluate every advanced
-subdelegation/checkpoint policy, or act as a hardened multi-tenant key service.
+The `pact` CLI implements canonical objects, Ed25519 signing, atomic append, DAG
+validation, root trust, signed checkpoints, indexing, and querying. It does
+**not** execute arbitrary external payload schemas or projection policies,
+provide trusted time, evaluate advanced delegation policy, synchronize
+replicas, or act as a hardened multi-tenant key service.
 
-When a requested operation requires one of those production layers, follow this
-skill's contract and `references/implementation-plan.md`, but report the
-unimplemented layer as `indeterminate` rather than implying the reference CLI
-proved it.
+When a requested operation needs one of those layers, follow this skill's
+contract but report the layer as `indeterminate` or unavailable. Do not imply
+that `pact` proved more than its command output shows.
 
 ## Non-negotiable invariants
 
@@ -214,7 +206,7 @@ Before any mutation:
 4. Verify the current object store before appending:
 
    ```bash
-   python3 <skill-directory>/scripts/pact.py verify --repo .
+   pact verify --repo . --strict
    ```
 
 5. If integrity, signature, parent, or cycle errors exist, stop mutation. Do not
@@ -222,7 +214,7 @@ Before any mutation:
 6. Rebuild the SQLite index after import, uncertain state, or index failure:
 
    ```bash
-   python3 <skill-directory>/scripts/pact.py reindex --repo .
+   pact index rebuild --repo .
    ```
 
 7. Resolve the signing actor and private key without exposing key material.
@@ -236,19 +228,13 @@ Before any mutation:
 
 ## Initialize a ledger
 
-Use the bundled reference CLI or an implementation honoring the same contract:
+Use the PACT CLI:
 
 ```bash
-python3 <skill-directory>/scripts/pact.py init \
+pact setup \
   --repo . \
-  --namespace org/example/project/widget
-
-python3 <skill-directory>/scripts/pact.py keygen \
+  --namespace org/example/project/widget \
   --actor human/operator \
-  --out ~/.config/pact/keys/operator.json
-
-python3 <skill-directory>/scripts/pact.py trust-add \
-  --repo . \
   --key-file ~/.config/pact/keys/operator.json
 ```
 
@@ -272,8 +258,7 @@ Use the smallest event set that forms one coherent atomic operation. Split
 unrelated observations or decisions into separate commits. Keep events together
 when partial visibility would create a misleading state.
 
-Each event uses the rigid envelope described in
-`references/object-model.md` and contains:
+Each event uses this rigid envelope:
 
 ```text
 local_id
@@ -398,7 +383,7 @@ The commit procedure is:
 Use:
 
 ```bash
-python3 <skill-directory>/scripts/pact.py commit \
+pact commit \
   --repo . \
   --key-file ~/.config/pact/keys/operator.json \
   --events event-batch.json
@@ -439,7 +424,7 @@ must be able to show both the historical assertion and its later disposition.
 Run verification after append, sync, key changes, and before checkpointing:
 
 ```bash
-python3 <skill-directory>/scripts/pact.py verify --repo . --strict
+pact verify --repo . --strict
 ```
 
 Verification must check, at minimum:
@@ -473,10 +458,10 @@ Queries operate on objects or the rebuildable index. They do not mutate history.
 Typical commands:
 
 ```bash
-python3 <skill-directory>/scripts/pact.py heads --repo .
-python3 <skill-directory>/scripts/pact.py log --repo . --namespace org/example/project/widget
-python3 <skill-directory>/scripts/pact.py log --repo . --type build.test.executed
-python3 <skill-directory>/scripts/pact.py show --repo . sha256:<object-id>
+pact heads --repo .
+pact log --repo . --namespace org/example/project/widget
+pact query --repo . --type build.test.executed
+pact show --repo . sha256:<object-id>
 ```
 
 A query result must identify its view boundary:
@@ -491,8 +476,7 @@ Never describe a local replica’s incomplete frontier as globally complete.
 
 ## Projection contract
 
-A projection converts immutable history into current interpreted state. Before
-projecting, read `references/projection-contract.md`.
+A projection converts immutable history into current interpreted state.
 
 A conforming projection:
 
@@ -520,12 +504,12 @@ A checkpoint identifies an exact official cut without requiring a central write
 service.
 
 ```bash
-python3 <skill-directory>/scripts/pact.py checkpoint \
+pact checkpoint \
   --repo . \
   --key-file ~/.config/pact/keys/operator.json \
   --scope org/example/project/widget \
   --policy-ref sha256:<policy-digest> \
-  --authority-epoch org/example/epoch/148
+  --authority-epoch 148
 ```
 
 Before signing a checkpoint:
@@ -559,13 +543,9 @@ atomically admit valid objects
 union DAG and rebuild index
 ```
 
-For a filesystem replica:
-
-```bash
-python3 <skill-directory>/scripts/pact.py sync-dir \
-  --repo . \
-  --from /mounted/other-project
-```
+The current CLI has no replica synchronization command. If a task requires
+sync, stop and report that operation as unavailable; do not copy canonical
+object files by hand and imply that PACT admitted them.
 
 Sync rules:
 
@@ -584,9 +564,6 @@ media, or another adapter. Transport must not redefine object identity or
 validation semantics.
 
 ## Authority model
-
-Before implementing delegation or acceptance logic, read
-`references/authority-model.md`.
 
 The trust hierarchy may be:
 

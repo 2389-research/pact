@@ -26,6 +26,8 @@
 - Doctor Biz prefers Omakase for feature builds: compare distinct approaches
   in isolated worktrees, run one scenario contract, and keep the tested winner
   unless Doctor Biz asks for a different workflow.
+- For a bounded command with an approved contract, skip separate spec and plan
+  ceremony when Doctor Biz asks; implement directly with TDD and normal gates.
 - The Go module path is `pact` until a real hosting location exists. Do not
   invent a remote import path; change it once publication is concrete.
 - The v1 filesystem boundary blocks static symlink mistakes. It does not claim

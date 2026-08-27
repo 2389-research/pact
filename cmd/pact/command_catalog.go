@@ -19,10 +19,11 @@ const (
 )
 
 type commandResult struct {
-	result map[string]any
-	page   *index.QueryPage
-	setup  *setuppkg.Result
-	status *statuspkg.Result
+	result   map[string]any
+	document string
+	page     *index.QueryPage
+	setup    *setuppkg.Result
+	status   *statuspkg.Result
 }
 
 type commandHandler func([]string, io.Writer, runConfig) (commandResult, error)
@@ -52,6 +53,7 @@ func commandCatalog() []commandSpec {
 		}, local...)
 	}
 	return []commandSpec{
+		{[]string{"quickstart"}, "Get started", "Print the PACT agent skill.", "pact quickstart [--json]", []string{"pact quickstart > SKILL.md"}, repositoryNone, runQuickstart, withPresentationFlags()},
 		{[]string{"setup"}, "Get started", "Configure a usable local PACT ledger.", "pact setup [--repo PATH] --namespace NAMESPACE --actor ACTOR --key-file PATH [--json]", []string{"pact setup --namespace org/example/widget --actor Alice --key-file ../alice.key.json"}, repositoryCreate, runSetup, withPresentationFlags(commandFlag{usage: "--repo PATH", description: "project root"}, commandFlag{usage: "--namespace NAMESPACE", description: "default namespace"}, commandFlag{usage: "--actor ACTOR", description: "label the signing identity"}, commandFlag{usage: "--key-file PATH", description: "external signing key file"})},
 		{[]string{"init"}, "Get started", "Initialize a PACT store.", "pact init --namespace NAMESPACE [--repo PATH]", []string{"pact init --namespace org/example/widget"}, repositoryCreate, mapHandler(runInit), withPresentationFlags(commandFlag{usage: "--namespace NAMESPACE", description: "default namespace"}, commandFlag{usage: "--repo PATH", description: "project root"})},
 		{[]string{"keygen"}, "Get started", "Create an external signing key.", "pact keygen --actor ACTOR --out PATH", []string{"pact keygen --actor Alice --out alice.key.json"}, repositoryNone, mapHandler(runKeygen), withPresentationFlags(commandFlag{usage: "--actor ACTOR", description: "label the signing identity"}, commandFlag{usage: "--out PATH", description: "write the external key file"})},
