@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -215,6 +216,29 @@ func TestGenerateKeyFileReportsCreatedAfterTemporaryCleanupFailure(t *testing.T)
 	result, err := GenerateKeyFile(path, "Alice", time.Now())
 	if !errors.Is(err, fault) {
 		t.Fatalf("GenerateKeyFile() error = %v, want injected fault", err)
+	}
+	assertPublishedGeneratedKey(t, result, path)
+}
+
+func TestGenerateKeyFilePreservesMixedNotExistTemporaryCleanupFailure(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "alice.key.json")
+	cleanupFault := errors.New("injected key temporary cleanup failure")
+	originalRemove := removeKeyTemporary
+	temporaryPath := ""
+	removeKeyTemporary = func(path string) error {
+		temporaryPath = path
+		return errors.Join(fs.ErrNotExist, cleanupFault)
+	}
+	t.Cleanup(func() {
+		removeKeyTemporary = originalRemove
+		if temporaryPath != "" {
+			_ = os.Remove(temporaryPath)
+		}
+	})
+
+	result, err := GenerateKeyFile(path, "Alice", time.Now())
+	if !errors.Is(err, cleanupFault) {
+		t.Fatalf("GenerateKeyFile() error = %v, want mixed cleanup fault", err)
 	}
 	assertPublishedGeneratedKey(t, result, path)
 }
