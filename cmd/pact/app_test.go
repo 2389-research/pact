@@ -5,6 +5,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -54,6 +55,14 @@ func TestRunInitConflictUsesStoreExit(t *testing.T) {
 	result := runErrorJSON(t, []string{"init", "--repo", repo, "--namespace", "org/example/widget", "--json"}, exitStore)
 	if !strings.Contains(result["error"].(string), store.ErrAlreadyInitialized.Error()) {
 		t.Fatalf("second init error = %#v, want ErrAlreadyInitialized", result)
+	}
+}
+
+func TestCommandErrorForMixedTypedErrorUsesUnexpectedExit(t *testing.T) {
+	err := errors.Join(&index.QueryError{Code: "source_changed"}, errors.New("injected unexpected failure"))
+	mapped := commandErrorFor(err, exitUsage)
+	if mapped.code != exitUnexpectedError || mapped.details != nil {
+		t.Fatalf("commandErrorFor() = %#v, want unexpected exit without typed details", mapped)
 	}
 }
 

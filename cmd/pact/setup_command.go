@@ -9,6 +9,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -24,6 +25,14 @@ const (
 )
 
 func runSetup(args []string, _ io.Writer, config runConfig) (commandResult, error) {
+	return runSetupWithApply(args, config, setuppkg.Apply)
+}
+
+func runSetupWithApply(
+	args []string,
+	config runConfig,
+	apply func(context.Context, setuppkg.Request) (setuppkg.Result, error),
+) (commandResult, error) {
 	flags := flag.NewFlagSet("setup", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
 	repo := flags.String("repo", ".", "project root")
@@ -51,14 +60,16 @@ func runSetup(args []string, _ io.Writer, config runConfig) (commandResult, erro
 		}
 		request = promptedRequest
 	}
-	result, err := setuppkg.Apply(context.Background(), request)
+	result, err := apply(context.Background(), request)
 	if err == nil {
 		return commandResult{setup: &result}, nil
 	}
 	var applyErr *setuppkg.ApplyError
 	if errors.As(err, &applyErr) {
 		commandErr := commandErrorFor(applyErr.Err, exitUnexpectedError)
-		commandErr.details = setupResultMap(applyErr.Result)
+		partialDetails := setupResultMap(applyErr.Result)
+		maps.Copy(partialDetails, commandErr.details)
+		commandErr.details = partialDetails
 		return commandResult{setup: &applyErr.Result}, commandErr
 	}
 	return commandResult{}, commandErrorFor(err, exitUsage)

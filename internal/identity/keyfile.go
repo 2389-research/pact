@@ -26,6 +26,7 @@ const keyFormat = "pact/key/v1"
 var (
 	syncKeyDirectory   = syncDirectory
 	removeKeyTemporary = os.Remove
+	closeKeyDirectory  = func(directory *os.File) error { return directory.Close() }
 )
 
 // ErrProjectKeyOutput marks a key path inside an initialized PACT project root.
@@ -356,13 +357,23 @@ func writeNewFile(path string, data []byte, mode fs.FileMode) (published bool, e
 	return published, nil
 }
 
-func syncDirectory(path string) error {
+func syncDirectory(path string) (err error) {
 	// #nosec G304 -- path is the already resolved parent directory of the caller-validated key path.
 	directory, err := os.Open(path)
 	if err != nil {
 		return ignoreUnsupportedDirectorySync(err)
 	}
-	defer directory.Close()
+	defer func() {
+		closeErr := closeKeyDirectory(directory)
+		if closeErr == nil {
+			return
+		}
+		if err == nil {
+			err = closeErr
+			return
+		}
+		err = errors.Join(err, closeErr)
+	}()
 	return ignoreUnsupportedDirectorySync(directory.Sync())
 }
 

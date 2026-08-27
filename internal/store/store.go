@@ -45,6 +45,8 @@ var (
 	afterLink                             = func(string) error { return nil }
 	beforePublish                         = func(_, _ string) error { return nil }
 	syncDirectoryFile                     = syncDirectory
+	closeDirectoryFile                    = func(directory *os.File) error { return directory.Close() }
+	removeInitStaging                     = os.RemoveAll
 	readCanonicalFile                     = os.ReadFile
 	flockLockFile                         = func(lock *os.File, mode int) error { return syscall.Flock(int(lock.Fd()), mode) }
 	unlockLockFile                        = func(lock *os.File) error { return syscall.Flock(int(lock.Fd()), syscall.LOCK_UN) }
@@ -99,6 +101,28 @@ type LockError struct {
 
 type replacementPublishedError struct{ err error }
 
+var errInitStagingCleanup = errors.New("store initialization staging cleanup failed")
+
+type initStagingCleanupError struct{ err error }
+
+func (err *initStagingCleanupError) Error() string {
+	if err == nil || err.err == nil {
+		return errInitStagingCleanup.Error()
+	}
+	return fmt.Sprintf("%s: %v", errInitStagingCleanup, err.err)
+}
+
+func (err *initStagingCleanupError) Unwrap() []error {
+	if err == nil {
+		return nil
+	}
+	causes := []error{errInitStagingCleanup}
+	if err.err != nil {
+		causes = append(causes, err.err)
+	}
+	return causes
+}
+
 func (err *replacementPublishedError) Error() string              { return err.err.Error() }
 func (err *replacementPublishedError) Unwrap() error              { return err.err }
 func (err *replacementPublishedError) ReplacementPublished() bool { return true }
@@ -130,6 +154,45 @@ func (err *LockError) Unwrap() []error {
 		causes = append(causes, err.Release)
 	}
 	return causes
+}
+
+// IsCleanInitCollision reports whether every failure is a documented init collision.
+func IsCleanInitCollision(err error) bool {
+	return onlyInitCollisionLeaves(err)
+}
+
+func onlyInitCollisionLeaves(err error) bool {
+	if err == nil {
+		return false
+	}
+	lockErr := &LockError{}
+	if errors.As(err, &lockErr) && lockErr.Release != nil {
+		return false
+	}
+	if multiple, ok := err.(interface{ Unwrap() []error }); ok {
+		causes := multiple.Unwrap()
+		if len(causes) == 0 {
+			return isInitCollisionLeaf(err)
+		}
+		for _, cause := range causes {
+			if !onlyInitCollisionLeaves(cause) {
+				return false
+			}
+		}
+		return true
+	}
+	if single, ok := err.(interface{ Unwrap() error }); ok {
+		cause := single.Unwrap()
+		if cause == nil {
+			return isInitCollisionLeaf(err)
+		}
+		return onlyInitCollisionLeaves(cause)
+	}
+	return isInitCollisionLeaf(err)
+}
+
+func isInitCollisionLeaf(err error) bool {
+	return errors.Is(err, ErrAlreadyInitialized) || errors.Is(err, fs.ErrExist) || errors.Is(err, syscall.ENOTEMPTY)
 }
 
 // ObjectFile binds an immutable object path to the ID encoded in that path.
@@ -165,9 +228,7 @@ func Init(repo, namespace string, now time.Time) (result InitResult, err error) 
 		return result, fmt.Errorf("create store staging directory: %w", err)
 	}
 	defer func() {
-		if staging != "" {
-			_ = os.RemoveAll(staging)
-		}
+		err = joinInitStagingCleanup(staging, err)
 	}()
 	staged := &Store{repo: absRepo, dir: staging}
 	for _, path := range []string{
@@ -221,6 +282,21 @@ func Init(repo, namespace string, now time.Time) (result InitResult, err error) 
 		return result, fmt.Errorf("sync repository directory: %w", err)
 	}
 	return result, nil
+}
+
+func joinInitStagingCleanup(staging string, operationErr error) error {
+	if staging == "" {
+		return operationErr
+	}
+	removeErr := removeInitStaging(staging)
+	if removeErr == nil || errors.Is(removeErr, fs.ErrNotExist) {
+		return operationErr
+	}
+	cleanupErr := &initStagingCleanupError{err: removeErr}
+	if operationErr == nil {
+		return cleanupErr
+	}
+	return errors.Join(operationErr, cleanupErr)
 }
 
 // Open verifies and opens an initialized PACT store at repo.
@@ -886,13 +962,23 @@ func atomicReplace(path string, data []byte, mode fs.FileMode) (err error) {
 	return nil
 }
 
-func syncDirectory(path string) error {
+func syncDirectory(path string) (err error) {
 	// #nosec G304,G703 -- path is an internal store directory already checked against symlinks.
 	directory, err := os.Open(path)
 	if err != nil {
 		return ignoreUnsupportedDirectorySync(err)
 	}
-	defer directory.Close()
+	defer func() {
+		closeErr := closeDirectoryFile(directory)
+		if closeErr == nil {
+			return
+		}
+		if err == nil {
+			err = closeErr
+			return
+		}
+		err = errors.Join(err, closeErr)
+	}()
 	if err := directory.Sync(); err != nil {
 		return ignoreUnsupportedDirectorySync(err)
 	}

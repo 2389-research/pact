@@ -5,6 +5,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,7 +17,10 @@ import (
 	"time"
 
 	"pact/internal/identity"
+	"pact/internal/index"
+	"pact/internal/ledger"
 	setuppkg "pact/internal/setup"
+	"pact/internal/store"
 )
 
 var setupTestNow = time.Date(2026, time.August, 26, 12, 0, 0, 0, time.UTC)
@@ -508,6 +512,149 @@ func TestSetupZeroActionApplyErrorRendersSafeResolvedFacts(t *testing.T) {
 	}
 	if _, err := os.Lstat(keyFile); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("zero-action failure wrote key: %v", err)
+	}
+}
+
+func TestSetupNamespaceConflictUsesStoreExitInHumanAndJSON(t *testing.T) {
+	repo := t.TempDir()
+	initialized, err := store.Init(repo, "org/example/existing", setupTestNow)
+	if err != nil || initialized.Status != store.InitCreated {
+		t.Fatalf("initialize conflicting store = (%s, %v)", initialized.Status, err)
+	}
+	keyFile := filepath.Join(t.TempDir(), "alice.key.json")
+	baseArgs := []string{
+		"setup", "--repo", repo, "--namespace", "org/example/requested", "--actor", "Alice", "--key-file", keyFile,
+	}
+
+	for _, asJSON := range []bool{false, true} {
+		name := "human"
+		args := append([]string(nil), baseArgs...)
+		if asJSON {
+			name = "JSON"
+			args = append(args, "--json")
+		}
+		t.Run(name, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			if code := runWithConfig(args, setupRunConfig(t.TempDir(), &stdout, &stderr, false)); code != exitStore {
+				t.Fatalf("namespace conflict exit = %d, want %d; stderr=%q", code, exitStore, stderr.String())
+			}
+			if stdout.Len() != 0 || !strings.Contains(stderr.String(), store.ErrAlreadyInitialized.Error()) {
+				t.Fatalf("namespace conflict output = stdout=%q stderr=%q", stdout.String(), stderr.String())
+			}
+			if !asJSON {
+				if strings.Contains(stderr.String(), "Completed setup actions") {
+					t.Fatalf("namespace conflict claimed a completed action: %q", stderr.String())
+				}
+				return
+			}
+			diagnostic := decodeSetupJSON(t, stderr.Bytes())
+			if diagnostic["exit_code"] != float64(exitStore) {
+				t.Fatalf("namespace conflict JSON = %#v", diagnostic)
+			}
+			details := diagnostic["details"].(map[string]any)
+			if details["operation"] != "setup" || len(details["actions"].([]any)) != 0 {
+				t.Fatalf("namespace conflict details = %#v", details)
+			}
+		})
+	}
+}
+
+func TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult(t *testing.T) {
+	repo := t.TempDir()
+	partial := setuppkg.Result{
+		Repo: repo, Store: filepath.Join(repo, ".pact"), Namespace: "org/example/widget",
+		Actor: "Alice", KeyFile: filepath.Join(t.TempDir(), "alice.key.json"), KeyID: "ed25519:sha256:test-public-id",
+		Actions: []setuppkg.Action{
+			{Name: setuppkg.ActionStore, Status: setuppkg.ActionExisting},
+			{Name: setuppkg.ActionKey, Status: setuppkg.ActionExisting},
+			{Name: setuppkg.ActionTrust, Status: setuppkg.ActionExisting},
+			{Name: setuppkg.ActionVerify, Status: setuppkg.ActionValid},
+		},
+	}
+	tests := []struct {
+		name        string
+		cause       error
+		wantExit    int
+		detailCode  string
+		wantDetails map[string]any
+		wantMessage string
+	}{
+		{name: "index source changed", cause: &index.QueryError{Code: "source_changed"}, wantExit: exitMissingDependency, detailCode: "source_changed"},
+		{name: "operation-only source changed lock", cause: &store.LockError{Operation: &index.QueryError{Code: "source_changed"}}, wantExit: exitMissingDependency, detailCode: "source_changed", wantMessage: (&index.QueryError{Code: "source_changed"}).Error()},
+		{name: "ledger resource limit", cause: &ledger.LimitError{Resource: "events", Maximum: 4, ObservedAtLeast: 5}, wantExit: exitMissingDependency, detailCode: "resource_limit", wantDetails: map[string]any{
+			"resource": "events", "maximum": float64(4), "observed_at_least": float64(5),
+		}},
+		{name: "source changed resource limit", cause: errors.Join(
+			&index.QueryError{Code: "source_changed"},
+			&ledger.LimitError{Resource: "events", Maximum: 4, ObservedAtLeast: 5},
+		), wantExit: exitMissingDependency, detailCode: "resource_limit", wantMessage: (&ledger.LimitError{Resource: "events", Maximum: 4, ObservedAtLeast: 5}).Error(), wantDetails: map[string]any{
+			"resource": "events", "maximum": float64(4), "observed_at_least": float64(5),
+		}},
+		{name: "mixed index source changed", cause: errors.Join(&index.QueryError{Code: "source_changed"}, errors.New("injected unexpected setup failure")), wantExit: exitUnexpectedError},
+		{name: "mixed ledger resource limit", cause: errors.Join(&ledger.LimitError{Resource: "events", Maximum: 4, ObservedAtLeast: 5}, errors.New("injected unexpected setup failure")), wantExit: exitUnexpectedError},
+		{name: "typed lock release", cause: &store.LockError{
+			Operation: &index.QueryError{Code: "source_changed"},
+			Release:   &ledger.LimitError{Resource: "events", Maximum: 4, ObservedAtLeast: 5},
+		}, wantExit: exitUnexpectedError},
+		{name: "mixed store conflict", cause: errors.Join(store.ErrAlreadyInitialized, errors.New("injected unexpected setup failure")), wantExit: exitUnexpectedError},
+		{name: "unexpected", cause: errors.New("injected unexpected setup failure"), wantExit: exitUnexpectedError},
+	}
+	args := []string{"--repo", partial.Repo, "--namespace", partial.Namespace, "--actor", partial.Actor, "--key-file", partial.KeyFile}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			wantMessage := test.wantMessage
+			if wantMessage == "" {
+				wantMessage = test.cause.Error()
+			}
+			for _, asJSON := range []bool{false, true} {
+				name := "human"
+				if asJSON {
+					name = "JSON"
+				}
+				t.Run(name, func(t *testing.T) {
+					var stdout, stderr bytes.Buffer
+					config := setupRunConfig(t.TempDir(), &stdout, &stderr, false)
+					config.JSONOutput = asJSON
+					output, runErr := runSetupWithApply(args, config, func(context.Context, setuppkg.Request) (setuppkg.Result, error) {
+						return partial, &setuppkg.ApplyError{Result: partial, Err: test.cause}
+					})
+					var commandErr *commandError
+					if !errors.As(runErr, &commandErr) || output.setup == nil {
+						t.Fatalf("typed setup service error = (%#v, %v)", output.setup, runErr)
+					}
+					if code := writeSetupError(config, presentation{asJSON: asJSON}, *output.setup, commandErr); code != test.wantExit {
+						t.Fatalf("setup domain exit = %d, want %d", code, test.wantExit)
+					}
+					if stdout.Len() != 0 || !strings.HasPrefix(stderr.String(), "PACT error: "+escapeSetupTerminalText(wantMessage)+"\n") && !asJSON {
+						t.Fatalf("setup domain output = stdout=%q stderr=%q", stdout.String(), stderr.String())
+					}
+					if !asJSON {
+						for _, action := range partial.Actions {
+							if !strings.Contains(stderr.String(), string(action.Name)) {
+								t.Fatalf("human setup domain output lost %s action: %q", action.Name, stderr.String())
+							}
+						}
+						return
+					}
+					diagnostic := decodeSetupJSON(t, stderr.Bytes())
+					details := diagnostic["details"].(map[string]any)
+					if diagnostic["error"] != wantMessage || diagnostic["exit_code"] != float64(test.wantExit) || len(details["actions"].([]any)) != len(partial.Actions) {
+						t.Fatalf("setup domain JSON = %#v", diagnostic)
+					}
+					if detailCode, found := details["code"]; test.detailCode == "" && found {
+						t.Fatalf("unexpected setup failure invented owner detail code %#v", detailCode)
+					} else if test.detailCode != "" && detailCode != test.detailCode {
+						t.Fatalf("setup domain detail code = %#v, want %q", details["code"], test.detailCode)
+					}
+					for key, want := range test.wantDetails {
+						if details[key] != want {
+							t.Fatalf("setup domain detail %s = %#v, want %#v", key, details[key], want)
+						}
+					}
+				})
+			}
+		})
 	}
 }
 

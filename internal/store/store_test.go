@@ -5,8 +5,11 @@ package store
 import (
 	"bytes"
 	"context"
+	"crypto/ed25519"
+	"encoding/base64"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,6 +21,7 @@ import (
 	"time"
 
 	"pact/internal/canonical"
+	"pact/internal/identity"
 )
 
 func TestInitResultReportsCreatedAndConflict(t *testing.T) {
@@ -30,6 +34,33 @@ func TestInitResultReportsCreatedAndConflict(t *testing.T) {
 	conflict, err := Init(repo, "org/example/widget", time.Now())
 	if conflict.Status != InitConflict || conflict.Store != nil || !errors.Is(err, ErrAlreadyInitialized) {
 		t.Fatalf("second Init() = (%#v, %v), want conflict result and ErrAlreadyInitialized", conflict, err)
+	}
+}
+
+func TestIsCleanInitCollisionRejectsMixedFailures(t *testing.T) {
+	cleanupFault := errors.New("injected staging cleanup failure")
+	releaseFault := errors.New("injected lock release failure")
+	for _, test := range []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{name: "direct", err: ErrAlreadyInitialized, want: true},
+		{name: "documented rename", err: fmt.Errorf("%w: %w", ErrAlreadyInitialized, syscall.ENOTEMPTY), want: true},
+		{name: "operation-only lock", err: &LockError{Operation: ErrAlreadyInitialized}, want: true},
+		{name: "unexpected member", err: errors.Join(ErrAlreadyInitialized, errors.New("injected unexpected failure"))},
+		{name: "cleanup member", err: errors.Join(ErrAlreadyInitialized, &initStagingCleanupError{err: cleanupFault})},
+		{name: "lock release", err: &LockError{Operation: ErrAlreadyInitialized, Release: releaseFault}},
+		{name: "nested typed lock release", err: errors.Join(
+			&LockError{Operation: ErrAlreadyInitialized},
+			&LockError{Operation: ErrAlreadyInitialized, Release: fs.ErrExist},
+		)},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if got := IsCleanInitCollision(test.err); got != test.want {
+				t.Fatalf("IsCleanInitCollision() = %t, want %t", got, test.want)
+			}
+		})
 	}
 }
 
@@ -58,6 +89,64 @@ func TestInitResultSurvivesPostPublicationFailure(t *testing.T) {
 	}
 	if opened, openErr := Open(repo); openErr != nil || opened.Dir() != result.Store.Dir() {
 		t.Fatalf("Open() after sync error = (%#v, %v), want published store", opened, openErr)
+	}
+}
+
+func TestInitResultSurvivesPostPublicationDirectoryCloseFailure(t *testing.T) {
+	repo := t.TempDir()
+	fault := errors.New("injected repository directory close failure")
+	originalBeforePublish := beforePublish
+	originalClose := closeDirectoryFile
+	beforePublish = func(_, _ string) error {
+		closeDirectoryFile = func(directory *os.File) error {
+			if closeErr := directory.Close(); closeErr != nil {
+				return errors.Join(closeErr, fault)
+			}
+			return fault
+		}
+		return nil
+	}
+	t.Cleanup(func() {
+		beforePublish = originalBeforePublish
+		closeDirectoryFile = originalClose
+	})
+
+	result, err := Init(repo, "org/example/widget", time.Now())
+	if result.Status != InitCreated || result.Store == nil || !errors.Is(err, fault) {
+		t.Fatalf("Init() = (%#v, %v), want published store and close fault", result, err)
+	}
+	opened, openErr := Open(repo)
+	if openErr != nil {
+		t.Fatalf("Open() after close fault = %v", openErr)
+	}
+	namespace, namespaceErr := opened.DefaultNamespace()
+	if namespaceErr != nil || namespace != "org/example/widget" {
+		t.Fatalf("DefaultNamespace() after close fault = (%q, %v)", namespace, namespaceErr)
+	}
+	formatPath := filepath.Join(opened.Dir(), "format.json")
+	trustPath := filepath.Join(opened.Dir(), "trust.json")
+	beforeFormat, readErr := os.ReadFile(formatPath)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	beforeTrust, readErr := os.ReadFile(trustPath)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+
+	beforePublish = originalBeforePublish
+	closeDirectoryFile = originalClose
+	rerun, err := Init(repo, "org/example/widget", time.Now())
+	if rerun.Status != InitConflict || !errors.Is(err, ErrAlreadyInitialized) {
+		t.Fatalf("Init() rerun = (%#v, %v), want existing-store convergence", rerun, err)
+	}
+	afterFormat, readErr := os.ReadFile(formatPath)
+	if readErr != nil {
+		t.Fatal(readErr)
+	}
+	afterTrust, readErr := os.ReadFile(trustPath)
+	if readErr != nil || !bytes.Equal(afterFormat, beforeFormat) || !bytes.Equal(afterTrust, beforeTrust) {
+		t.Fatal("clean store rerun changed published bytes")
 	}
 }
 
@@ -317,8 +406,16 @@ func injectSecondLockContentionProbe(t *testing.T) <-chan struct{} {
 	original := flockLockFile
 	var calls atomic.Int32
 	contended := make(chan struct{})
+	firstLockAttempted := make(chan struct{})
 	flockLockFile = func(lock *os.File, mode int) error {
-		if calls.Add(1) != 2 {
+		switch calls.Add(1) {
+		case 1:
+			err := original(lock, mode)
+			close(firstLockAttempted)
+			return err
+		case 2:
+			<-firstLockAttempted
+		default:
 			return original(lock, mode)
 		}
 		err := syscall.Flock(int(lock.Fd()), mode|syscall.LOCK_NB)
@@ -438,6 +535,67 @@ func TestWriteLocalJSONMarksPostRenameSyncFailurePublished(t *testing.T) {
 	raw, readErr := st.ReadLocal("trust.json")
 	if readErr != nil || !bytes.Contains(raw, []byte("published")) {
 		t.Fatalf("ReadLocal() after sync failure = (%q, %v), want published bytes", raw, readErr)
+	}
+}
+
+func TestWriteLocalJSONMarksTrustPublishedAfterDirectoryCloseFailure(t *testing.T) {
+	st := testStore(t)
+	initial, err := st.ReadLocal("trust.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fault := errors.New("injected trust directory close failure")
+	originalClose := closeDirectoryFile
+	closeDirectoryFile = func(directory *os.File) error {
+		if closeErr := directory.Close(); closeErr != nil {
+			return errors.Join(closeErr, fault)
+		}
+		return fault
+	}
+	t.Cleanup(func() { closeDirectoryFile = originalClose })
+	public := ed25519.PublicKey(bytes.Repeat([]byte{0x42}, ed25519.PublicKeySize))
+	keyID, err := identity.KeyID(public)
+	if err != nil {
+		t.Fatal(err)
+	}
+	value := map[string]any{
+		"format": trustName,
+		"roots": []any{map[string]any{
+			"key_id": keyID, "actor": "Alice",
+			"public_key": base64.RawURLEncoding.EncodeToString(public),
+			"added_at":   "2026-08-26T12:00:00Z",
+		}},
+	}
+
+	err = st.WriteLocalJSON("trust.json", value, 0o644)
+	if !errors.Is(err, fault) || !ReplacementPublished(err) {
+		t.Fatalf("WriteLocalJSON() error = %v, want published close fault", err)
+	}
+	opened, openErr := Open(st.Root())
+	if openErr != nil {
+		t.Fatal(openErr)
+	}
+	before, readErr := opened.ReadLocal("trust.json")
+	parsed, parseErr := canonical.Parse(before)
+	parsedTrust, parsedOK := parsed.(map[string]any)
+	roots, rootsOK := parsedTrust["roots"].([]any)
+	var root map[string]any
+	rootOK := false
+	if rootsOK && len(roots) == 1 {
+		root, rootOK = roots[0].(map[string]any)
+	}
+	if readErr != nil || parseErr != nil || !parsedOK || parsedTrust["format"] != trustName || !rootsOK || len(roots) != 1 || !rootOK ||
+		root["key_id"] != keyID || root["actor"] != "Alice" || bytes.Equal(before, initial) {
+		t.Fatalf("ReadLocal() after close fault failed: %v", readErr)
+	}
+
+	closeDirectoryFile = originalClose
+	if err := opened.WriteLocalJSON("trust.json", value, 0o644); err != nil {
+		t.Fatalf("clean trust rerun error = %v", err)
+	}
+	after, readErr := opened.ReadLocal("trust.json")
+	if readErr != nil || !bytes.Equal(after, before) {
+		t.Fatal("clean trust rerun changed published bytes")
 	}
 }
 
@@ -603,6 +761,53 @@ func TestInitCleansStagingAfterPublishConflictAndRetries(t *testing.T) {
 	beforePublish = original
 	if _, err := Init(repo, "org/example/widget", time.Now()); err != nil {
 		t.Fatalf("Init() retry error = %v", err)
+	}
+}
+
+func TestInitPreservesPrePublicationOperationAndStagingRemovalFailures(t *testing.T) {
+	repo := t.TempDir()
+	operationFault := errors.New("injected pre-publication operation failure")
+	cleanupFault := &os.PathError{Op: "removeall", Path: "staging", Err: syscall.ENOTEMPTY}
+	originalBeforePublish := beforePublish
+	originalRemove := removeInitStaging
+	beforePublish = func(_, _ string) error { return operationFault }
+	cleanupCalls := 0
+	cleanupPath := ""
+	removeInitStaging = func(path string) error {
+		cleanupCalls++
+		cleanupPath = path
+		return cleanupFault
+	}
+	t.Cleanup(func() {
+		beforePublish = originalBeforePublish
+		removeInitStaging = originalRemove
+		if cleanupPath != "" {
+			_ = os.RemoveAll(cleanupPath)
+		}
+	})
+
+	result, err := Init(repo, "org/example/widget", time.Now())
+	if result.Status != "" || result.Store != nil || !errors.Is(err, operationFault) || !errors.Is(err, cleanupFault) || !errors.Is(err, syscall.ENOTEMPTY) {
+		t.Fatalf("Init() = (%#v, %v), want operation and cleanup identities without collision status", result, err)
+	}
+	if cleanupCalls != 1 || cleanupPath == "" {
+		t.Fatalf("staging cleanup = (%d, %q), want one captured removal", cleanupCalls, cleanupPath)
+	}
+	if _, statErr := os.Lstat(filepath.Join(repo, ".pact")); !errors.Is(statErr, os.ErrNotExist) {
+		t.Fatalf("pre-publication cleanup failure published store: %v", statErr)
+	}
+
+	beforePublish = originalBeforePublish
+	removeInitStaging = originalRemove
+	if removeErr := os.RemoveAll(cleanupPath); removeErr != nil {
+		t.Fatal(removeErr)
+	}
+	retry, retryErr := Init(repo, "org/example/widget", time.Now())
+	if retryErr != nil || retry.Status != InitCreated || retry.Store == nil {
+		t.Fatalf("Init() clean retry = (%#v, %v), want created store", retry, retryErr)
+	}
+	if _, openErr := Open(repo); openErr != nil {
+		t.Fatalf("Open() after clean retry = %v", openErr)
 	}
 }
 

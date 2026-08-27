@@ -172,6 +172,39 @@ func TestGenerateKeyFileReportsCreatedAfterDirectorySyncFailure(t *testing.T) {
 	assertPublishedGeneratedKey(t, result, path)
 }
 
+func TestGenerateKeyFileReportsCreatedAfterDirectoryCloseFailure(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "alice.key.json")
+	fault := errors.New("injected key directory close failure")
+	originalClose := closeKeyDirectory
+	closeKeyDirectory = func(directory *os.File) error {
+		if closeErr := directory.Close(); closeErr != nil {
+			return errors.Join(closeErr, fault)
+		}
+		return fault
+	}
+	t.Cleanup(func() { closeKeyDirectory = originalClose })
+
+	result, err := GenerateKeyFile(path, "Alice", time.Now())
+	if !errors.Is(err, fault) {
+		t.Fatalf("GenerateKeyFile() error = %v, want injected close fault", err)
+	}
+	assertPublishedGeneratedKey(t, result, path)
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	closeKeyDirectory = originalClose
+	rerun, err := GenerateKeyFile(path, "Alice", time.Now())
+	if rerun.Status != GenerateConflict || !errors.Is(err, os.ErrExist) {
+		t.Fatalf("GenerateKeyFile() rerun = (%s, %v), want existing-key convergence", safeKeyDiagnostic(rerun.Status, rerun.Key), err)
+	}
+	after, err := os.ReadFile(path)
+	if err != nil || !bytes.Equal(after, before) {
+		t.Fatal("clean key rerun changed published bytes")
+	}
+}
+
 func TestGenerateKeyFileReportsCreatedAfterTemporaryCleanupFailure(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "alice.key.json")
 	fault := errors.New("injected key temporary cleanup failure")

@@ -95,14 +95,11 @@ func replicaInfoMap(info index.ReplicaInfo) map[string]any {
 }
 
 func indexCommandError(err error) error {
-	if limit, ok := errors.AsType[*ledger.LimitError](err); ok {
-		return &commandError{code: exitMissingDependency, message: limit.Error(), details: map[string]any{
-			"code": "resource_limit", "resource": limit.Resource,
-			"maximum": limit.Maximum, "observed_at_least": limit.ObservedAtLeast,
-		}}
-	}
-	if queryErr, ok := errors.AsType[*index.QueryError](err); ok {
-		return queryCommandError(queryErr)
+	if typed, found := typedOwnerCommandError(err); found {
+		if typed != nil {
+			return typed
+		}
+		return &commandError{code: exitUnexpectedError, message: "index operation failed"}
 	}
 	return &commandError{code: exitUnexpectedError, message: "index operation failed"}
 }
@@ -135,17 +132,17 @@ func emitIndexHuman(writer io.Writer, result map[string]any) error {
 }
 
 func queryCommandError(err error) error {
+	if typed, found := typedOwnerCommandError(err); found {
+		if typed != nil {
+			return typed
+		}
+		return &commandError{code: exitUnexpectedError, message: "indexed query failed"}
+	}
 	if usage, ok := errors.AsType[*index.UsageError](err); ok {
 		return &commandError{code: exitUsage, message: usage.Error()}
 	}
 	if errors.Is(err, ledger.ErrSecretSafety) {
 		return &commandError{code: exitUsage, message: "query filter is unsafe"}
-	}
-	if limit, ok := errors.AsType[*ledger.LimitError](err); ok {
-		return &commandError{code: exitMissingDependency, message: limit.Error(), details: map[string]any{
-			"code": "resource_limit", "resource": limit.Resource,
-			"maximum": limit.Maximum, "observed_at_least": limit.ObservedAtLeast,
-		}}
 	}
 	if errors.Is(err, ledger.ErrMissingDependency) || errors.Is(err, store.ErrMissingDependency) {
 		return &commandError{code: exitMissingDependency, message: "indexed query has missing dependencies"}
@@ -153,22 +150,5 @@ func queryCommandError(err error) error {
 	if errors.Is(err, ledger.ErrIntegrity) || errors.Is(err, store.ErrIntegrity) {
 		return &commandError{code: exitIntegrity, message: "indexed query source is invalid", details: map[string]any{"code": "source_invalid"}}
 	}
-	queryErr, ok := errors.AsType[*index.QueryError](err)
-	if !ok {
-		return &commandError{code: exitUnexpectedError, message: "indexed query failed"}
-	}
-	var code int
-	switch queryErr.Code {
-	case "cursor_invalid", "cursor_query_mismatch":
-		code = exitUsage
-	case "source_invalid":
-		code = exitIntegrity
-	case "index_missing", "index_stale", "index_corrupt", "index_incompatible", "index_partial_build", "source_changed", "resource_limit", "cursor_stale":
-		code = exitMissingDependency
-	case "index_publication_failed":
-		code = exitUnexpectedError
-	default:
-		return &commandError{code: exitUnexpectedError, message: "indexed query failed"}
-	}
-	return &commandError{code: code, message: queryErr.Error(), details: map[string]any{"code": queryErr.Code}}
+	return &commandError{code: exitUnexpectedError, message: "indexed query failed"}
 }

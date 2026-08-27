@@ -125,6 +125,10 @@ func TestQueryExitTableUsesTypedSafeErrors(t *testing.T) {
 		{name: "stale cursor", err: &index.QueryError{Code: "cursor_stale"}, detailCode: "cursor_stale", want: exitMissingDependency},
 		{name: "missing dependency", err: ledger.ErrMissingDependency, want: exitMissingDependency},
 		{name: "resource limit", err: &ledger.LimitError{Resource: "events", Maximum: 1, ObservedAtLeast: 2}, detailCode: "resource_limit", want: exitMissingDependency},
+		{name: "mixed source changed", err: errors.Join(&index.QueryError{Code: "source_changed"}, errors.New("unexpected SQL failure")), want: exitUnexpectedError},
+		{name: "mixed resource limit", err: errors.Join(&ledger.LimitError{Resource: "events", Maximum: 1, ObservedAtLeast: 2}, errors.New("unexpected DSN failure")), want: exitUnexpectedError},
+		{name: "source changed plus missing dependency", err: errors.Join(&index.QueryError{Code: "source_changed"}, ledger.ErrMissingDependency), want: exitUnexpectedError},
+		{name: "resource limit plus integrity", err: errors.Join(&ledger.LimitError{Resource: "events", Maximum: 1, ObservedAtLeast: 2}, store.ErrIntegrity), want: exitUnexpectedError},
 		{name: "publication", err: &index.QueryError{Code: "index_publication_failed"}, detailCode: "index_publication_failed", want: exitUnexpectedError},
 		{name: "unexpected", err: errors.New("unsafe SQL and DSN detail"), want: exitUnexpectedError},
 	}

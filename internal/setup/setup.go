@@ -11,7 +11,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
 
 	"pact/internal/identity"
@@ -167,7 +166,7 @@ func applyWithOwners(ctx context.Context, request Request, owners ownerOperation
 		result.Repo = opened.Root()
 		result.Store = opened.Dir()
 		result.Actions = append(result.Actions, Action{Name: ActionStore, Status: ActionExisting})
-		if !cleanStoreCollision(initErr) {
+		if !store.IsCleanInitCollision(initErr) {
 			return applyFailure(result, initErr)
 		}
 	default:
@@ -304,14 +303,6 @@ func invalidOwnerOutcome(owner string) error {
 	return fmt.Errorf("%w: %s conflict has no error", errInvalidOwnerOutcome, owner)
 }
 
-func cleanStoreCollision(err error) bool {
-	var lockErr *store.LockError
-	if errors.As(err, &lockErr) && lockErr.Release != nil {
-		return false
-	}
-	return onlyCollisionLeaves(err, store.ErrAlreadyInitialized, fs.ErrExist, syscall.ENOTEMPTY)
-}
-
 func cleanKeyCollision(err error) bool {
 	if err == nil {
 		return false
@@ -327,42 +318,6 @@ func cleanKeyCollision(err error) bool {
 		return cleanKeyCollision(cause)
 	}
 	return errors.Is(err, fs.ErrExist)
-}
-
-// onlyCollisionLeaves accepts store-documented wrapper leaves but rejects every other cause.
-func onlyCollisionLeaves(err error, collisions ...error) bool {
-	if err == nil {
-		return false
-	}
-	if multiple, ok := err.(interface{ Unwrap() []error }); ok {
-		causes := multiple.Unwrap()
-		if len(causes) == 0 {
-			return matchesCollision(err, collisions)
-		}
-		for _, cause := range causes {
-			if !onlyCollisionLeaves(cause, collisions...) {
-				return false
-			}
-		}
-		return true
-	}
-	if single, ok := err.(interface{ Unwrap() error }); ok {
-		cause := single.Unwrap()
-		if cause == nil {
-			return matchesCollision(err, collisions)
-		}
-		return onlyCollisionLeaves(cause, collisions...)
-	}
-	return matchesCollision(err, collisions)
-}
-
-func matchesCollision(err error, collisions []error) bool {
-	for _, collision := range collisions {
-		if errors.Is(err, collision) {
-			return true
-		}
-	}
-	return false
 }
 
 type observedSetup struct {

@@ -15,6 +15,7 @@ import (
 
 	"pact/internal/canonical"
 	"pact/internal/identity"
+	"pact/internal/index"
 	"pact/internal/ledger"
 	"pact/internal/store"
 )
@@ -54,7 +55,7 @@ func runInit(args []string, stderr io.Writer) (map[string]any, error) {
 		switch {
 		case errors.Is(err, store.ErrInvalidNamespace):
 			code = exitUsage
-		case result.Status == store.InitConflict:
+		case result.Status == store.InitConflict && store.IsCleanInitCollision(err):
 			code = exitStore
 		}
 		return nil, &commandError{code: code, message: err.Error()}
@@ -149,6 +150,12 @@ func runHash(args []string, stderr io.Writer) (map[string]any, error) {
 }
 
 func commandErrorFor(err error, defaultCode int) *commandError {
+	if typed, found := typedOwnerCommandError(err); found {
+		if typed != nil {
+			return typed
+		}
+		return &commandError{code: exitUnexpectedError, message: err.Error()}
+	}
 	code := defaultCode
 	switch {
 	case errors.Is(err, identity.ErrSecretSafety), errors.Is(err, identity.ErrProjectKeyOutput), errors.Is(err, ledger.ErrSecretSafety):
@@ -157,12 +164,122 @@ func commandErrorFor(err error, defaultCode int) *commandError {
 		code = exitIntegrity
 	case errors.Is(err, ledger.ErrCheckpointAuthorization):
 		code = exitAuthorization
-	case errors.Is(err, ledger.ErrStore), errors.Is(err, store.ErrNotInitialized):
+	case errors.Is(err, ledger.ErrStore), errors.Is(err, store.ErrNotInitialized), errors.Is(err, store.ErrAlreadyInitialized) && store.IsCleanInitCollision(err):
 		code = exitStore
 	case errors.Is(err, ledger.ErrMissingDependency), errors.Is(err, store.ErrMissingDependency):
 		code = exitMissingDependency
 	}
 	return &commandError{code: code, message: err.Error()}
+}
+
+func typedOwnerCommandError(err error) (*commandError, bool) {
+	tree := inspectTypedOwnerError(err)
+	if !tree.found {
+		return nil, false
+	}
+	if len(tree.limits) != 0 {
+		if tree.unexpected || len(tree.limits) != 1 {
+			return nil, true
+		}
+		for _, queryErr := range tree.queries {
+			if queryErr.Code != "source_changed" {
+				return nil, true
+			}
+		}
+		limit := tree.limits[0]
+		return &commandError{code: exitMissingDependency, message: limit.Error(), details: map[string]any{
+			"code": "resource_limit", "resource": limit.Resource,
+			"maximum": limit.Maximum, "observed_at_least": limit.ObservedAtLeast,
+		}}, true
+	}
+	if tree.unexpected || len(tree.queries) != 1 {
+		return nil, true
+	}
+	queryErr := tree.queries[0]
+	var code int
+	switch queryErr.Code {
+	case "cursor_invalid", "cursor_query_mismatch":
+		code = exitUsage
+	case "source_invalid":
+		code = exitIntegrity
+	case "index_missing", "index_stale", "index_corrupt", "index_incompatible", "index_partial_build", "source_changed", "resource_limit", "cursor_stale":
+		code = exitMissingDependency
+	case "index_publication_failed":
+		code = exitUnexpectedError
+	default:
+		return &commandError{code: exitUnexpectedError, message: "indexed query failed"}, true
+	}
+	return &commandError{code: code, message: queryErr.Error(), details: map[string]any{"code": queryErr.Code}}, true
+}
+
+type typedOwnerErrorTree struct {
+	limits     []*ledger.LimitError
+	queries    []*index.QueryError
+	found      bool
+	unexpected bool
+}
+
+func inspectTypedOwnerError(err error) typedOwnerErrorTree {
+	var tree typedOwnerErrorTree
+	inspectTypedOwnerErrorNode(err, &tree)
+	return tree
+}
+
+func inspectTypedOwnerErrorNode(err error, tree *typedOwnerErrorTree) {
+	if err == nil {
+		tree.unexpected = true
+		return
+	}
+	lockErr := &store.LockError{}
+	if errors.As(err, &lockErr) && lockErr.Release != nil {
+		tree.unexpected = true
+	}
+	if multiple, ok := err.(interface{ Unwrap() []error }); ok {
+		causes := multiple.Unwrap()
+		if len(causes) == 0 {
+			inspectTypedOwnerErrorLeaf(err, tree)
+			return
+		}
+		for _, cause := range causes {
+			inspectTypedOwnerErrorNode(cause, tree)
+		}
+		return
+	}
+	if single, ok := err.(interface{ Unwrap() error }); ok {
+		cause := single.Unwrap()
+		if cause == nil {
+			inspectTypedOwnerErrorLeaf(err, tree)
+			return
+		}
+		inspectTypedOwnerErrorNode(cause, tree)
+		return
+	}
+	inspectTypedOwnerErrorLeaf(err, tree)
+}
+
+func inspectTypedOwnerErrorLeaf(err error, tree *typedOwnerErrorTree) {
+	{
+		var typed *ledger.LimitError
+		var typed1 *index.QueryError
+		switch {
+		case errors.As(err, &typed):
+			tree.found = true
+			if typed == nil {
+				tree.unexpected = true
+				return
+			}
+			tree.limits = append(tree.limits, typed)
+		case errors.As(err, &typed1):
+			tree.found = true
+			if typed1 == nil {
+				tree.unexpected = true
+				return
+			}
+			tree.queries = append(tree.queries, typed1)
+		default:
+			tree.unexpected = true
+		}
+	}
 }
 
 func emitResult(writer io.Writer, asJSON bool, result map[string]any) error {

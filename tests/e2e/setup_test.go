@@ -5,14 +5,17 @@ package e2e
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -38,7 +41,7 @@ func TestSetupCompiledLifecycle(t *testing.T) { //nolint:funlen // One built bin
 		rerun := runSetupProcess(t, binary, workspace, "setup", "--repo", repo, "--namespace", "org/example/widget", "--actor", "Alice", "--key-file", keyFile, "--json")
 		assertSetupProcessSuccess(t, rerun, []string{"existing", "existing", "existing", "valid", "current"})
 		if after := snapshotSetupFiles(t, repo, keyFile); !reflect.DeepEqual(after, before) {
-			t.Fatalf("exact setup rerun changed bytes\nbefore=%#v\nafter=%#v", before, after)
+			t.Fatalf("exact setup rerun changed bytes:\n%s", setupSnapshotMismatchDiagnostic(before, after))
 		}
 		assertSetupOutputSafe(t, first, rerun)
 		assertSetupPrivateValueAbsent(t, keyFile, first.Stdout, first.Stderr, rerun.Stdout, rerun.Stderr)
@@ -52,8 +55,13 @@ func TestSetupCompiledLifecycle(t *testing.T) { //nolint:funlen // One built bin
 
 		conflictKey := filepath.Join(workspace, "conflict.key.json")
 		conflict := runSetupProcess(t, binary, workspace, "setup", "--repo", repo, "--namespace", "org/example/other", "--actor", "Mallory", "--key-file", conflictKey, "--json")
-		if conflict.Code == 0 || conflict.Stdout != "" {
-			t.Fatalf("namespace conflict = %#v", conflict)
+		if conflict.Code != 3 || conflict.Stdout != "" {
+			t.Fatalf("namespace conflict = %s", setupProcessDiagnostic(conflict))
+		}
+		conflictDiagnostic := decodeSetupProcessJSON(t, conflict.Stderr)
+		conflictDetails := conflictDiagnostic["details"].(map[string]any)
+		if conflictDiagnostic["exit_code"] != float64(3) || conflictDetails["operation"] != "setup" || len(conflictDetails["actions"].([]any)) != 0 {
+			t.Fatalf("namespace conflict diagnostic has the wrong exit or partial result: %s", setupProcessDiagnostic(conflict))
 		}
 		if after := snapshotSetupFiles(t, repo, keyFile); !reflect.DeepEqual(after, before) {
 			t.Fatalf("namespace conflict changed winner bytes")
@@ -65,7 +73,7 @@ func TestSetupCompiledLifecycle(t *testing.T) { //nolint:funlen // One built bin
 		missingRepo := filepath.Join(workspace, "missing")
 		missing := runSetupProcess(t, binary, workspace, "setup", "--repo", missingRepo, "--namespace", "org/example/missing")
 		if missing.Code != 2 || missing.Stdout != "" || !strings.Contains(missing.Stderr, "requires --namespace, --actor, and --key-file") {
-			t.Fatalf("missing nonterminal input = %#v", missing)
+			t.Fatalf("missing nonterminal input = %s", setupProcessDiagnostic(missing))
 		}
 		if _, err := os.Lstat(missingRepo); !errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("missing nonterminal input wrote repo: %v", err)
@@ -75,7 +83,7 @@ func TestSetupCompiledLifecycle(t *testing.T) { //nolint:funlen // One built bin
 		unsafeKey := filepath.Join(unsafeRepo, "inside.key.json")
 		unsafe := runSetupProcess(t, binary, workspace, "setup", "--repo", unsafeRepo, "--namespace", "org/example/unsafe", "--actor", "Unsafe", "--key-file", unsafeKey, "--json")
 		if unsafe.Code == 0 || unsafe.Stdout != "" || !strings.Contains(unsafe.Stderr, "safety") {
-			t.Fatalf("unsafe key path = %#v", unsafe)
+			t.Fatalf("unsafe key path = %s", setupProcessDiagnostic(unsafe))
 		}
 		if _, err := os.Lstat(unsafeRepo); !errors.Is(err, os.ErrNotExist) {
 			t.Fatalf("unsafe setup wrote repo: %v", err)
@@ -90,7 +98,7 @@ func TestSetupCompiledLifecycle(t *testing.T) { //nolint:funlen // One built bin
 		corruptKey := filepath.Join(workspace, "corrupt.key.json")
 		corrupt := runSetupProcess(t, binary, workspace, "setup", "--repo", corruptRepo, "--namespace", "org/example/corrupt", "--actor", "Corrupt", "--key-file", corruptKey, "--json")
 		if corrupt.Code == 0 || corrupt.Stdout != "" {
-			t.Fatalf("corrupt local state = %#v", corrupt)
+			t.Fatalf("corrupt local state = %s", setupProcessDiagnostic(corrupt))
 		}
 		raw, err := os.ReadFile(formatPath)
 		if err != nil || string(raw) != "corrupt-local-state" {
@@ -117,12 +125,12 @@ func TestSetupCompiledLifecycle(t *testing.T) { //nolint:funlen // One built bin
 			})
 			for _, result := range results {
 				if result.Code != 0 || result.Stderr != "" {
-					t.Fatalf("identical setup race = %#v", results)
+					t.Fatalf("identical setup race = %s", setupProcessResultsDiagnostic(results))
 				}
 			}
 			verify := runSetupProcess(t, binary, workspace, "verify", "--repo", repo, "--strict", "--json")
 			if verify.Code != 0 || verify.Stderr != "" {
-				t.Fatalf("verify after identical setup race = %#v", verify)
+				t.Fatalf("verify after identical setup race = %s", setupProcessDiagnostic(verify))
 			}
 			assertNoPrivateKey(t, repo)
 			assertSetupOutputSafe(t, results...)
@@ -144,15 +152,15 @@ func TestSetupCompiledLifecycle(t *testing.T) { //nolint:funlen // One built bin
 				if result.Code == 0 {
 					successes++
 				} else if result.Stdout != "" {
-					t.Fatalf("conflicting setup failure wrote stdout: %#v", result)
+					t.Fatalf("conflicting setup failure wrote stdout: %s", setupProcessDiagnostic(result))
 				}
 			}
 			if successes != 1 {
-				t.Fatalf("conflicting setup successes = %d, results=%#v", successes, results)
+				t.Fatalf("conflicting setup successes = %d, results=%s", successes, setupProcessResultsDiagnostic(results))
 			}
 			verify := runSetupProcess(t, binary, workspace, "verify", "--repo", repo, "--strict", "--json")
 			if verify.Code != 0 || verify.Stderr != "" {
-				t.Fatalf("verify after conflicting setup race = %#v", verify)
+				t.Fatalf("verify after conflicting setup race = %s", setupProcessDiagnostic(verify))
 			}
 			assertNoPrivateKey(t, repo)
 			assertSetupOutputSafe(t, results...)
@@ -185,13 +193,13 @@ func TestSetupRealPTYPromptContract(t *testing.T) {
 		assertSetupPTYTranscript(t, transcript)
 		for _, status := range []string{"store   created", "key     created", "trust   created", "verify  valid", "index   created"} {
 			if !strings.Contains(transcript, status) {
-				t.Fatalf("accepted PTY lacks %q: %q", status, transcript)
+				t.Fatalf("accepted PTY lacks %q: %s", status, setupTranscriptDiagnostic(transcript))
 			}
 		}
 		assertNoPrivateKey(t, repo)
 		assertSetupPrivateValueAbsent(t, keyFile, transcript)
 		if strings.Contains(transcript, "private_key") {
-			t.Fatalf("PTY transcript exposed private key field: %q", transcript)
+			t.Fatalf("PTY transcript exposed private key field: %s", setupTranscriptDiagnostic(transcript))
 		}
 	})
 }
@@ -238,19 +246,19 @@ func runConcurrentSetupProcesses(t *testing.T, binary, directory string, command
 func assertSetupProcessSuccess(t *testing.T, result operatorProcessResult, statuses []string) {
 	t.Helper()
 	if result.Code != 0 || result.Stderr != "" {
-		t.Fatalf("setup process = %#v", result)
+		t.Fatalf("setup process = %s", setupProcessDiagnostic(result))
 	}
-	decoded := decodeSingleOperatorJSON(t, result.Stdout)
+	decoded := decodeSetupProcessJSON(t, result.Stdout)
 	if decoded["operation"] != "setup" || decoded["ok"] != true || decoded["status"] != "ready" {
-		t.Fatalf("setup JSON = %#v", decoded)
+		t.Fatalf("setup JSON has unexpected envelope: %s", setupProcessDiagnostic(result))
 	}
 	actions := decoded["actions"].([]any)
 	if len(actions) != len(statuses) {
-		t.Fatalf("setup actions = %#v", actions)
+		t.Fatalf("setup action count = %d, want %d: %s", len(actions), len(statuses), setupProcessDiagnostic(result))
 	}
 	for position, status := range statuses {
 		if actions[position].(map[string]any)["status"] != status {
-			t.Fatalf("setup action %d = %#v, want %q", position, actions[position], status)
+			t.Fatalf("setup action %d has unexpected status, want %q: %s", position, status, setupProcessDiagnostic(result))
 		}
 	}
 }
@@ -276,12 +284,127 @@ func snapshotSetupFiles(t *testing.T, repo, keyFile string) map[string][]byte {
 	return result
 }
 
+func setupSnapshotMismatchDiagnostic(before, after map[string][]byte) string {
+	paths := make(map[string]struct{}, len(before)+len(after))
+	for path := range before {
+		paths[path] = struct{}{}
+	}
+	for path := range after {
+		paths[path] = struct{}{}
+	}
+
+	ordered := make([]string, 0, len(paths))
+	for path := range paths {
+		ordered = append(ordered, path)
+	}
+	sort.Strings(ordered)
+
+	var diagnostic strings.Builder
+	for _, path := range ordered {
+		beforeRaw, beforeExists := before[path]
+		afterRaw, afterExists := after[path]
+		if beforeExists == afterExists && bytes.Equal(beforeRaw, afterRaw) {
+			continue
+		}
+		if diagnostic.Len() != 0 {
+			diagnostic.WriteByte('\n')
+		}
+		fmt.Fprintf(
+			&diagnostic,
+			"%s: before=%s after=%s",
+			path,
+			setupSnapshotDigest(beforeRaw, beforeExists),
+			setupSnapshotDigest(afterRaw, afterExists),
+		)
+	}
+	return diagnostic.String()
+}
+
+func setupSnapshotDigest(raw []byte, exists bool) string {
+	if !exists {
+		return "missing"
+	}
+	return fmt.Sprintf("sha256:%x", sha256.Sum256(raw))
+}
+
+func setupProcessDiagnostic(result operatorProcessResult) string {
+	return fmt.Sprintf(
+		"code=%d stdout=%s stderr=%s",
+		result.Code,
+		setupTranscriptDiagnostic(result.Stdout),
+		setupTranscriptDiagnostic(result.Stderr),
+	)
+}
+
+func setupProcessResultsDiagnostic(results []operatorProcessResult) string {
+	diagnostics := make([]string, len(results))
+	for position, result := range results {
+		diagnostics[position] = setupProcessDiagnostic(result)
+	}
+	return strings.Join(diagnostics, "; ")
+}
+
+func setupTranscriptDiagnostic(transcript string) string {
+	return setupSnapshotDigest([]byte(transcript), true)
+}
+
+func decodeSetupProcessJSON(t *testing.T, raw string) map[string]any {
+	t.Helper()
+	decoder := json.NewDecoder(strings.NewReader(raw))
+	var result map[string]any
+	if err := decoder.Decode(&result); err != nil {
+		t.Fatalf("decode setup JSON %s: %v", setupTranscriptDiagnostic(raw), err)
+	}
+	var extra any
+	if err := decoder.Decode(&extra); err != io.EOF {
+		t.Fatalf("setup JSON has a trailing value: %s", setupTranscriptDiagnostic(raw))
+	}
+	return result
+}
+
+func TestSetupSnapshotMismatchDiagnosticHidesSecretBytes(t *testing.T) {
+	privateField := "private_key"
+	marker := "setup-diagnostic-secret-marker"
+	beforeRaw := []byte(`{"actor":"Alice","` + privateField + `":"` + marker + `"}`)
+	afterRaw := append([]byte(nil), beforeRaw...)
+	afterRaw[len(afterRaw)-3] ^= 1
+
+	diagnostic := setupSnapshotMismatchDiagnostic(
+		map[string][]byte{"operator.key.json": beforeRaw, "format.json": []byte("stable")},
+		map[string][]byte{"operator.key.json": afterRaw, "format.json": []byte("stable")},
+	)
+	safeDiagnostics := []string{
+		diagnostic,
+		setupProcessDiagnostic(operatorProcessResult{Code: 10, Stdout: string(beforeRaw), Stderr: string(afterRaw)}),
+		setupTranscriptDiagnostic(string(beforeRaw)),
+	}
+	secretForms := []string{
+		privateField,
+		marker,
+		string(beforeRaw),
+		string(afterRaw),
+		fmt.Sprintf("%v", beforeRaw),
+		fmt.Sprintf("%#v", beforeRaw),
+		fmt.Sprintf("%x", beforeRaw),
+	}
+	for _, safeDiagnostic := range safeDiagnostics {
+		for _, secret := range secretForms {
+			if strings.Contains(safeDiagnostic, secret) {
+				t.Fatalf("setup failure diagnostic exposed secret-bearing contents")
+			}
+		}
+	}
+	if !strings.Contains(diagnostic, "operator.key.json: before=sha256:") || strings.Contains(diagnostic, "format.json") {
+		t.Fatalf("snapshot mismatch diagnostic did not identify only the changed path: %q", diagnostic)
+	}
+}
+
 func assertSetupOutputSafe(t *testing.T, results ...operatorProcessResult) {
 	t.Helper()
 	for _, result := range results {
 		for _, output := range []string{result.Stdout, result.Stderr} {
 			if strings.Contains(output, "private_key") {
-				t.Fatalf("setup output exposed private key field: %q", output)
+				t.Fatalf("setup output exposed private key field: %s", setupTranscriptDiagnostic(output))
 			}
 		}
 	}
@@ -333,10 +456,10 @@ func runSetupPTY(t *testing.T, binary, directory, repo, keyFile, confirmation, f
 	}
 	readSetupPTYUntil(t, terminal, &transcript, finalMarker)
 	if err := command.Wait(); err != nil {
-		t.Fatalf("PTY setup wait: %v; transcript=%q", err, transcript.String())
+		t.Fatalf("PTY setup wait: %v; transcript=%s", err, setupTranscriptDiagnostic(transcript.String()))
 	}
 	if ctx.Err() != nil {
-		t.Fatalf("PTY setup timed out: %v; transcript=%q", ctx.Err(), transcript.String())
+		t.Fatalf("PTY setup timed out: %v; transcript=%s", ctx.Err(), setupTranscriptDiagnostic(transcript.String()))
 	}
 	return strings.ReplaceAll(transcript.String(), "\r", "")
 }
@@ -350,7 +473,7 @@ func readSetupPTYUntil(t *testing.T, terminal *os.File, transcript *bytes.Buffer
 			_, _ = transcript.Write(buffer[:count])
 		}
 		if err != nil {
-			t.Fatalf("read PTY through %q: %v; transcript=%q", marker, err, transcript.String())
+			t.Fatalf("read PTY through %q: %v; transcript=%s", marker, err, setupTranscriptDiagnostic(transcript.String()))
 		}
 	}
 }
@@ -361,27 +484,27 @@ func assertSetupPTYTranscript(t *testing.T, transcript string) {
 	for _, marker := range []string{"Namespace", "Actor", "Key file", "Continue? [y/N]"} {
 		position := strings.Index(transcript, marker)
 		if position < 0 {
-			t.Fatalf("PTY transcript lacks %q: %q", marker, transcript)
+			t.Fatalf("PTY transcript lacks %q: %s", marker, setupTranscriptDiagnostic(transcript))
 		}
 		positions = append(positions, position)
 	}
 	for position := 1; position < len(positions); position++ {
 		if positions[position-1] >= positions[position] {
-			t.Fatalf("PTY prompt order = %q", transcript)
+			t.Fatalf("PTY prompt order is invalid: %s", setupTranscriptDiagnostic(transcript))
 		}
 	}
 	if strings.Count(transcript, "PACT setup plan") != 1 || strings.Count(transcript, "Continue? [y/N]") != 1 {
-		t.Fatalf("PTY transcript plan/confirmation count = %q", transcript)
+		t.Fatalf("PTY transcript plan/confirmation count is invalid: %s", setupTranscriptDiagnostic(transcript))
 	}
 	planPosition := strings.Index(transcript, "PACT setup plan")
 	confirmationPosition := strings.Index(transcript, "Continue? [y/N]")
 	if planPosition < 0 || planPosition >= confirmationPosition {
-		t.Fatalf("PTY plan does not precede confirmation: %q", transcript)
+		t.Fatalf("PTY plan does not precede confirmation: %s", setupTranscriptDiagnostic(transcript))
 	}
 	plan := transcript[planPosition:confirmationPosition]
 	for _, action := range []string{"store   planned", "key     planned", "trust   planned", "verify  planned", "index   planned"} {
 		if !strings.Contains(plan, action) {
-			t.Fatalf("PTY plan before confirmation lacks %q: %q", action, transcript)
+			t.Fatalf("PTY plan before confirmation lacks %q: %s", action, setupTranscriptDiagnostic(transcript))
 		}
 	}
 }
