@@ -289,7 +289,7 @@ func joinInitStagingCleanup(staging string, operationErr error) error {
 		return operationErr
 	}
 	removeErr := removeInitStaging(staging)
-	if removeErr == nil || errors.Is(removeErr, fs.ErrNotExist) {
+	if removeErr == nil || onlyNotExistLeaves(removeErr) {
 		return operationErr
 	}
 	cleanupErr := &initStagingCleanupError{err: removeErr}
@@ -297,6 +297,31 @@ func joinInitStagingCleanup(staging string, operationErr error) error {
 		return cleanupErr
 	}
 	return errors.Join(operationErr, cleanupErr)
+}
+
+func onlyNotExistLeaves(err error) bool {
+	if err == nil {
+		return false
+	}
+	if multiple, ok := err.(interface{ Unwrap() []error }); ok {
+		causes := multiple.Unwrap()
+		if len(causes) == 0 {
+			return errors.Is(err, fs.ErrNotExist)
+		}
+		for _, cause := range causes {
+			if !onlyNotExistLeaves(cause) {
+				return false
+			}
+		}
+		return true
+	}
+	if single, ok := err.(interface{ Unwrap() error }); ok {
+		cause := single.Unwrap()
+		if cause != nil {
+			return onlyNotExistLeaves(cause)
+		}
+	}
+	return errors.Is(err, fs.ErrNotExist)
 }
 
 // Open verifies and opens an initialized PACT store at repo.

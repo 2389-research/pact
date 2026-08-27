@@ -811,6 +811,35 @@ func TestInitPreservesPrePublicationOperationAndStagingRemovalFailures(t *testin
 	}
 }
 
+func TestInitPreservesMixedNotExistStagingRemovalFailure(t *testing.T) {
+	repo := t.TempDir()
+	operationFault := errors.New("injected pre-publication operation failure")
+	cleanupFault := errors.New("injected staging cleanup failure")
+	originalBeforePublish := beforePublish
+	originalRemove := removeInitStaging
+	beforePublish = func(_, _ string) error { return operationFault }
+	cleanupPath := ""
+	removeInitStaging = func(path string) error {
+		cleanupPath = path
+		return errors.Join(fs.ErrNotExist, cleanupFault)
+	}
+	t.Cleanup(func() {
+		beforePublish = originalBeforePublish
+		removeInitStaging = originalRemove
+		if cleanupPath != "" {
+			_ = os.RemoveAll(cleanupPath)
+		}
+	})
+
+	result, err := Init(repo, "org/example/widget", time.Now())
+	if result.Status != "" || result.Store != nil || !errors.Is(err, operationFault) || !errors.Is(err, cleanupFault) {
+		t.Fatalf("Init() = (%#v, %v), want operation and mixed cleanup failures", result, err)
+	}
+	if _, statErr := os.Lstat(filepath.Join(repo, ".pact")); !errors.Is(statErr, os.ErrNotExist) {
+		t.Fatalf("pre-publication mixed cleanup failure published store: %v", statErr)
+	}
+}
+
 func TestOpenRejectsNonStrictFormatJSON(t *testing.T) {
 	st := testStore(t)
 	path := filepath.Join(st.Dir(), "format.json")
