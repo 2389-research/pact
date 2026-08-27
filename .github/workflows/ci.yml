@@ -24,6 +24,11 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Set up mise
+        uses: jdx/mise-action@v4
+        with:
+          install: false
+
       - name: Download dependencies
         run: go mod download
 
