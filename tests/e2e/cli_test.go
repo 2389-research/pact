@@ -122,6 +122,25 @@ func TestREADMEInstallCommandPlacesPactAtDocumentedDestination(t *testing.T) {
 	}
 }
 
+func TestReleaseWorkflowInstallsMiseBeforeRunningGoReleaser(t *testing.T) {
+	workflowPath := filepath.Join(projectRoot(t), ".github", "workflows", "release.yml")
+	workflow, err := os.ReadFile(workflowPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mise := bytes.Index(workflow, []byte("uses: jdx/mise-action@v4"))
+	goreleaser := bytes.Index(workflow, []byte("uses: goreleaser/goreleaser-action@v6"))
+	if mise == -1 {
+		t.Fatalf("%s does not install mise", workflowPath)
+	}
+	if goreleaser == -1 {
+		t.Fatalf("%s does not run GoReleaser", workflowPath)
+	}
+	if mise > goreleaser {
+		t.Fatalf("%s installs mise after GoReleaser", workflowPath)
+	}
+}
+
 func TestCanonicalCheckRunsRealSetupAndIndexLifecycle(t *testing.T) {
 	script, err := os.ReadFile(filepath.Join(projectRoot(t), "scripts", "check"))
 	if err != nil {

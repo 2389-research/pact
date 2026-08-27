@@ -26,6 +26,11 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Set up mise
+        uses: jdx/mise-action@v4
+        with:
+          install: false
+
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:
