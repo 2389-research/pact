@@ -435,7 +435,7 @@ func runSetupPTY(t *testing.T, binary, directory, repo, keyFile, confirmation, f
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	command := exec.CommandContext(ctx, binary, "setup", "--repo", repo)
+	command := exec.CommandContext(ctx, binary, "setup", "--repo", repo, "--color", "never")
 	command.Dir = directory
 	terminal, err := pty.Start(command)
 	if err != nil {
