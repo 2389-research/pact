@@ -95,3 +95,5 @@
 - The animated seal belongs only to bare `pact`. Explicit `pact help` and
   `pact --help` must remain immediate; redirected bare output gets one static
   frame and follows the normal color policy.
+- Real-PTY text assertions must select `--color never`; local `NO_COLOR`
+  can hide ANSI-dependent failures that appear on GitHub runners.
