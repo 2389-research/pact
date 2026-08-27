@@ -145,3 +145,40 @@ The reviewers explicitly confirmed:
 No known shipping concern remains. The PTY tests target the Unix PTY API used
 by the supported development and CI systems; they do not claim Windows PTY
 coverage. The branch has not been merged.
+
+## Later final-review repairs
+
+A later whole-branch pass found three Important gaps after the earlier
+approval: byte-stability failures could print the external key snapshot,
+setup routed several typed owner failures to exit 10, and directory-close or
+staging-removal errors could be discarded. Focused TDD repairs now report only
+changed snapshot paths and SHA-256 values, preserve store exit 3 and index or
+resource exit 9 with stable details plus partial actions, and retain cleanup
+error identity after key, store, and trust publication.
+
+Controller audit and fresh-eyes review then found two mixed-error edges: an
+`ErrNotExist` member could hide a real store-staging or key-temporary cleanup
+fault. Tests first reproduced both losses. The classifiers now ignore a
+not-found cleanup only when every error-tree leaf is not-found. Repair commits
+are `bcf954d`, `0d71c62`, and `eb4dc5f`.
+
+Independent rereview of `06cb31c..eb4dc5f` reported 0 Critical, 0 Important,
+and 0 Minor findings. After the last source fix, the full race suite,
+`scripts/check` with 18 Python tests, 20-run store-alias and setup-concurrency
+race tests, human and JSON writer tests, compiled E2E and real PTY tests, a
+fresh compiled setup lifecycle, and the build gate all passed. Exact commands
+were:
+
+```sh
+env -u GOROOT mise exec -- go test -race ./... -count=1
+env -u GOROOT mise exec -- ./scripts/check
+bash .scratch/setup-lifecycle.sh
+env -u GOROOT mise exec -- go test ./tests/e2e -run 'TestSetupRealPTYPromptContract|TestSetupCompiledLifecycle' -count=1
+env -u GOROOT mise exec -- go test -race ./internal/store -run 'TestInitSerializesAliases|TestMutationLockSerializesAliases' -count=20
+env -u GOROOT mise exec -- go test -race ./internal/setup -run 'TestApplyConcurrentIdenticalRequestsConverge|TestApplyConcurrentConflictingRequestsPreserveWinner' -count=20
+env -u GOROOT mise exec -- go test ./cmd/pact -run 'TestSetupTerminalWriterFailuresPrecedeAllMutation|TestSetupWriterFailuresReturnUnexpectedAfterDurableApply' -count=1
+env -u GOROOT mise exec -- go build -o /tmp/pact-setup-final-eb4dc5f/pact ./cmd/pact
+env -u GOROOT mise exec -- pre-commit run --all-files
+```
+
+The branch has not been merged.

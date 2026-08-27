@@ -186,7 +186,11 @@ and index reports `created`, `rebuilt`, or `current`.
 A cancelled result uses `ok:true`, `status:"cancelled"`, and an empty action
 list. Failures retain the current JSON error envelope. If setup fails after a
 successful step, error details include completed actions so the caller can
-report the durable partial state and rerun safely.
+report the durable partial state and rerun safely. Typed owner failures keep
+their established detail fields in that same object: index failures retain
+their stable `code`, while resource-limit failures also retain `resource`,
+`maximum`, and `observed_at_least`. Setup does not replace those fields when it
+adds its partial result.
 
 All result writers propagate write and flush errors. A renderer failure returns
 unexpected-error exit code 10 even when the operation already published valid

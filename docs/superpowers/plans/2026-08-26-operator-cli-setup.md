@@ -25,8 +25,10 @@ gate. `go list -m -json github.com/creack/pty@latest` resolved `v1.1.24` on
 ## Progress
 
 **State:** Tasks 1-7 are complete and independently approved on
-`wip/setup-cli`. The branch is clean and unmerged, with every final gate
-passing, and awaits Doctor Biz's integration choice.
+`wip/setup-cli`. A later whole-branch review found three gaps in secret-safe
+E2E diagnostics, setup domain exit routing, and cleanup-error identity. TDD
+repairs and fresh-eyes follow-ups are committed, the independent rereview is
+clean, and every post-fix gate passes. The branch remains unmerged.
 
 **Delivered commits:**
 
@@ -35,8 +37,9 @@ passing, and awaits Doctor Biz's integration choice.
 - Task 3: `1f35696`;
 - Task 4: `43e32a3`, with convergence repairs `9e09dd6` and `0db1567`;
 - Task 5: `dbde27b`, with partial-result repair `e3f7172`;
-- Task 6: `99f1e52`, with terminal-safety repairs `843eaf3` and `1a541e4`.
-- Task 7: `0ef5ef1`.
+- Task 6: `99f1e52`, with terminal-safety repairs `843eaf3` and `1a541e4`;
+- Task 7: `0ef5ef1`, with closeout repair `8a66c55`;
+- final whole-branch repairs: `bcf954d`, `0d71c62`, and `eb4dc5f`.
 
 **Integration:** No setup implementation work remains. Do not merge without
 Doctor Biz's explicit choice.
@@ -303,7 +306,9 @@ Cancellation after a prompt uses `status: "cancelled"`, `ok: true`, no key ID,
 and no actions. It exits 0 and writes nothing. Setup request errors exit 2;
 domain error mapping remains unchanged; unexpected and writer failures exit
 10. A domain failure uses the existing error envelope and includes the partial
-setup result in `details`.
+setup result in `details`. Stable owner fields share that details object:
+index failures retain `code`, and resource limits retain `code`, `resource`,
+`maximum`, and `observed_at_least`.
 
 ## Task 1: Make Store Publication and Locks Truthful
 
