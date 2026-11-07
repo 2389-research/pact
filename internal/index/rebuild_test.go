@@ -54,6 +54,9 @@ func TestRebuildCreatesThenReplacesValidatedIndex(t *testing.T) {
 	manager := New(fixture.store)
 	live := filepath.Join(fixture.store.Dir(), "index", liveIndexName)
 	protectedBefore := captureProtectedFiles(t, fixture.store.Dir())
+	if err := os.Remove(filepath.Dir(live)); err != nil {
+		t.Fatal(err)
+	}
 
 	first, err := manager.Rebuild(context.Background())
 	if err != nil {
@@ -91,6 +94,50 @@ func TestRebuildCreatesThenReplacesValidatedIndex(t *testing.T) {
 	}
 	if protectedAfter := captureProtectedFiles(t, fixture.store.Dir()); !reflect.DeepEqual(protectedAfter, protectedBefore) {
 		t.Fatal("rebuild changed canonical, trust, ref, or checkpoint bytes")
+	}
+}
+
+func TestPrepareIndexPathsCreatesMissingDirectory(t *testing.T) {
+	storeDirectory := t.TempDir()
+	indexDirectory := filepath.Join(storeDirectory, "index")
+	if err := prepareIndexPaths(storeDirectory, indexDirectory, filepath.Join(indexDirectory, liveIndexName)); err != nil {
+		t.Fatal(err)
+	}
+	info, err := os.Lstat(indexDirectory)
+	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		t.Fatalf("index directory = %v, %v; want real directory", info, err)
+	}
+}
+
+func TestPrepareIndexPathsPreservesObstructions(t *testing.T) {
+	for _, name := range []string{"file", "symlink", "dangling-symlink"} {
+		t.Run(name, func(t *testing.T) {
+			storeDirectory := t.TempDir()
+			indexDirectory := filepath.Join(storeDirectory, "index")
+			target := t.TempDir()
+			if name == "file" {
+				if err := os.WriteFile(indexDirectory, []byte("preserve"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				if name == "dangling-symlink" {
+					target = filepath.Join(target, "missing")
+				}
+				if err := os.Symlink(target, indexDirectory); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := prepareIndexPaths(storeDirectory, indexDirectory, filepath.Join(indexDirectory, liveIndexName)); err == nil {
+				t.Fatal("accepted obstructed index directory")
+			}
+			if name == "file" {
+				if got := string(mustReadFile(t, indexDirectory)); got != "preserve" {
+					t.Fatalf("changed obstruction: %q", got)
+				}
+			} else if got, err := os.Readlink(indexDirectory); err != nil || got != target {
+				t.Fatalf("changed link: %q, %v", got, err)
+			}
+		})
 	}
 }
 

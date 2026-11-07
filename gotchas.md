@@ -51,10 +51,10 @@
 - Canonical files under `.pact/objects/` must not gain a trailing newline; it
   changes their SHA-256 identity. The pre-commit EOF fixer excludes that path.
   Keep the exclusion and rely on PACT's canonical writer and verifier.
-- `.pact/index/pact-v1.sqlite3` is derived and disposable. Missing or unusable
-  index contents never need canonical repair. Restore `.pact/index` as a real
-  directory and remove unsafe live paths or SQLite sidecars when needed, then
-  run an explicit `pact index rebuild`.
+- 2026-11-06: `.pact/index/pact-v1.sqlite3` is derived and disposable. Explicit
+  `pact index rebuild` recreates a missing index directory after a Git restore;
+  it does not require `tmp` or `refs`. Existing non-directory or symlink paths
+  still refuse recovery. Missing index contents never need canonical repair.
 - A commit or checkpoint that publishes a new canonical object makes an
   existing index stale. An idempotent append of an existing object does not.
   Indexed reads refuse stale state until an explicit rebuild; `show` and
@@ -97,3 +97,8 @@
   frame and follows the normal color policy.
 - Real-PTY text assertions must select `--color never`; local `NO_COLOR`
   can hide ANSI-dependent failures that appear on GitHub runners.
+- 2026-11-06: Missing query use in consumer logs does not prove a missing read
+  API. A fresh agent resumed successfully with existing commands and skill
+  0.2.1; the 0.2.2 guide also passed, without a demonstrated efficiency gain.
+  `log`/`query` omit payloads and evidence; use exact `show` references. Cursors
+  continue a fixed snapshot, not changes since a previous session.

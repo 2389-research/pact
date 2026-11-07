@@ -10,7 +10,7 @@ description: >-
   PACT is domain-neutral: audit, verification, research, deployment, operations,
   and other skills may use it without PACT knowing their ontology.
 metadata:
-  version: "0.2.1"
+  version: "0.2.2"
 ---
 
 # PACT Ledger
@@ -191,6 +191,54 @@ Infer the smallest applicable mode from the request:
 10. **Design or extend** — define schemas, policies, adapters, or a production
     implementation while preserving the invariants in this skill.
 
+## Resume work from an existing ledger
+
+Use this read sequence when taking over work or returning after a context reset.
+Resolve the project ledger first; in a Git worktree, use an explicit `--repo`
+pointing to the established ledger rather than initializing a second one.
+The examples below assume that ledger is in the current directory.
+
+1. Run `pact status --repo . --json`. Read the namespace heads, verification,
+   replica completeness, and index state. Record the heads as the boundary of
+   this handoff. If verification fails, stop and report it. If only the index
+   needs rebuilding, run `pact index rebuild --repo . --json` and retry.
+2. Discover subjects with a bounded history read, then narrow by exact subject:
+
+   ```bash
+   pact log --repo . --namespace org/example/project/widget --limit 20 --json
+   pact query --repo . --subject subsystem/authentication --limit 20 --json
+   ```
+
+   `log` and `query` return event metadata, not payloads or evidence. Read each
+   relevant assertion, decision, or check with its returned event reference:
+
+   ```bash
+   pact show --repo . 'pact:event:sha256:<commit-digest>#<local-id>' --json
+   ```
+
+3. Follow corrections in both directions: inspect the selected event's
+   `caused_by` and `supersedes` targets with `show`; find later references with
+   `query --caused-by '<event-ref>'` and `query --supersedes '<event-ref>'`.
+   These filters find direct links, not a transitive closure. Repeat for relevant
+   successors and retain conflicting claims. A causal link alone is not approval.
+4. Resolve the evidence needed for the next action and compare its exact bytes
+   with the recorded digest. Report matching, changed, or unavailable evidence
+   separately from ledger verification. Open the referenced proof before broad
+   project reports or old conversations.
+5. Leave a short handoff: subject and next action; blocking findings with exact
+   event refs; source revision and verification scope; evidence availability;
+   heads inspected and any unread pages or unresolved claims. Distinguish a
+   passed check from an explicit acceptance decision.
+
+Pages run in causal order, not newest-first. A small `--limit` is not a tail.
+When `page.has_more` is true, repeat the same command, filters, and limit with
+`--cursor '<page.next_cursor>'`. Check `unresolved` as well as `batches`.
+Do not claim that no correction exists while relevant pages remain unread.
+A cursor continues one snapshot; it is **not** a “changes since” token. If
+the source changes and the cursor is rejected, restart the query and compare
+event refs with the previous handoff. Recheck heads before acting if writers
+may have appended during the read.
+
 ## Startup procedure
 
 Before any mutation:
@@ -320,6 +368,11 @@ For evidence that supports an event, record:
 Rules:
 
 - Hash the exact bytes observed.
+- Retain those bytes at a stable locator. For Git-backed evidence, record the
+  full Git commit ID and repository-relative path in the evidence description
+  so a successor can recover the bytes with `git show '<commit>:<path>'` and
+  check the digest. An absolute working-tree path alone is mutable; neither
+  `pact show` nor ledger verification resolves or hashes external evidence.
 - Use redacted or access-controlled external evidence when content is sensitive.
 - Do not place raw evidence bytes in the payload.
 - Do not include credentials in a URI.
@@ -387,6 +440,27 @@ The commit procedure is:
 
 Use:
 
+`--events` accepts an object containing an `events` array, not a bare array.
+For example, save this as `event-batch.json`, replacing the sample observation
+with the actual result before signing:
+
+```json
+{
+  "events": [{
+    "local_id": "check",
+    "kind": "observation",
+    "type": "build.check.executed",
+    "subject": "subsystem/authentication",
+    "schema_ref": "pact:core/generic-object/v1",
+    "payload": {"command": "make check", "exit_code": 0},
+    "evidence": [],
+    "caused_by": [],
+    "supersedes": [],
+    "tags": ["check"]
+  }]
+}
+```
+
 ```bash
 pact commit \
   --repo . \
@@ -397,6 +471,18 @@ pact commit \
 Do not update a head pointer before the object has been durably written and
 verified. Local refs are conveniences; if a ref update fails, the object still
 exists and heads can be recomputed.
+
+### Build and review convention
+
+For development history, keep the slice or subsystem subject stable across a
+finding, its correction, and its acceptance. Put the exact tested/reviewed Git
+revision, result, and remaining work in the payload; attach retained reports or
+logs as evidence. Give findings stable IDs in the project's payload schema.
+Link a correction to the finding event with `caused_by`, and name which finding
+IDs it addresses. Link acceptance to the corrected source's review and checks.
+Keep failed results as history; use `supersedes` only for a claim being replaced,
+not merely because a later test passed. These are project conventions, not
+built-in event types or an automatic approval policy in Pact.
 
 ## Correct, invalidate, or add later knowledge
 

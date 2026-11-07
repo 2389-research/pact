@@ -52,7 +52,7 @@ func (m *Manager) Rebuild(ctx context.Context) (result RebuildResult, err error)
 func (m *Manager) rebuildLocked(ctx context.Context) (result RebuildResult, err error) { //nolint:gocyclo,gocognit,funlen // The linear branches are the ordered durability protocol.
 	indexDirectory := filepath.Join(m.store.Root(), ".pact", "index")
 	livePath := filepath.Join(indexDirectory, liveIndexName)
-	if err := validateIndexPaths(m.store.Dir(), indexDirectory, livePath); err != nil {
+	if err := prepareIndexPaths(m.store.Dir(), indexDirectory, livePath); err != nil {
 		return result, fmt.Errorf("validate index paths: %w", err)
 	}
 	if err := cleanStaleBuilds(indexDirectory); err != nil {
@@ -186,7 +186,7 @@ func proveCanonicalSourceUnchanged(ctx context.Context, st *store.Store, sourceF
 	return nil
 }
 
-func validateIndexPaths(storeDirectory, indexDirectory, livePath string) error {
+func prepareIndexPaths(storeDirectory, indexDirectory, livePath string) error {
 	storeInfo, err := os.Lstat(storeDirectory)
 	if err != nil {
 		return err
@@ -195,6 +195,13 @@ func validateIndexPaths(storeDirectory, indexDirectory, livePath string) error {
 		return fmt.Errorf("store directory is not a real directory")
 	}
 	directory, err := os.Lstat(indexDirectory)
+	if errors.Is(err, fs.ErrNotExist) {
+		// #nosec G301 -- match store.Init directory mode; SQLite files remain owner-only.
+		if err := os.Mkdir(indexDirectory, 0o755); err != nil && !errors.Is(err, fs.ErrExist) {
+			return err
+		}
+		directory, err = os.Lstat(indexDirectory)
+	}
 	if err != nil {
 		return err
 	}
