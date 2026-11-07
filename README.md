@@ -200,10 +200,10 @@ pact index rebuild --repo /path/to/project --json
 ```
 
 `missing`, `stale`, `corrupt`, `incompatible`, and `partial-build` all require
-operator action. `index rebuild` repairs an absent live file or unusable regular
-database when `.pact/index` is a real directory with no SQLite sidecars. If
-`.pact/index` is missing or unsafe, recreate it as a real directory. Remove or
-repair unsafe live paths and SQLite sidecars before rebuilding. A successful
+operator action. `index rebuild` recreates a missing `.pact/index` directory and
+repairs an absent live file or unusable regular database. Existing directory and
+live-file paths must be real, with no SQLite sidecars. Remove or repair unsafe
+paths and SQLite sidecars before rebuilding. A successful
 canonical write makes an existing index stale; this is expected. Rebuild scans
 and verifies canonical bytes, creates and validates a same-directory temporary
 SQLite file, then replaces the live file. Log and query refuse every state
