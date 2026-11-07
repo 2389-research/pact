@@ -110,6 +110,12 @@ func TestCLIIndexLifecycleAndImmutability(t *testing.T) {
 	if err := os.Remove(indexPath); err != nil {
 		t.Fatal(err)
 	}
+	// Git does not restore empty ignored directories alongside canonical objects.
+	for _, name := range []string{"index", "tmp", "refs"} {
+		if err := os.Remove(filepath.Join(repo, ".pact", name)); err != nil {
+			t.Fatal(err)
+		}
+	}
 	assertIndexState(t, runJSON(t, binary, "index", "status", "--repo", repo, "--json"), "missing", "unavailable", true)
 	if missingShow := runJSON(t, binary, "show", "--repo", repo, rootRef, "--json"); missingShow["kind"] != "event" {
 		t.Fatalf("show without index = %#v", missingShow)
