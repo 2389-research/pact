@@ -3,6 +3,10 @@
 
 # PACT gotchas
 
+- 2026-11-06: When Doctor Biz requests the review-squad workflow, discover and
+  invoke that specific workflow or state that it is unavailable. Ad hoc parallel
+  reviewers do not establish that the named workflow ran.
+
 - The bundled Python package under `docs/pact-ledger/` is the v1 reference and
   conformance oracle. Production code must match its frozen wire bytes, IDs,
   signatures, and event references; do not "improve" those formats in isolation.
