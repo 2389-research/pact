@@ -1,0 +1,38 @@
+{
+  "source_revision": "939c6223777fb60da804f551378b70424e99e8a8",
+  "base_revision": "2d688b5e75d58de421808c57f70106d196e4599e",
+  "go_version": "go1.26.6 darwin/arm64",
+  "golangci_lint_version": "2.13.2",
+  "identity": {
+    "profile_digest": "sha256:b89dd93eb851ca4db63e9e29fbd1d060310f2268c8d37ed00c46004f2eafeab9",
+    "policy_digest": "sha256:e9d050d6b7170e608677c0c56b338a888c2ec001499b0119adca52cf0c8fd437",
+    "projector_version": "development/projector/v1",
+    "projector_digest": "sha256:2bbf4768d020ecc4d3009aa89f297b519577d67d25f312cd0f9651b2bf8e4d2e"
+  },
+  "gates": [
+    {
+      "name": "Focused tests and compiled driver",
+      "command": "env -u GOROOT mise exec -- go test -count=1 -v ./internal/development ./internal/ledger",
+      "exit_code": 0,
+      "log": "pzm4-frozen-focused.log"
+    },
+    {
+      "name": "Canonical check",
+      "command": "env -u GOROOT mise exec -- scripts/check",
+      "exit_code": 0,
+      "log": "pzm4-frozen-check.log"
+    },
+    {
+      "name": "Race suite",
+      "command": "env -u GOROOT mise exec -- go test -race -count=1 ./...",
+      "exit_code": 0,
+      "log": "pzm4-frozen-race.log"
+    },
+    {
+      "name": "Cold-cache lint",
+      "command": "env -u GOROOT GOCACHE=/tmp/pzm4-939c622-go-cache GOLANGCI_LINT_CACHE=/tmp/pzm4-939c622-lint-cache mise exec -- golangci-lint run",
+      "exit_code": 0,
+      "log": "pzm4-frozen-lint.log"
+    }
+  ]
+}

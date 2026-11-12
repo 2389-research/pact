@@ -1,0 +1,589 @@
+=== RUN   TestProfileArtifactsArePublished
+--- PASS: TestProfileArtifactsArePublished (0.09s)
+=== RUN   TestProfileCorpusAgainstReferenceJSONSchema
+    profile_test.go:65: Validated 40 payloads in 16 public cases; semantic/projection expectations remain declarative.
+--- PASS: TestProfileCorpusAgainstReferenceJSONSchema (0.17s)
+=== RUN   TestPositiveCorpusSignsAndReadsThroughRawLedger
+--- PASS: TestPositiveCorpusSignsAndReadsThroughRawLedger (0.19s)
+=== RUN   TestProjectionAcceptanceRubric
+=== RUN   TestProjectionAcceptanceRubric/missing_decision
+=== RUN   TestProjectionAcceptanceRubric/supported
+=== RUN   TestProjectionAcceptanceRubric/green_does_not_close_important
+=== RUN   TestProjectionAcceptanceRubric/critical_blocks
+=== RUN   TestProjectionAcceptanceRubric/minor_remains_visible
+=== RUN   TestProjectionAcceptanceRubric/explicit_correction_resolves
+--- PASS: TestProjectionAcceptanceRubric (7.46s)
+    --- PASS: TestProjectionAcceptanceRubric/missing_decision (0.68s)
+    --- PASS: TestProjectionAcceptanceRubric/supported (1.94s)
+    --- PASS: TestProjectionAcceptanceRubric/green_does_not_close_important (1.29s)
+    --- PASS: TestProjectionAcceptanceRubric/critical_blocks (1.23s)
+    --- PASS: TestProjectionAcceptanceRubric/minor_remains_visible (1.22s)
+    --- PASS: TestProjectionAcceptanceRubric/explicit_correction_resolves (1.10s)
+=== RUN   TestProjectionFrozenCutAndLaterBlocker
+--- PASS: TestProjectionFrozenCutAndLaterBlocker (1.62s)
+=== RUN   TestProjectionConcurrentDecisions
+--- PASS: TestProjectionConcurrentDecisions (1.14s)
+=== RUN   TestProjectionProofMustBeObservedAndSameSource
+=== RUN   TestProjectionProofMustBeObservedAndSameSource/unobserved
+=== RUN   TestProjectionProofMustBeObservedAndSameSource/wrong-source
+=== RUN   TestProjectionProofMustBeObservedAndSameSource/mutable
+=== RUN   TestProjectionProofMustBeObservedAndSameSource/unknown-schema
+=== RUN   TestProjectionProofMustBeObservedAndSameSource/invalid-payload
+=== RUN   TestProjectionProofMustBeObservedAndSameSource/missing-ref
+=== RUN   TestProjectionProofMustBeObservedAndSameSource/unknown-authority
+--- PASS: TestProjectionProofMustBeObservedAndSameSource (8.38s)
+    --- PASS: TestProjectionProofMustBeObservedAndSameSource/unobserved (1.29s)
+    --- PASS: TestProjectionProofMustBeObservedAndSameSource/wrong-source (1.44s)
+    --- PASS: TestProjectionProofMustBeObservedAndSameSource/mutable (1.25s)
+    --- PASS: TestProjectionProofMustBeObservedAndSameSource/unknown-schema (1.29s)
+    --- PASS: TestProjectionProofMustBeObservedAndSameSource/invalid-payload (1.26s)
+    --- PASS: TestProjectionProofMustBeObservedAndSameSource/missing-ref (1.05s)
+    --- PASS: TestProjectionProofMustBeObservedAndSameSource/unknown-authority (0.81s)
+=== RUN   TestProjectionResolutionAndCausalityBoundaries
+=== RUN   TestProjectionResolutionAndCausalityBoundaries/source-change
+=== RUN   TestProjectionResolutionAndCausalityBoundaries/cause-alone
+=== RUN   TestProjectionResolutionAndCausalityBoundaries/wrong-correction
+=== RUN   TestProjectionResolutionAndCausalityBoundaries/missing-finding
+=== RUN   TestProjectionResolutionAndCausalityBoundaries/unobserved-resolution
+=== RUN   TestProjectionResolutionAndCausalityBoundaries/unobserved-local-proof
+=== RUN   TestProjectionResolutionAndCausalityBoundaries/observed-local-proof
+--- PASS: TestProjectionResolutionAndCausalityBoundaries (5.07s)
+    --- PASS: TestProjectionResolutionAndCausalityBoundaries/source-change (0.71s)
+    --- PASS: TestProjectionResolutionAndCausalityBoundaries/cause-alone (0.90s)
+    --- PASS: TestProjectionResolutionAndCausalityBoundaries/wrong-correction (0.47s)
+    --- PASS: TestProjectionResolutionAndCausalityBoundaries/missing-finding (0.78s)
+    --- PASS: TestProjectionResolutionAndCausalityBoundaries/unobserved-resolution (0.79s)
+    --- PASS: TestProjectionResolutionAndCausalityBoundaries/unobserved-local-proof (0.66s)
+    --- PASS: TestProjectionResolutionAndCausalityBoundaries/observed-local-proof (0.77s)
+=== RUN   TestProjectionEvidenceLossAndDeclaredActions
+--- PASS: TestProjectionEvidenceLossAndDeclaredActions (0.86s)
+=== RUN   TestProjectionRequestAndDependencyRefusals
+--- PASS: TestProjectionRequestAndDependencyRefusals (0.61s)
+=== RUN   TestProjectionSelectedProofScopeAndEmptyEvidence
+=== RUN   TestProjectionSelectedProofScopeAndEmptyEvidence/no-check-proof
+=== RUN   TestProjectionSelectedProofScopeAndEmptyEvidence/no-review-proof
+=== RUN   TestProjectionSelectedProofScopeAndEmptyEvidence/no-decision-proof
+=== RUN   TestProjectionSelectedProofScopeAndEmptyEvidence/other-subject
+=== RUN   TestProjectionSelectedProofScopeAndEmptyEvidence/other-repository
+=== RUN   TestProjectionSelectedProofScopeAndEmptyEvidence/other-namespace
+=== RUN   TestProjectionSelectedProofScopeAndEmptyEvidence/unknown-policy
+--- PASS: TestProjectionSelectedProofScopeAndEmptyEvidence (4.30s)
+    --- PASS: TestProjectionSelectedProofScopeAndEmptyEvidence/no-check-proof (0.56s)
+    --- PASS: TestProjectionSelectedProofScopeAndEmptyEvidence/no-review-proof (0.38s)
+    --- PASS: TestProjectionSelectedProofScopeAndEmptyEvidence/no-decision-proof (0.47s)
+    --- PASS: TestProjectionSelectedProofScopeAndEmptyEvidence/other-subject (0.49s)
+    --- PASS: TestProjectionSelectedProofScopeAndEmptyEvidence/other-repository (0.78s)
+    --- PASS: TestProjectionSelectedProofScopeAndEmptyEvidence/other-namespace (0.85s)
+    --- PASS: TestProjectionSelectedProofScopeAndEmptyEvidence/unknown-policy (0.76s)
+=== RUN   TestProjectionCompiledDriverExpectedBytes
+--- PASS: TestProjectionCompiledDriverExpectedBytes (1.21s)
+=== RUN   TestProjectionCommitAtomicityAndSupersedes
+--- PASS: TestProjectionCommitAtomicityAndSupersedes (0.84s)
+=== RUN   TestProjectionPolicyUnit
+--- PASS: TestProjectionPolicyUnit (0.00s)
+=== RUN   TestProjectionCausalBudgetStopsFurtherWork
+--- PASS: TestProjectionCausalBudgetStopsFurtherWork (0.00s)
+=== RUN   TestProjectionDefaultFrontierDoesNotHideInvalidObjects
+--- PASS: TestProjectionDefaultFrontierDoesNotHideInvalidObjects (0.27s)
+=== RUN   TestValidateCorpusBeforeAdmission
+=== RUN   TestValidateCorpusBeforeAdmission/missing-revision
+=== RUN   TestValidateCorpusBeforeAdmission/duplicate-finding
+=== RUN   TestValidateCorpusBeforeAdmission/check-failed
+=== RUN   TestValidateCorpusBeforeAdmission/inconclusive
+=== RUN   TestValidateCorpusBeforeAdmission/open-finding
+=== RUN   TestValidateCorpusBeforeAdmission/corrected
+=== RUN   TestValidateCorpusBeforeAdmission/check-unknown
+=== RUN   TestValidateCorpusBeforeAdmission/rejected
+=== RUN   TestValidateCorpusBeforeAdmission/partial-outcome
+=== RUN   TestValidateCorpusBeforeAdmission/check-interrupted
+=== RUN   TestValidateCorpusBeforeAdmission/check-not_run
+=== RUN   TestValidateCorpusBeforeAdmission/severity-minor
+=== RUN   TestValidateCorpusBeforeAdmission/partial-coverage
+=== RUN   TestValidateCorpusBeforeAdmission/mismatched-exit
+=== RUN   TestValidateCorpusBeforeAdmission/bad-event-ref
+=== RUN   TestValidateCorpusBeforeAdmission/severity-critical
+--- PASS: TestValidateCorpusBeforeAdmission (0.42s)
+    --- PASS: TestValidateCorpusBeforeAdmission/missing-revision (0.00s)
+    --- PASS: TestValidateCorpusBeforeAdmission/duplicate-finding (0.00s)
+    --- PASS: TestValidateCorpusBeforeAdmission/check-failed (0.01s)
+    --- PASS: TestValidateCorpusBeforeAdmission/inconclusive (0.01s)
+    --- PASS: TestValidateCorpusBeforeAdmission/open-finding (0.02s)
+    --- PASS: TestValidateCorpusBeforeAdmission/corrected (0.02s)
+    --- PASS: TestValidateCorpusBeforeAdmission/check-unknown (0.02s)
+    --- PASS: TestValidateCorpusBeforeAdmission/rejected (0.01s)
+    --- PASS: TestValidateCorpusBeforeAdmission/partial-outcome (0.00s)
+    --- PASS: TestValidateCorpusBeforeAdmission/check-interrupted (0.02s)
+    --- PASS: TestValidateCorpusBeforeAdmission/check-not_run (0.02s)
+    --- PASS: TestValidateCorpusBeforeAdmission/severity-minor (0.02s)
+    --- PASS: TestValidateCorpusBeforeAdmission/partial-coverage (0.03s)
+    --- PASS: TestValidateCorpusBeforeAdmission/mismatched-exit (0.00s)
+    --- PASS: TestValidateCorpusBeforeAdmission/bad-event-ref (0.00s)
+    --- PASS: TestValidateCorpusBeforeAdmission/severity-critical (0.04s)
+=== RUN   TestValidateRejectsDomainContradictions
+=== RUN   TestValidateRejectsDomainContradictions/unknown-type
+=== RUN   TestValidateRejectsDomainContradictions/empty-subject
+=== RUN   TestValidateRejectsDomainContradictions/index-duplicate
+=== RUN   TestValidateRejectsDomainContradictions/floating-whole-number
+=== RUN   TestValidateRejectsDomainContradictions/upper-source
+=== RUN   TestValidateRejectsDomainContradictions/missing-name
+=== RUN   TestValidateRejectsDomainContradictions/coverage-over-total
+=== RUN   TestValidateRejectsDomainContradictions/bad-namespace
+=== RUN   TestValidateRejectsDomainContradictions/interrupted-without-observation
+=== RUN   TestValidateRejectsDomainContradictions/not-run-with-signal
+=== RUN   TestValidateRejectsDomainContradictions/coverage-negative
+=== RUN   TestValidateRejectsDomainContradictions/severity
+=== RUN   TestValidateRejectsDomainContradictions/invalid-utf8
+=== RUN   TestValidateRejectsDomainContradictions/operation-override
+=== RUN   TestValidateRejectsDomainContradictions/bad-command
+=== RUN   TestValidateRejectsDomainContradictions/unknown-with-exit
+=== RUN   TestValidateRejectsDomainContradictions/empty-findings
+=== RUN   TestValidateRejectsDomainContradictions/source-override
+=== RUN   TestValidateRejectsDomainContradictions/unknown-field
+=== RUN   TestValidateRejectsDomainContradictions/passed-signal
+=== RUN   TestValidateRejectsDomainContradictions/index-out-of-bounds
+=== RUN   TestValidateRejectsDomainContradictions/empty-operation
+=== RUN   TestValidateRejectsDomainContradictions/passed-no-exit
+=== RUN   TestValidateRejectsDomainContradictions/envelope-ref
+=== RUN   TestValidateRejectsDomainContradictions/fractional-exit
+=== RUN   TestValidateRejectsDomainContradictions/finding-index
+=== RUN   TestValidateRejectsDomainContradictions/short-source
+=== RUN   TestValidateRejectsDomainContradictions/empty-events
+=== RUN   TestValidateRejectsDomainContradictions/failed-negative-exit
+=== RUN   TestValidateRejectsDomainContradictions/blank-finding-id
+=== RUN   TestValidateRejectsDomainContradictions/secret
+--- PASS: TestValidateRejectsDomainContradictions (0.02s)
+    --- PASS: TestValidateRejectsDomainContradictions/unknown-type (0.00s)
+    --- PASS: TestValidateRejectsDomainContradictions/empty-subject (0.00s)
+    --- PASS: TestValidateRejectsDomainContradictions/index-duplicate (0.00s)
+    --- PASS: TestValidateRejectsDomainContradictions/floating-whole-number (0.00s)
+    --- PASS: TestValidateRejectsDomainContradictions/upper-source (0.00s)
+    --- PASS: TestValidateRejectsDomainContradictions/missing-name (0.00s)
+    --- PASS: TestValidateRejectsDomainContradictions/coverage-over-total (0.00s)
+    --- PASS: TestValidateRejectsDomainContradictions/bad-namespace (0.00s)
+    --- PASS: TestValidateRejectsDomainContradictions/interrupted-without-observation (0.00s)
+    --- PASS: TestValidateRejectsDomainContradictions/not-run-with-signal (0.00s)
+    --- PASS: TestValidateRejectsDomainContradictions/coverage-negative (0.00s)
+    --- PASS: TestValidateRejectsDomainContradictions/severity (0.00s)
+    --- PASS: TestValidateRejectsDomainContradictions/invalid-utf8 (0.00s)
+    --- PASS: TestValidateRejectsDomainContradictions/operation-override (0.00s)
+    --- PASS: TestValidateRejectsDomainContradictions/bad-command (0.00s)
+    --- PASS: TestValidateRejectsDomainContradictions/unknown-with-exit (0.00s)
+    --- PASS: TestValidateRejectsDomainContradictions/empty-findings (0.00s)
+    --- PASS: TestValidateRejectsDomainContradictions/source-override (0.00s)
+    --- PASS: TestValidateRejectsDomainContradictions/unknown-field (0.00s)
+    --- PASS: TestValidateRejectsDomainContradictions/passed-signal (0.00s)
+    --- PASS: TestValidateRejectsDomainContradictions/index-out-of-bounds (0.00s)
+    --- PASS: TestValidateRejectsDomainContradictions/empty-operation (0.00s)
+    --- PASS: TestValidateRejectsDomainContradictions/passed-no-exit (0.00s)
+    --- PASS: TestValidateRejectsDomainContradictions/envelope-ref (0.00s)
+    --- PASS: TestValidateRejectsDomainContradictions/fractional-exit (0.00s)
+    --- PASS: TestValidateRejectsDomainContradictions/finding-index (0.00s)
+    --- PASS: TestValidateRejectsDomainContradictions/short-source (0.00s)
+    --- PASS: TestValidateRejectsDomainContradictions/empty-events (0.00s)
+    --- PASS: TestValidateRejectsDomainContradictions/failed-negative-exit (0.00s)
+    --- PASS: TestValidateRejectsDomainContradictions/blank-finding-id (0.00s)
+    --- PASS: TestValidateRejectsDomainContradictions/secret (0.00s)
+=== RUN   TestValidatePayloadPinsSchemaIdentity
+--- PASS: TestValidatePayloadPinsSchemaIdentity (0.00s)
+=== RUN   TestDecodeInputRejectsNonObjectAndExtraFields
+--- PASS: TestDecodeInputRejectsNonObjectAndExtraFields (0.00s)
+=== RUN   TestDecodeArrayExplainsRecordObject
+--- PASS: TestDecodeArrayExplainsRecordObject (0.00s)
+=== RUN   TestValidationCancellation
+--- PASS: TestValidationCancellation (0.00s)
+=== RUN   TestInconclusiveFixtureHasNoDanglingFinding
+--- PASS: TestInconclusiveFixtureHasNoDanglingFinding (0.00s)
+=== RUN   TestValidatePayloadRequiredFieldsAndClosedNestedObjects
+=== RUN   TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.check.executed/missing-evidence_indexes
+=== RUN   TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.check.executed/missing-source
+=== RUN   TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.check.executed/missing-command
+=== RUN   TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.check.executed/missing-outcome
+=== RUN   TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.check.executed/missing-operation_id
+=== RUN   TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.check.executed/missing-name
+=== RUN   TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.review.completed/missing-resolves
+=== RUN   TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.review.completed/missing-evidence_indexes
+=== RUN   TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.review.completed/missing-operation_id
+=== RUN   TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.review.completed/missing-source
+=== RUN   TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.review.completed/missing-verdict
+=== RUN   TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.review.completed/missing-findings
+=== RUN   TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.next_action.recorded/missing-blocking_findings
+=== RUN   TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.next_action.recorded/missing-evidence_indexes
+=== RUN   TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.next_action.recorded/missing-operation_id
+=== RUN   TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.next_action.recorded/missing-source
+=== RUN   TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.next_action.recorded/missing-actor
+=== RUN   TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.next_action.recorded/missing-action
+=== RUN   TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.next_action.recorded/missing-blocking_event_refs
+=== RUN   TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.check.executed/missing-operation_id#01
+=== RUN   TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.check.executed/missing-source#01
+=== RUN   TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.check.executed/missing-command#01
+=== RUN   TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.check.executed/missing-outcome#01
+=== RUN   TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.check.executed/missing-evidence_indexes#01
+=== RUN   TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.check.executed/missing-name#01
+=== RUN   TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.review.completed/missing-source#01
+=== RUN   TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.review.completed/missing-verdict#01
+=== RUN   TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.review.completed/missing-findings#01
+=== RUN   TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.review.completed/missing-resolves#01
+=== RUN   TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.review.completed/missing-evidence_indexes#01
+=== RUN   TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.review.completed/missing-operation_id#01
+=== RUN   TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.acceptance.recorded/missing-review_refs
+=== RUN   TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.acceptance.recorded/missing-source
+=== RUN   TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.acceptance.recorded/missing-decision
+=== RUN   TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.acceptance.recorded/missing-rationale
+=== RUN   TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.acceptance.recorded/missing-policy_ref
+=== RUN   TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.acceptance.recorded/missing-check_refs
+=== RUN   TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.acceptance.recorded/missing-evidence_indexes
+=== RUN   TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.acceptance.recorded/missing-operation_id
+=== RUN   TestValidatePayloadRequiredFieldsAndClosedNestedObjects/review-verdict
+=== RUN   TestValidatePayloadRequiredFieldsAndClosedNestedObjects/finding-extra
+=== RUN   TestValidatePayloadRequiredFieldsAndClosedNestedObjects/finding-ref-extra
+=== RUN   TestValidatePayloadRequiredFieldsAndClosedNestedObjects/finding-ref-malformed
+=== RUN   TestValidatePayloadRequiredFieldsAndClosedNestedObjects/evidence-envelope-extra
+=== RUN   TestValidatePayloadRequiredFieldsAndClosedNestedObjects/duplicate-local-id
+=== RUN   TestValidatePayloadRequiredFieldsAndClosedNestedObjects/null-causes
+--- PASS: TestValidatePayloadRequiredFieldsAndClosedNestedObjects (0.02s)
+    --- PASS: TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.check.executed/missing-evidence_indexes (0.00s)
+    --- PASS: TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.check.executed/missing-source (0.00s)
+    --- PASS: TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.check.executed/missing-command (0.00s)
+    --- PASS: TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.check.executed/missing-outcome (0.00s)
+    --- PASS: TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.check.executed/missing-operation_id (0.00s)
+    --- PASS: TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.check.executed/missing-name (0.00s)
+    --- PASS: TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.review.completed/missing-resolves (0.00s)
+    --- PASS: TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.review.completed/missing-evidence_indexes (0.00s)
+    --- PASS: TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.review.completed/missing-operation_id (0.00s)
+    --- PASS: TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.review.completed/missing-source (0.00s)
+    --- PASS: TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.review.completed/missing-verdict (0.00s)
+    --- PASS: TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.review.completed/missing-findings (0.00s)
+    --- PASS: TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.next_action.recorded/missing-blocking_findings (0.00s)
+    --- PASS: TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.next_action.recorded/missing-evidence_indexes (0.00s)
+    --- PASS: TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.next_action.recorded/missing-operation_id (0.00s)
+    --- PASS: TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.next_action.recorded/missing-source (0.00s)
+    --- PASS: TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.next_action.recorded/missing-actor (0.00s)
+    --- PASS: TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.next_action.recorded/missing-action (0.00s)
+    --- PASS: TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.next_action.recorded/missing-blocking_event_refs (0.00s)
+    --- PASS: TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.check.executed/missing-operation_id#01 (0.00s)
+    --- PASS: TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.check.executed/missing-source#01 (0.00s)
+    --- PASS: TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.check.executed/missing-command#01 (0.00s)
+    --- PASS: TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.check.executed/missing-outcome#01 (0.00s)
+    --- PASS: TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.check.executed/missing-evidence_indexes#01 (0.00s)
+    --- PASS: TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.check.executed/missing-name#01 (0.00s)
+    --- PASS: TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.review.completed/missing-source#01 (0.00s)
+    --- PASS: TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.review.completed/missing-verdict#01 (0.00s)
+    --- PASS: TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.review.completed/missing-findings#01 (0.00s)
+    --- PASS: TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.review.completed/missing-resolves#01 (0.00s)
+    --- PASS: TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.review.completed/missing-evidence_indexes#01 (0.00s)
+    --- PASS: TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.review.completed/missing-operation_id#01 (0.00s)
+    --- PASS: TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.acceptance.recorded/missing-review_refs (0.00s)
+    --- PASS: TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.acceptance.recorded/missing-source (0.00s)
+    --- PASS: TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.acceptance.recorded/missing-decision (0.00s)
+    --- PASS: TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.acceptance.recorded/missing-rationale (0.00s)
+    --- PASS: TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.acceptance.recorded/missing-policy_ref (0.00s)
+    --- PASS: TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.acceptance.recorded/missing-check_refs (0.00s)
+    --- PASS: TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.acceptance.recorded/missing-evidence_indexes (0.00s)
+    --- PASS: TestValidatePayloadRequiredFieldsAndClosedNestedObjects/dev.acceptance.recorded/missing-operation_id (0.00s)
+    --- PASS: TestValidatePayloadRequiredFieldsAndClosedNestedObjects/review-verdict (0.00s)
+    --- PASS: TestValidatePayloadRequiredFieldsAndClosedNestedObjects/finding-extra (0.00s)
+    --- PASS: TestValidatePayloadRequiredFieldsAndClosedNestedObjects/finding-ref-extra (0.00s)
+    --- PASS: TestValidatePayloadRequiredFieldsAndClosedNestedObjects/finding-ref-malformed (0.00s)
+    --- PASS: TestValidatePayloadRequiredFieldsAndClosedNestedObjects/evidence-envelope-extra (0.00s)
+    --- PASS: TestValidatePayloadRequiredFieldsAndClosedNestedObjects/duplicate-local-id (0.00s)
+    --- PASS: TestValidatePayloadRequiredFieldsAndClosedNestedObjects/null-causes (0.00s)
+=== RUN   TestValidateCheckObservationFormsAndNormalization
+--- PASS: TestValidateCheckObservationFormsAndNormalization (0.00s)
+PASS
+ok  	pact/internal/development	32.759s
+=== RUN   TestCheckpointSelectsCanonicalScopedFrontierAndSchemaRefs
+--- PASS: TestCheckpointSelectsCanonicalScopedFrontierAndSchemaRefs (0.15s)
+=== RUN   TestCheckpointWireVector
+--- PASS: TestCheckpointWireVector (0.11s)
+=== RUN   TestCheckpointRequiresTrustedRootBeforePersistence
+--- PASS: TestCheckpointRequiresTrustedRootBeforePersistence (0.15s)
+=== RUN   TestCheckpointAdmitsExactObjectLimit
+--- PASS: TestCheckpointAdmitsExactObjectLimit (0.99s)
+=== RUN   TestCheckpointRejectsFirstObjectByteOverLimitBeforePersistence
+--- PASS: TestCheckpointRejectsFirstObjectByteOverLimitBeforePersistence (1.21s)
+=== RUN   TestCheckpointRejectsEmptyScopeBadPreviousAndMalformedRefsBeforePersistence
+--- PASS: TestCheckpointRejectsEmptyScopeBadPreviousAndMalformedRefsBeforePersistence (0.39s)
+=== RUN   TestCheckpointChainsOnlyToValidCheckpoint
+--- PASS: TestCheckpointChainsOnlyToValidCheckpoint (0.39s)
+=== RUN   TestCheckpointRefusesInvalidOrIncompleteStrictStore
+=== RUN   TestCheckpointRefusesInvalidOrIncompleteStrictStore/invalid_object
+=== RUN   TestCheckpointRefusesInvalidOrIncompleteStrictStore/unresolved_reference
+--- PASS: TestCheckpointRefusesInvalidOrIncompleteStrictStore (0.63s)
+    --- PASS: TestCheckpointRefusesInvalidOrIncompleteStrictStore/invalid_object (0.28s)
+    --- PASS: TestCheckpointRefusesInvalidOrIncompleteStrictStore/unresolved_reference (0.34s)
+=== RUN   TestVerifyCheckpointTreatsFrontierAsHistoricalCut
+--- PASS: TestVerifyCheckpointTreatsFrontierAsHistoricalCut (0.31s)
+=== RUN   TestPrepareParentsAdmitsExactLimitAndRejectsFirstExcess
+=== RUN   TestPrepareParentsAdmitsExactLimitAndRejectsFirstExcess/64_parents
+=== RUN   TestPrepareParentsAdmitsExactLimitAndRejectsFirstExcess/65_parents
+--- PASS: TestPrepareParentsAdmitsExactLimitAndRejectsFirstExcess (0.00s)
+    --- PASS: TestPrepareParentsAdmitsExactLimitAndRejectsFirstExcess/64_parents (0.00s)
+    --- PASS: TestPrepareParentsAdmitsExactLimitAndRejectsFirstExcess/65_parents (0.00s)
+=== RUN   TestPrepareParentsStopsAtFirstDistinctExcess
+--- PASS: TestPrepareParentsStopsAtFirstDistinctExcess (0.00s)
+=== RUN   TestCommitRejectsOversizeCanonicalObjectBeforePublication
+--- PASS: TestCommitRejectsOversizeCanonicalObjectBeforePublication (0.69s)
+=== RUN   TestCommitSignsNormalizedBatchAndExpandsLocalRefsInResult
+--- PASS: TestCommitSignsNormalizedBatchAndExpandsLocalRefsInResult (0.17s)
+=== RUN   TestCommitDefaultsToAllExactNamespaceHeadsAndAllowsExplicitFork
+--- PASS: TestCommitDefaultsToAllExactNamespaceHeadsAndAllowsExplicitFork (0.42s)
+=== RUN   TestCommitRejectsUnavailableOrCrossNamespaceParents
+--- PASS: TestCommitRejectsUnavailableOrCrossNamespaceParents (0.30s)
+=== RUN   TestCommitPreflightRejectsMutatedBatchBeforePersistence
+--- PASS: TestCommitPreflightRejectsMutatedBatchBeforePersistence (0.25s)
+=== RUN   TestCommitPreflightRejectsInvalidKeyAndDeduplicatesExplicitParents
+--- PASS: TestCommitPreflightRejectsInvalidKeyAndDeduplicatesExplicitParents (0.29s)
+=== RUN   TestHeadsAndCommitRefuseInvalidCanonicalHistory
+--- PASS: TestHeadsAndCommitRefuseInvalidCanonicalHistory (0.16s)
+=== RUN   TestEventReferenceNormalizationHonorsMidLoopCancellation
+--- PASS: TestEventReferenceNormalizationHonorsMidLoopCancellation (0.00s)
+=== RUN   TestExactKeyValidationHonorsMidLoopCancellation
+--- PASS: TestExactKeyValidationHonorsMidLoopCancellation (0.00s)
+=== RUN   TestCanonicalObjectNormalizationHonorsMidLoopCancellation
+--- PASS: TestCanonicalObjectNormalizationHonorsMidLoopCancellation (0.00s)
+=== RUN   TestEventBatchSortingHonorsMidLoopCancellation
+--- PASS: TestEventBatchSortingHonorsMidLoopCancellation (0.00s)
+=== RUN   TestNormalizeEventBatchAdmitsExactEventLimitAndRejectsFirstExcess
+=== RUN   TestNormalizeEventBatchAdmitsExactEventLimitAndRejectsFirstExcess/1024_events
+=== RUN   TestNormalizeEventBatchAdmitsExactEventLimitAndRejectsFirstExcess/1025_events
+--- PASS: TestNormalizeEventBatchAdmitsExactEventLimitAndRejectsFirstExcess (0.01s)
+    --- PASS: TestNormalizeEventBatchAdmitsExactEventLimitAndRejectsFirstExcess/1024_events (0.01s)
+    --- PASS: TestNormalizeEventBatchAdmitsExactEventLimitAndRejectsFirstExcess/1025_events (0.00s)
+=== RUN   TestNormalizeEventBatchCanonicalizesAndSorts
+--- PASS: TestNormalizeEventBatchCanonicalizesAndSorts (0.00s)
+=== RUN   TestNormalizeEventBatchRejectsInvalidInputAndSecretHazards
+=== RUN   TestNormalizeEventBatchRejectsInvalidInputAndSecretHazards/unsupported_field
+=== RUN   TestNormalizeEventBatchRejectsInvalidInputAndSecretHazards/duplicate_local_id
+=== RUN   TestNormalizeEventBatchRejectsInvalidInputAndSecretHazards/missing_local_cause
+=== RUN   TestNormalizeEventBatchRejectsInvalidInputAndSecretHazards/self_cause
+=== RUN   TestNormalizeEventBatchRejectsInvalidInputAndSecretHazards/bad_namespace
+--- PASS: TestNormalizeEventBatchRejectsInvalidInputAndSecretHazards (0.00s)
+    --- PASS: TestNormalizeEventBatchRejectsInvalidInputAndSecretHazards/unsupported_field (0.00s)
+    --- PASS: TestNormalizeEventBatchRejectsInvalidInputAndSecretHazards/duplicate_local_id (0.00s)
+    --- PASS: TestNormalizeEventBatchRejectsInvalidInputAndSecretHazards/missing_local_cause (0.00s)
+    --- PASS: TestNormalizeEventBatchRejectsInvalidInputAndSecretHazards/self_cause (0.00s)
+    --- PASS: TestNormalizeEventBatchRejectsInvalidInputAndSecretHazards/bad_namespace (0.00s)
+=== RUN   TestNormalizeEventBatchReportsCredentialBearingURLWithoutValue
+--- PASS: TestNormalizeEventBatchReportsCredentialBearingURLWithoutValue (0.00s)
+=== RUN   TestNormalizeEventBatchScansRawReferencesBeforeValidationWithoutLeakingValues
+=== RUN   TestNormalizeEventBatchScansRawReferencesBeforeValidationWithoutLeakingValues/caused_by/PEM
+=== RUN   TestNormalizeEventBatchScansRawReferencesBeforeValidationWithoutLeakingValues/caused_by/token
+=== RUN   TestNormalizeEventBatchScansRawReferencesBeforeValidationWithoutLeakingValues/supersedes/PEM
+=== RUN   TestNormalizeEventBatchScansRawReferencesBeforeValidationWithoutLeakingValues/supersedes/token
+--- PASS: TestNormalizeEventBatchScansRawReferencesBeforeValidationWithoutLeakingValues (0.00s)
+    --- PASS: TestNormalizeEventBatchScansRawReferencesBeforeValidationWithoutLeakingValues/caused_by/PEM (0.00s)
+    --- PASS: TestNormalizeEventBatchScansRawReferencesBeforeValidationWithoutLeakingValues/caused_by/token (0.00s)
+    --- PASS: TestNormalizeEventBatchScansRawReferencesBeforeValidationWithoutLeakingValues/supersedes/PEM (0.00s)
+    --- PASS: TestNormalizeEventBatchScansRawReferencesBeforeValidationWithoutLeakingValues/supersedes/token (0.00s)
+=== RUN   TestNormalizeEventBatchInvalidReferencesReportOnlyPathAndClass
+--- PASS: TestNormalizeEventBatchInvalidReferencesReportOnlyPathAndClass (0.00s)
+=== RUN   TestNormalizeEventBatchSecretEnvironmentPlaceholdersMatchOracle
+--- PASS: TestNormalizeEventBatchSecretEnvironmentPlaceholdersMatchOracle (0.00s)
+=== RUN   TestNormalizeEventBatchUsesRuneLimits
+--- PASS: TestNormalizeEventBatchUsesRuneLimits (0.00s)
+=== RUN   TestNormalizeEventBatchExactKeyErrorsAreSortedAndStable
+=== RUN   TestNormalizeEventBatchExactKeyErrorsAreSortedAndStable/missing
+=== RUN   TestNormalizeEventBatchExactKeyErrorsAreSortedAndStable/extra
+--- PASS: TestNormalizeEventBatchExactKeyErrorsAreSortedAndStable (0.00s)
+    --- PASS: TestNormalizeEventBatchExactKeyErrorsAreSortedAndStable/missing (0.00s)
+    --- PASS: TestNormalizeEventBatchExactKeyErrorsAreSortedAndStable/extra (0.00s)
+=== RUN   TestNormalizeEventBatchContextPublic
+--- PASS: TestNormalizeEventBatchContextPublic (0.00s)
+=== RUN   TestCausalGraphUsesSyntheticGatesParentsAndCausedByButNotSupersedes
+--- PASS: TestCausalGraphUsesSyntheticGatesParentsAndCausedByButNotSupersedes (0.00s)
+=== RUN   TestCausalGraphPropagatesMissingParentsAndCausedByButNotSupersedes
+--- PASS: TestCausalGraphPropagatesMissingParentsAndCausedByButNotSupersedes (0.00s)
+=== RUN   TestCausalGraphAllowsResolvedCrossNamespaceCausedBy
+--- PASS: TestCausalGraphAllowsResolvedCrossNamespaceCausedBy (0.00s)
+=== RUN   TestCausalGraphProcessesWholeSortedFrontierDeterministically
+--- PASS: TestCausalGraphProcessesWholeSortedFrontierDeterministically (0.00s)
+=== RUN   TestCausalGraphReportsParentAndCausedByCycles
+--- PASS: TestCausalGraphReportsParentAndCausedByCycles (0.00s)
+=== RUN   TestCausalDepthAllows4096AndRejects4097SignedEdges
+=== RUN   TestCausalDepthAllows4096AndRejects4097SignedEdges/4096
+=== RUN   TestCausalDepthAllows4096AndRejects4097SignedEdges/4097
+--- PASS: TestCausalDepthAllows4096AndRejects4097SignedEdges (0.01s)
+    --- PASS: TestCausalDepthAllows4096AndRejects4097SignedEdges/4096 (0.01s)
+    --- PASS: TestCausalDepthAllows4096AndRejects4097SignedEdges/4097 (0.01s)
+=== RUN   TestGraphFrontierAllows4096AndRejects4097Nodes
+=== RUN   TestGraphFrontierAllows4096AndRejects4097Nodes/4096
+=== RUN   TestGraphFrontierAllows4096AndRejects4097Nodes/4097
+--- PASS: TestGraphFrontierAllows4096AndRejects4097Nodes (0.03s)
+    --- PASS: TestGraphFrontierAllows4096AndRejects4097Nodes/4096 (0.01s)
+    --- PASS: TestGraphFrontierAllows4096AndRejects4097Nodes/4097 (0.01s)
+=== RUN   TestGraphRejectsSubsequentFrontierAtFirstExcessAppend
+--- PASS: TestGraphRejectsSubsequentFrontierAtFirstExcessAppend (0.00s)
+=== RUN   TestGraphEdgeCounterAllowsMillionAndRejectsFirstExcess
+--- PASS: TestGraphEdgeCounterAllowsMillionAndRejectsFirstExcess (0.00s)
+=== RUN   TestCausalGraphHonorsCanceledContext
+--- PASS: TestCausalGraphHonorsCanceledContext (0.00s)
+=== RUN   TestCausalGraphHonorsCancellationDuringInnerWork
+--- PASS: TestCausalGraphHonorsCancellationDuringInnerWork (0.00s)
+=== RUN   TestUnresolvedPropagationHonorsCancellationWithinLargeOutgoingSet
+--- PASS: TestUnresolvedPropagationHonorsCancellationWithinLargeOutgoingSet (0.00s)
+=== RUN   TestCausalGraphReportsEveryStableParentCycleWitness
+--- PASS: TestCausalGraphReportsEveryStableParentCycleWitness (0.00s)
+=== RUN   TestCausalGraphCountsAllCyclesButRetainsOnlyBoundedWitnesses
+--- PASS: TestCausalGraphCountsAllCyclesButRetainsOnlyBoundedWitnesses (0.00s)
+=== RUN   TestPhase2LimitsMatchApprovedProfile
+--- PASS: TestPhase2LimitsMatchApprovedProfile (0.00s)
+=== RUN   TestLimitErrorDoesNotExposeUntrustedDetails
+--- PASS: TestLimitErrorDoesNotExposeUntrustedDetails (0.00s)
+=== RUN   TestSourceFingerprintExactVectors
+--- PASS: TestSourceFingerprintExactVectors (0.00s)
+=== RUN   TestBoundedSortingStopsBeforeScanningCanceledCollections
+--- PASS: TestBoundedSortingStopsBeforeScanningCanceledCollections (0.00s)
+=== RUN   TestLedgerMergeSortChecksCancellationBeforeFullBufferAllocation
+--- PASS: TestLedgerMergeSortChecksCancellationBeforeFullBufferAllocation (0.00s)
+=== RUN   TestCheckpointProjectionCloneHonorsMidLoopCancellation
+--- PASS: TestCheckpointProjectionCloneHonorsMidLoopCancellation (0.00s)
+=== RUN   TestStoredCommitProjectionHonorsMidLoopCancellation
+--- PASS: TestStoredCommitProjectionHonorsMidLoopCancellation (0.00s)
+=== RUN   TestStoredCheckpointProjectionHonorsNestedCancellation
+--- PASS: TestStoredCheckpointProjectionHonorsNestedCancellation (0.00s)
+=== RUN   TestEventRecordProjectionHonorsMidLoopCancellation
+--- PASS: TestEventRecordProjectionHonorsMidLoopCancellation (0.00s)
+=== RUN   TestEventRecordPublicationHonorsMidLoopCancellation
+--- PASS: TestEventRecordPublicationHonorsMidLoopCancellation (0.00s)
+=== RUN   TestFinalHeadCloneHonorsNestedCancellation
+--- PASS: TestFinalHeadCloneHonorsNestedCancellation (0.00s)
+=== RUN   TestResolveCommitProjectionHonorsMidLoopCancellation
+--- PASS: TestResolveCommitProjectionHonorsMidLoopCancellation (0.32s)
+=== RUN   TestResolveCommitPropagatesCancellationDuringCanonicalParse
+--- PASS: TestResolveCommitPropagatesCancellationDuringCanonicalParse (0.29s)
+=== RUN   TestDigestMismatchFallbackReadHonorsMidReadCancellation
+--- PASS: TestDigestMismatchFallbackReadHonorsMidReadCancellation (0.22s)
+=== RUN   TestCanonicalConfirmationHonorsCancellationInsideMarshal
+--- PASS: TestCanonicalConfirmationHonorsCancellationInsideMarshal (0.00s)
+=== RUN   TestScanEmptyReplica
+--- PASS: TestScanEmptyReplica (0.20s)
+=== RUN   TestScanCompleteReplicaReturnsTypedImmutableRecords
+--- PASS: TestScanCompleteReplicaReturnsTypedImmutableRecords (0.12s)
+=== RUN   TestScanPreservesParentsForImplicitCommitChain
+--- PASS: TestScanPreservesParentsForImplicitCommitChain (0.24s)
+=== RUN   TestScanCompletenessBlockersAreSortedUniqueAndStrictOnlyFailsBlockers
+--- PASS: TestScanCompletenessBlockersAreSortedUniqueAndStrictOnlyFailsBlockers (0.33s)
+=== RUN   TestRecordCompletenessPropagatesAcrossPresentDependencyClosure
+--- PASS: TestRecordCompletenessPropagatesAcrossPresentDependencyClosure (0.00s)
+=== RUN   TestScanEnforcesObjectByteEventEdgeAndTotalBounds
+=== RUN   TestScanEnforcesObjectByteEventEdgeAndTotalBounds/object_bytes
+=== RUN   TestScanEnforcesObjectByteEventEdgeAndTotalBounds/canonical_bytes
+=== RUN   TestScanEnforcesObjectByteEventEdgeAndTotalBounds/events
+=== RUN   TestScanEnforcesObjectByteEventEdgeAndTotalBounds/edges
+--- PASS: TestScanEnforcesObjectByteEventEdgeAndTotalBounds (0.26s)
+    --- PASS: TestScanEnforcesObjectByteEventEdgeAndTotalBounds/object_bytes (0.00s)
+    --- PASS: TestScanEnforcesObjectByteEventEdgeAndTotalBounds/canonical_bytes (0.00s)
+    --- PASS: TestScanEnforcesObjectByteEventEdgeAndTotalBounds/events (0.00s)
+    --- PASS: TestScanEnforcesObjectByteEventEdgeAndTotalBounds/edges (0.00s)
+=== RUN   TestEffectiveScanLimitsCanReduceButNeverRaisePhaseTwoCaps
+--- PASS: TestEffectiveScanLimitsCanReduceButNeverRaisePhaseTwoCaps (0.00s)
+=== RUN   TestScanResourceAccountingRejectsRawCommitCountsBeforeProjection
+--- PASS: TestScanResourceAccountingRejectsRawCommitCountsBeforeProjection (0.00s)
+=== RUN   TestScanPreflightsRawCanonicalArraysBeforeStructuralValidation
+--- PASS: TestScanPreflightsRawCanonicalArraysBeforeStructuralValidation (0.39s)
+=== RUN   TestScanEdgeAccountingIncludesEveryContractCategory
+--- PASS: TestScanEdgeAccountingIncludesEveryContractCategory (0.40s)
+=== RUN   TestScanProcessesRecordLimitsInObjectIDOrder
+--- PASS: TestScanProcessesRecordLimitsInObjectIDOrder (0.25s)
+=== RUN   TestScanHonorsCanceledContext
+--- PASS: TestScanHonorsCanceledContext (0.12s)
+=== RUN   TestScanBoundsDiagnosticSamplesAndText
+--- PASS: TestScanBoundsDiagnosticSamplesAndText (0.38s)
+=== RUN   TestUnsupportedKeySampleOmissionMarksVerificationDiagnosticsTruncated
+--- PASS: TestUnsupportedKeySampleOmissionMarksVerificationDiagnosticsTruncated (0.38s)
+=== RUN   TestCanonicalAttackerKeyTruncationReachesVerification
+--- PASS: TestCanonicalAttackerKeyTruncationReachesVerification (0.20s)
+=== RUN   TestDiagnosticCollectorBoundsAtAppendAndPreservesUTF8
+--- PASS: TestDiagnosticCollectorBoundsAtAppendAndPreservesUTF8 (0.00s)
+=== RUN   TestVerifyCountsObjectsCanonicalOnce
+--- PASS: TestVerifyCountsObjectsCanonicalOnce (0.17s)
+=== RUN   TestVerifyPublishesCompletenessAndLimitsFromScan
+--- PASS: TestVerifyPublishesCompletenessAndLimitsFromScan (0.17s)
+=== RUN   TestResolveCommitUsesBoundedDirectCanonicalLookup
+--- PASS: TestResolveCommitUsesBoundedDirectCanonicalLookup (0.23s)
+=== RUN   TestResolveCommitReportsTheLimitingEventResource
+--- PASS: TestResolveCommitReportsTheLimitingEventResource (0.28s)
+=== RUN   TestShowDirectLookupRejectsOversizeCanonicalObject
+--- PASS: TestShowDirectLookupRejectsOversizeCanonicalObject (0.34s)
+=== RUN   TestRootsContextHonorsCancellationDuringCanonicalWork
+--- PASS: TestRootsContextHonorsCancellationDuringCanonicalWork (0.29s)
+=== RUN   TestAddRootIsIdempotent
+--- PASS: TestAddRootIsIdempotent (0.26s)
+=== RUN   TestAddRootRejectsConflictingPublicBytes
+--- PASS: TestAddRootRejectsConflictingPublicBytes (0.24s)
+=== RUN   TestAddRootPreservesCreatedResultThroughOperationAndLockReleaseFailure
+--- PASS: TestAddRootPreservesCreatedResultThroughOperationAndLockReleaseFailure (0.31s)
+=== RUN   TestAddRootRefusesTrustFileWithoutExplicitRoots
+--- PASS: TestAddRootRefusesTrustFileWithoutExplicitRoots (0.22s)
+=== RUN   TestRootsRejectsNonStrictTrustJSON
+=== RUN   TestRootsRejectsNonStrictTrustJSON/BOM
+=== RUN   TestRootsRejectsNonStrictTrustJSON/trailing
+=== RUN   TestRootsRejectsNonStrictTrustJSON/duplicate
+=== RUN   TestRootsRejectsNonStrictTrustJSON/nfc_collision
+--- PASS: TestRootsRejectsNonStrictTrustJSON (0.21s)
+    --- PASS: TestRootsRejectsNonStrictTrustJSON/BOM (0.01s)
+    --- PASS: TestRootsRejectsNonStrictTrustJSON/trailing (0.01s)
+    --- PASS: TestRootsRejectsNonStrictTrustJSON/duplicate (0.01s)
+    --- PASS: TestRootsRejectsNonStrictTrustJSON/nfc_collision (0.00s)
+=== RUN   TestVerifyContextPreservesCancellationIdentity
+--- PASS: TestVerifyContextPreservesCancellationIdentity (0.22s)
+=== RUN   TestCommitParentStructuralValidationHonorsMidLoopCancellation
+--- PASS: TestCommitParentStructuralValidationHonorsMidLoopCancellation (0.00s)
+=== RUN   TestSignatureMaterialProcessingHonorsMidLoopCancellation
+--- PASS: TestSignatureMaterialProcessingHonorsMidLoopCancellation (0.33s)
+=== RUN   TestCanonicalVerificationPropagatesSignatureCancellation
+--- PASS: TestCanonicalVerificationPropagatesSignatureCancellation (0.30s)
+=== RUN   TestSignatureBodyCanonicalizationHonorsMidLoopCancellation
+--- PASS: TestSignatureBodyCanonicalizationHonorsMidLoopCancellation (0.28s)
+=== RUN   TestSignatureEncodedLengthRejectsBeforeDecodeAllocation
+--- PASS: TestSignatureEncodedLengthRejectsBeforeDecodeAllocation (0.00s)
+=== RUN   TestVerifySeparatesAuthorizationFromAuthenticityAndShowExpandsEvent
+--- PASS: TestVerifySeparatesAuthorizationFromAuthenticityAndShowExpandsEvent (0.25s)
+=== RUN   TestVerifyPreservesPartialResultWhenTrustEvaluationFails
+--- PASS: TestVerifyPreservesPartialResultWhenTrustEvaluationFails (0.24s)
+=== RUN   TestVerifyReportsCanonicalPathDigestMismatch
+--- PASS: TestVerifyReportsCanonicalPathDigestMismatch (0.28s)
+=== RUN   TestShowReturnsTypedIntegrityDetailsForCorruptCanonicalBytes
+--- PASS: TestShowReturnsTypedIntegrityDetailsForCorruptCanonicalBytes (0.25s)
+=== RUN   TestShowReturnsTypedIntegrityDetailsForUnparseableCanonicalBytes
+--- PASS: TestShowReturnsTypedIntegrityDetailsForUnparseableCanonicalBytes (0.20s)
+=== RUN   TestShowReturnsTypedIntegrityDetailsForUnreadableCanonicalBytes
+--- PASS: TestShowReturnsTypedIntegrityDetailsForUnreadableCanonicalBytes (0.31s)
+=== RUN   TestShowAllowsInspectionWhenOnlySignatureAuthenticityFails
+--- PASS: TestShowAllowsInspectionWhenOnlySignatureAuthenticityFails (0.21s)
+=== RUN   TestShowMissingObjectUsesTypedDependencyError
+--- PASS: TestShowMissingObjectUsesTypedDependencyError (0.14s)
+=== RUN   TestVerifyStrictEscalatesMissingExternalReferences
+--- PASS: TestVerifyStrictEscalatesMissingExternalReferences (0.23s)
+=== RUN   TestVerifyRejectsSignatureSubstitution
+--- PASS: TestVerifyRejectsSignatureSubstitution (0.26s)
+=== RUN   TestVerifyReportsMalformedSignatureFieldsWithoutPanicking
+--- PASS: TestVerifyReportsMalformedSignatureFieldsWithoutPanicking (0.21s)
+=== RUN   TestVerifyReportsActorSignatureMismatch
+--- PASS: TestVerifyReportsActorSignatureMismatch (0.27s)
+=== RUN   TestCorrectionCommitLeavesOriginalObjectBytesImmutable
+--- PASS: TestCorrectionCommitLeavesOriginalObjectBytesImmutable (0.18s)
+=== RUN   TestVerifyMarksFailedCommitStructureInvalid
+--- PASS: TestVerifyMarksFailedCommitStructureInvalid (0.17s)
+=== RUN   TestVerifyMarksCanonicalNonObjectStructureInvalid
+--- PASS: TestVerifyMarksCanonicalNonObjectStructureInvalid (0.13s)
+=== RUN   TestVerifyReportsMissingAndCrossNamespaceParentsInDAGLayer
+--- PASS: TestVerifyReportsMissingAndCrossNamespaceParentsInDAGLayer (0.31s)
+=== RUN   TestVerifyRejectsCheckpointWithMissingOrWrongNamespaceHeads
+=== RUN   TestVerifyRejectsCheckpointWithMissingOrWrongNamespaceHeads/missing_head
+=== RUN   TestVerifyRejectsCheckpointWithMissingOrWrongNamespaceHeads/wrong_namespace
+--- PASS: TestVerifyRejectsCheckpointWithMissingOrWrongNamespaceHeads (0.38s)
+    --- PASS: TestVerifyRejectsCheckpointWithMissingOrWrongNamespaceHeads/missing_head (0.15s)
+    --- PASS: TestVerifyRejectsCheckpointWithMissingOrWrongNamespaceHeads/wrong_namespace (0.23s)
+=== RUN   TestVerifyRejectsUnavailablePreviousCheckpoint
+--- PASS: TestVerifyRejectsUnavailablePreviousCheckpoint (0.23s)
+=== RUN   TestVerifyRejectsNoncanonicalCheckpointBody
+--- PASS: TestVerifyRejectsNoncanonicalCheckpointBody (0.19s)
+=== RUN   TestVerifyRejectsCheckpointFrontierOutsideBodyScope
+--- PASS: TestVerifyRejectsCheckpointFrontierOutsideBodyScope (0.14s)
+=== RUN   TestVerifyGraphDiagnosticsPublishStableIterativeCycleWitnesses
+--- PASS: TestVerifyGraphDiagnosticsPublishStableIterativeCycleWitnesses (0.00s)
+=== RUN   TestVerifyReportsStableCausedByCycleFromSignedCommit
+--- PASS: TestVerifyReportsStableCausedByCycleFromSignedCommit (0.16s)
+PASS
+ok  	pact/internal/ledger	19.447s

@@ -1,0 +1,35 @@
+trim trailing whitespace.................................................Passed
+fix end of files.........................................................Passed
+check yaml...........................................(no files to check)Skipped
+check for added large files..............................................Passed
+check for merge conflicts................................................Passed
+mixed line ending........................................................Passed
+check for case conflicts.................................................Passed
+go fmt...................................................................Passed
+go imports...............................................................Passed
+go-mod-tidy..............................................................Passed
+golangci-lint............................................................Passed
+go-unit-tests............................................................Passed
+go fix -diff.............................................................Passed
+go mod verify........................................(no files to check)Skipped
+go vet...................................................................Passed
+[feat/development-projection 939c622] feat: project development state at exact local frontiers
+ 19 files changed, 1506 insertions(+)
+ create mode 100644 docs/status/development-workflow/evidence/pzm4-check-pre-freeze.log
+ create mode 100644 docs/status/development-workflow/evidence/pzm4-fixture-failure.log
+ create mode 100644 docs/status/development-workflow/evidence/pzm4-green-driver.log
+ create mode 100644 docs/status/development-workflow/evidence/pzm4-green-expanded.log
+ create mode 100644 docs/status/development-workflow/evidence/pzm4-green-final-review.log
+ create mode 100644 docs/status/development-workflow/evidence/pzm4-green-initial.log
+ create mode 100644 docs/status/development-workflow/evidence/pzm4-green-review.log
+ create mode 100644 docs/status/development-workflow/evidence/pzm4-hooks-go-fix-failure.log.gz
+ create mode 100644 docs/status/development-workflow/evidence/pzm4-lint-pre-freeze.log
+ create mode 100644 docs/status/development-workflow/evidence/pzm4-race-pre-freeze.log
+ create mode 100644 docs/status/development-workflow/evidence/pzm4-red-causal-budget.log
+ create mode 100644 docs/status/development-workflow/evidence/pzm4-red-default-frontier.log
+ create mode 100644 docs/status/development-workflow/evidence/pzm4-red.log
+ create mode 100644 internal/development/policy.go
+ create mode 100644 internal/development/project.go
+ create mode 100644 internal/development/project_test.go
+ create mode 100644 internal/development/project_types.go
+ create mode 100644 internal/development/testdata/projectdriver/main.go
