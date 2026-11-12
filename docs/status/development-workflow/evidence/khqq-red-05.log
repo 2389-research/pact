@@ -1,0 +1,13 @@
+--- FAIL: TestProfileCorpusAgainstReferenceJSONSchema (0.89s)
+    profile_test.go:62: reference oracle: exit status 1
+        Traceback (most recent call last):
+          File "/Users/harper/.codex/worktrees/3f32/pact/internal/development/../../tests/fixtures/development/oracle.py", line 49, in <module>
+            main()
+            ~~~~^^
+          File "/Users/harper/.codex/worktrees/3f32/pact/internal/development/../../tests/fixtures/development/oracle.py", line 43, in main
+            assert not validator.is_valid(dict(payload, source=dict(payload["source"], revision=payload["source"]["revision"] + "\n")))
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        AssertionError
+FAIL
+FAIL	pact/internal/development	0.949s
+FAIL

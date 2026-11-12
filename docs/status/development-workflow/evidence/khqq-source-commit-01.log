@@ -1,0 +1,2 @@
+warning: Waiting to acquire lock at `/Users/harper/.cache/prek/.lock`. Another prek process may still be running
+/Users/harper/.git_hooks/pre-commit: line 7: 49980 Terminated: 15          prek run --hook-stage pre-commit

@@ -1,0 +1,13 @@
+ok  	pact/cmd/pact	40.689s
+?   	pact/docs/pact-ledger	[no test files]
+ok  	pact/internal/canonical	1.195s
+ok  	pact/internal/conformance	1.169s
+ok  	pact/internal/development	3.497s
+?   	pact/internal/development/cmd/profilegen	[no test files]
+ok  	pact/internal/identity	3.008s
+ok  	pact/internal/index	93.049s
+ok  	pact/internal/ledger	72.974s
+ok  	pact/internal/setup	22.117s
+ok  	pact/internal/status	2.563s
+ok  	pact/internal/store	11.084s
+ok  	pact/tests/e2e	27.450s

@@ -1,0 +1,6 @@
+89e8321f449ba2cc25b80efc34737760e25678e9
+b88ce672e3100b67176e7b281a274f4c69d19fa9
+?? docs/status/development-workflow/evidence/
+?? docs/status/development-workflow/khqq-report.md
+go version go1.26.6 darwin/arm64
+golangci-lint has version 2.13.2 built with go1.27.0 from 27774aa on 2026-08-27T22:52:01Z

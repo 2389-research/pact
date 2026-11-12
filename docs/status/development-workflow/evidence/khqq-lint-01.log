@@ -1,0 +1,11 @@
+internal/development/cmd/profilegen/main.go:26:12: G301: Expect directory permissions to be 0750 or less (gosec)
+	if err := os.MkdirAll(out, 0o755); err != nil {
+	          ^
+internal/development/cmd/profilegen/main.go:32:13: G306: Expect WriteFile permissions to be 0600 or less (gosec)
+		if err := os.WriteFile(filepath.Join(out, name), raw, 0o644); err != nil {
+		          ^
+internal/development/cmd/profilegen/main.go:40:12: G306: Expect WriteFile permissions to be 0600 or less (gosec)
+	if err := os.WriteFile(filepath.Join(out, "digests.json"), append(raw, '\n'), 0o644); err != nil {
+	          ^
+3 issues:
+* gosec: 3

@@ -1,0 +1,35 @@
+trim trailing whitespace.................................................Passed
+fix end of files.........................................................Passed
+check yaml...........................................(no files to check)Skipped
+check for added large files..............................................Passed
+check for merge conflicts................................................Passed
+mixed line ending........................................................Passed
+check for case conflicts.................................................Passed
+go fmt...................................................................Passed
+go imports...............................................................Passed
+go-mod-tidy..............................................................Passed
+golangci-lint............................................................Passed
+go-unit-tests............................................................Passed
+go fix -diff.............................................................Passed
+go mod verify........................................(no files to check)Skipped
+go vet...................................................................Passed
+[feat/development-workflow 89e8321] feat: define development profile and public contract corpus
+ 19 files changed, 3012 insertions(+)
+ create mode 100644 internal/development/README.md
+ create mode 100644 internal/development/cmd/profilegen/main.go
+ create mode 100644 internal/development/profile.go
+ create mode 100644 internal/development/profile_test.go
+ create mode 100644 internal/development/schema.go
+ create mode 100644 internal/development/schema/acceptance.schema.json
+ create mode 100644 internal/development/schema/check.schema.json
+ create mode 100644 internal/development/schema/digests.json
+ create mode 100644 internal/development/schema/local-policy.json
+ create mode 100644 internal/development/schema/next-action.schema.json
+ create mode 100644 internal/development/schema/review.schema.json
+ create mode 100644 tests/e2e/development_test.go
+ create mode 100644 tests/fixtures/development/README.md
+ create mode 100644 tests/fixtures/development/expected.json
+ create mode 100644 tests/fixtures/development/histories.json
+ create mode 100644 tests/fixtures/development/inputs.json
+ create mode 100644 tests/fixtures/development/oracle.py
+ create mode 100644 tests/fixtures/development/source.fast-import

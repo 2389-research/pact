@@ -1,0 +1,7 @@
+--- FAIL: TestProfileArtifactsArePublished (0.00s)
+    profile_test.go:25: open schema/digests.json: no such file or directory
+--- FAIL: TestPositiveCorpusSignsAndReadsThroughRawLedger (0.07s)
+    profile_test.go:77: evidence indexes changed
+FAIL
+FAIL	pact/internal/development	0.294s
+FAIL

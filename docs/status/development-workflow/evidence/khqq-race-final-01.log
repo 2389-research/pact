@@ -1,0 +1,13 @@
+ok  	pact/cmd/pact	(cached)
+?   	pact/docs/pact-ledger	[no test files]
+ok  	pact/internal/canonical	(cached)
+ok  	pact/internal/conformance	(cached)
+ok  	pact/internal/development	1.628s
+?   	pact/internal/development/cmd/profilegen	[no test files]
+ok  	pact/internal/identity	(cached)
+ok  	pact/internal/index	(cached)
+ok  	pact/internal/ledger	(cached)
+ok  	pact/internal/setup	(cached)
+ok  	pact/internal/status	(cached)
+ok  	pact/internal/store	(cached)
+ok  	pact/tests/e2e	20.272s

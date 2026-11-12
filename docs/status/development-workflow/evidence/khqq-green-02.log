@@ -1,0 +1,9 @@
+=== RUN   TestProfileArtifactsArePublished
+--- PASS: TestProfileArtifactsArePublished (0.09s)
+=== RUN   TestProfileCorpusAgainstReferenceJSONSchema
+    profile_test.go:47: Validated 37 payloads in 15 public cases; semantic/projection expectations remain declarative.
+--- PASS: TestProfileCorpusAgainstReferenceJSONSchema (0.12s)
+=== RUN   TestPositiveCorpusSignsAndReadsThroughRawLedger
+--- PASS: TestPositiveCorpusSignsAndReadsThroughRawLedger (0.09s)
+PASS
+ok  	pact/internal/development	0.415s

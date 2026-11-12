@@ -1,0 +1,9 @@
+--- FAIL: TestProfileArtifactsArePublished (0.00s)
+    profile_test.go:13: missing supported development/v1 artifact check.schema.json: open schema/check.schema.json: no such file or directory
+    profile_test.go:13: missing supported development/v1 artifact review.schema.json: open schema/review.schema.json: no such file or directory
+    profile_test.go:13: missing supported development/v1 artifact acceptance.schema.json: open schema/acceptance.schema.json: no such file or directory
+    profile_test.go:13: missing supported development/v1 artifact next-action.schema.json: open schema/next-action.schema.json: no such file or directory
+    profile_test.go:13: missing supported development/v1 artifact local-policy.json: open schema/local-policy.json: no such file or directory
+FAIL
+FAIL	pact/internal/development	0.086s
+FAIL

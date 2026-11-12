@@ -1,0 +1,5 @@
+--- FAIL: TestFixtureGitIgnoresHookEnvironment (0.05s)
+    development_test.go:132: fixture repository = /private/var/folders/rc/cyjg3p3x0cb4w4xlb8yqm_1h0000gn/T/TestFixtureGitIgnoresHookEnvironment3392971524/001/outside, want /var/folders/rc/cyjg3p3x0cb4w4xlb8yqm_1h0000gn/T/TestFixtureGitIgnoresHookEnvironment3392971524/001/target; hook environment escaped temp repo
+FAIL
+FAIL	pact/tests/e2e	0.182s
+FAIL

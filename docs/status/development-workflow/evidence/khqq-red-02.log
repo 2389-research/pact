@@ -1,0 +1,7 @@
+--- FAIL: TestProfileArtifactsArePublished (0.00s)
+    profile_test.go:25: open schema/digests.json: no such file or directory
+--- FAIL: TestPositiveCorpusSignsAndReadsThroughRawLedger (0.07s)
+    profile_test.go:66: $.events[0].payload: $.evidence_indexes[0]: floating-point values are forbidden; use a string or scaled integer
+FAIL
+FAIL	pact/internal/development	0.430s
+FAIL

@@ -1,0 +1,7 @@
+--- FAIL: TestProfileArtifactsArePublished (0.00s)
+    profile_test.go:24: open schema/digests.json: no such file or directory
+--- FAIL: TestPositiveCorpusSignsAndReadsThroughRawLedger (0.07s)
+    profile_test.go:65: $.events[2].kind: invalid event kind
+FAIL
+FAIL	pact/internal/development	0.301s
+FAIL

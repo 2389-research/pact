@@ -1,0 +1,1798 @@
+trim trailing whitespace.................................................Passed
+fix end of files.........................................................Passed
+check yaml...........................................(no files to check)Skipped
+check for added large files..............................................Passed
+check for merge conflicts................................................Passed
+mixed line ending........................................................Passed
+check for case conflicts.................................................Passed
+go fmt...................................................................Passed
+go imports...............................................................Passed
+go-mod-tidy..............................................................Passed
+golangci-lint............................................................Passed
+go-unit-tests............................................................Failed
+- hook id: go-unit-tests
+- exit code: 1
+
+  === RUN   TestRunInitAndHashEmitContractJSON
+  --- PASS: TestRunInitAndHashEmitContractJSON (0.18s)
+  === RUN   TestRunInitConflictUsesStoreExit
+  --- PASS: TestRunInitConflictUsesStoreExit (0.18s)
+  === RUN   TestCommandErrorForMixedTypedErrorUsesUnexpectedExit
+  --- PASS: TestCommandErrorForMixedTypedErrorUsesUnexpectedExit (0.00s)
+  === RUN   TestRunKeygenAndTrustAddNeverLeakPrivateBytes
+  --- PASS: TestRunKeygenAndTrustAddNeverLeakPrivateBytes (0.31s)
+  === RUN   TestRunRejectsMissingRequiredArguments
+  --- PASS: TestRunRejectsMissingRequiredArguments (0.03s)
+  === RUN   TestRunCheckpointEmitsCanonicalAuthorizedResult
+  --- PASS: TestRunCheckpointEmitsCanonicalAuthorizedResult (0.46s)
+  === RUN   TestRunCheckpointStrictFailureIncludesVerificationDetails
+  --- PASS: TestRunCheckpointStrictFailureIncludesVerificationDetails (0.38s)
+  === RUN   TestRunCheckpointUntrustedSignerUsesAuthorizationExitWithoutPersistence
+  --- PASS: TestRunCheckpointUntrustedSignerUsesAuthorizationExitWithoutPersistence (0.21s)
+  === RUN   TestVerificationFailureExitCodeFailsClosedForHardAndUnknownFailures
+  === RUN   TestVerificationFailureExitCodeFailsClosedForHardAndUnknownFailures/missing_parent_only
+  === RUN   TestVerificationFailureExitCodeFailsClosedForHardAndUnknownFailures/missing_event_reference_only
+  === RUN   TestVerificationFailureExitCodeFailsClosedForHardAndUnknownFailures/cycle_plus_missing_reference
+  === RUN   TestVerificationFailureExitCodeFailsClosedForHardAndUnknownFailures/hard_reference_plus_missing_reference
+  === RUN   TestVerificationFailureExitCodeFailsClosedForHardAndUnknownFailures/canonical_invalid_plus_missing_reference
+  === RUN   TestVerificationFailureExitCodeFailsClosedForHardAndUnknownFailures/unknown_blocker
+  --- PASS: TestVerificationFailureExitCodeFailsClosedForHardAndUnknownFailures (0.00s)
+      --- PASS: TestVerificationFailureExitCodeFailsClosedForHardAndUnknownFailures/missing_parent_only (0.00s)
+      --- PASS: TestVerificationFailureExitCodeFailsClosedForHardAndUnknownFailures/missing_event_reference_only (0.00s)
+      --- PASS: TestVerificationFailureExitCodeFailsClosedForHardAndUnknownFailures/cycle_plus_missing_reference (0.00s)
+      --- PASS: TestVerificationFailureExitCodeFailsClosedForHardAndUnknownFailures/hard_reference_plus_missing_reference (0.00s)
+      --- PASS: TestVerificationFailureExitCodeFailsClosedForHardAndUnknownFailures/canonical_invalid_plus_missing_reference (0.00s)
+      --- PASS: TestVerificationFailureExitCodeFailsClosedForHardAndUnknownFailures/unknown_blocker (0.00s)
+  === RUN   TestRunVerifyMixedIncompleteAndMalformedTrustUsesIntegrityExit
+  --- PASS: TestRunVerifyMixedIncompleteAndMalformedTrustUsesIntegrityExit (0.27s)
+  === RUN   TestRunRejectsInvalidNamespace
+  --- PASS: TestRunRejectsInvalidNamespace (0.02s)
+  === RUN   TestRunJSONFlagParseErrorEmitsOneStructuredDiagnostic
+  --- PASS: TestRunJSONFlagParseErrorEmitsOneStructuredDiagnostic (0.01s)
+  === RUN   TestRunTrustAddAllowsPublicOnlyReadableKey
+  --- PASS: TestRunTrustAddAllowsPublicOnlyReadableKey (0.25s)
+  === RUN   TestRunUsesTypedExitClassificationAndPreservesShowDetails
+  --- PASS: TestRunUsesTypedExitClassificationAndPreservesShowDetails (0.35s)
+  === RUN   TestRunCommitHeadsShowAndVerifyEmitJSON
+  --- PASS: TestRunCommitHeadsShowAndVerifyEmitJSON (0.32s)
+  === RUN   TestRunShowMapsResourceLimitToStableUnavailableError
+  --- PASS: TestRunShowMapsResourceLimitToStableUnavailableError (0.23s)
+  === RUN   TestRunVerifyFailureIncludesLayeredDetailsAndCommitUsesIntegrityExit
+  --- PASS: TestRunVerifyFailureIncludesLayeredDetailsAndCommitUsesIntegrityExit (0.44s)
+  === RUN   TestStatusGoldenOutput
+  === RUN   TestStatusGoldenOutput/healthy/60
+  === RUN   TestStatusGoldenOutput/healthy/80
+  === RUN   TestStatusGoldenOutput/healthy/120
+  === RUN   TestStatusGoldenOutput/attention/80
+  === RUN   TestStatusGoldenOutput/broken/80
+  --- PASS: TestStatusGoldenOutput (0.00s)
+      --- PASS: TestStatusGoldenOutput/healthy/60 (0.00s)
+      --- PASS: TestStatusGoldenOutput/healthy/80 (0.00s)
+      --- PASS: TestStatusGoldenOutput/healthy/120 (0.00s)
+      --- PASS: TestStatusGoldenOutput/attention/80 (0.00s)
+      --- PASS: TestStatusGoldenOutput/broken/80 (0.00s)
+  === RUN   TestColorStatusOutputPreservesPlainWordsAndOrder
+  --- PASS: TestColorStatusOutputPreservesPlainWordsAndOrder (0.00s)
+  === RUN   TestStatusHumanCountsEachLocalHead
+  --- PASS: TestStatusHumanCountsEachLocalHead (0.00s)
+  === RUN   TestStatusJSONRetainsStableSummary
+  --- PASS: TestStatusJSONRetainsStableSummary (0.30s)
+  === RUN   TestWriterStatusOutputFailuresMapToUnexpectedExit
+  === RUN   TestWriterStatusOutputFailuresMapToUnexpectedExit/healthy_human
+  === RUN   TestWriterStatusOutputFailuresMapToUnexpectedExit/healthy_JSON
+  === RUN   TestWriterStatusOutputFailuresMapToUnexpectedExit/attention_human
+  === RUN   TestWriterStatusOutputFailuresMapToUnexpectedExit/attention_JSON
+  === RUN   TestWriterStatusOutputFailuresMapToUnexpectedExit/broken_human
+  === RUN   TestWriterStatusOutputFailuresMapToUnexpectedExit/broken_JSON
+  --- PASS: TestWriterStatusOutputFailuresMapToUnexpectedExit (2.12s)
+      --- PASS: TestWriterStatusOutputFailuresMapToUnexpectedExit/healthy_human (0.34s)
+      --- PASS: TestWriterStatusOutputFailuresMapToUnexpectedExit/healthy_JSON (0.37s)
+      --- PASS: TestWriterStatusOutputFailuresMapToUnexpectedExit/attention_human (0.38s)
+      --- PASS: TestWriterStatusOutputFailuresMapToUnexpectedExit/attention_JSON (0.30s)
+      --- PASS: TestWriterStatusOutputFailuresMapToUnexpectedExit/broken_human (0.34s)
+      --- PASS: TestWriterStatusOutputFailuresMapToUnexpectedExit/broken_JSON (0.39s)
+  === RUN   TestRunIndexRequiresExactSubcommandAndNoPositionals
+  --- PASS: TestRunIndexRequiresExactSubcommandAndNoPositionals (0.00s)
+  === RUN   TestRunIndexInvalidSourceUsesStableTypedExit
+  --- PASS: TestRunIndexInvalidSourceUsesStableTypedExit (0.21s)
+  === RUN   TestRunIndexStatusAndRebuildEmitExactJSONShapes
+  --- PASS: TestRunIndexStatusAndRebuildEmitExactJSONShapes (0.25s)
+  === RUN   TestRunIndexHumanOutputNamesStateAndReplicaFacts
+  --- PASS: TestRunIndexHumanOutputNamesStateAndReplicaFacts (0.15s)
+  === RUN   TestOperatorWriterFailuresReturnUnexpectedExit
+  === RUN   TestOperatorWriterFailuresReturnUnexpectedExit/successful_status_stdout
+  === RUN   TestOperatorWriterFailuresReturnUnexpectedExit/unknown_command_stderr
+  === RUN   TestOperatorWriterFailuresReturnUnexpectedExit/JSON_encoding
+  === RUN   TestOperatorWriterFailuresReturnUnexpectedExit/human_index_status
+  === RUN   TestOperatorWriterFailuresReturnUnexpectedExit/human_log
+  --- PASS: TestOperatorWriterFailuresReturnUnexpectedExit (0.78s)
+      --- PASS: TestOperatorWriterFailuresReturnUnexpectedExit/successful_status_stdout (0.01s)
+      --- PASS: TestOperatorWriterFailuresReturnUnexpectedExit/unknown_command_stderr (0.00s)
+      --- PASS: TestOperatorWriterFailuresReturnUnexpectedExit/JSON_encoding (0.10s)
+      --- PASS: TestOperatorWriterFailuresReturnUnexpectedExit/human_index_status (0.00s)
+      --- PASS: TestOperatorWriterFailuresReturnUnexpectedExit/human_log (0.01s)
+  === RUN   TestOperatorSuggestionsAreDeterministic
+  --- PASS: TestOperatorSuggestionsAreDeterministic (0.00s)
+  === RUN   TestRepositoryDiscoveryStopsAtUnsafeStoreEntry
+  --- PASS: TestRepositoryDiscoveryStopsAtUnsafeStoreEntry (0.17s)
+  === RUN   TestRepositoryDiscoveryInjectsRepoBeforeShowIdentifier
+  --- PASS: TestRepositoryDiscoveryInjectsRepoBeforeShowIdentifier (0.27s)
+  === RUN   TestRepositoryDiscoveryResolvesSymlinkedWorkingDirectory
+  --- PASS: TestRepositoryDiscoveryResolvesSymlinkedWorkingDirectory (0.23s)
+  === RUN   TestGlobalOptionsAndRepositoryResolutionStopAtSentinel
+  --- PASS: TestGlobalOptionsAndRepositoryResolutionStopAtSentinel (0.30s)
+  === RUN   TestStatusColorPrecedenceAndJSONPlainness
+  === RUN   TestStatusColorPrecedenceAndJSONPlainness/NO_COLOR
+  === RUN   TestStatusColorPrecedenceAndJSONPlainness/empty_NO_COLOR
+  === RUN   TestStatusColorPrecedenceAndJSONPlainness/TERM_dumb
+  === RUN   TestStatusColorPrecedenceAndJSONPlainness/always
+  === RUN   TestStatusColorPrecedenceAndJSONPlainness/JSON_always_plain
+  --- PASS: TestStatusColorPrecedenceAndJSONPlainness (0.28s)
+      --- PASS: TestStatusColorPrecedenceAndJSONPlainness/NO_COLOR (0.00s)
+      --- PASS: TestStatusColorPrecedenceAndJSONPlainness/empty_NO_COLOR (0.01s)
+      --- PASS: TestStatusColorPrecedenceAndJSONPlainness/TERM_dumb (0.00s)
+      --- PASS: TestStatusColorPrecedenceAndJSONPlainness/always (0.01s)
+      --- PASS: TestStatusColorPrecedenceAndJSONPlainness/JSON_always_plain (0.01s)
+  === RUN   TestStatusJSONPresentationErrorUsesOneEnvelope
+  --- PASS: TestStatusJSONPresentationErrorUsesOneEnvelope (0.00s)
+  === RUN   TestLeafFlagErrorsUseOnePACTDiagnostic
+  --- PASS: TestLeafFlagErrorsUseOnePACTDiagnostic (0.00s)
+  === RUN   TestCatalogHelpRendersMeaningfulFlagDescriptions
+  === RUN   TestCatalogHelpRendersMeaningfulFlagDescriptions/top_level
+  === RUN   TestCatalogHelpRendersMeaningfulFlagDescriptions/command
+  === RUN   TestCatalogHelpRendersMeaningfulFlagDescriptions/nested_command
+  --- PASS: TestCatalogHelpRendersMeaningfulFlagDescriptions (0.00s)
+      --- PASS: TestCatalogHelpRendersMeaningfulFlagDescriptions/top_level (0.00s)
+      --- PASS: TestCatalogHelpRendersMeaningfulFlagDescriptions/command (0.00s)
+      --- PASS: TestCatalogHelpRendersMeaningfulFlagDescriptions/nested_command (0.00s)
+  === RUN   TestCommandCatalogListsEveryLeafFlag
+  === RUN   TestCommandCatalogListsEveryLeafFlag/quickstart
+  === RUN   TestCommandCatalogListsEveryLeafFlag/setup
+  === RUN   TestCommandCatalogListsEveryLeafFlag/init
+  === RUN   TestCommandCatalogListsEveryLeafFlag/keygen
+  === RUN   TestCommandCatalogListsEveryLeafFlag/trust-add
+  === RUN   TestCommandCatalogListsEveryLeafFlag/status
+  === RUN   TestCommandCatalogListsEveryLeafFlag/heads
+  === RUN   TestCommandCatalogListsEveryLeafFlag/show
+  === RUN   TestCommandCatalogListsEveryLeafFlag/verify
+  === RUN   TestCommandCatalogListsEveryLeafFlag/log
+  === RUN   TestCommandCatalogListsEveryLeafFlag/query
+  === RUN   TestCommandCatalogListsEveryLeafFlag/commit
+  === RUN   TestCommandCatalogListsEveryLeafFlag/checkpoint
+  === RUN   TestCommandCatalogListsEveryLeafFlag/index_status
+  === RUN   TestCommandCatalogListsEveryLeafFlag/index_rebuild
+  === RUN   TestCommandCatalogListsEveryLeafFlag/hash
+  --- PASS: TestCommandCatalogListsEveryLeafFlag (0.00s)
+      --- PASS: TestCommandCatalogListsEveryLeafFlag/quickstart (0.00s)
+      --- PASS: TestCommandCatalogListsEveryLeafFlag/setup (0.00s)
+      --- PASS: TestCommandCatalogListsEveryLeafFlag/init (0.00s)
+      --- PASS: TestCommandCatalogListsEveryLeafFlag/keygen (0.00s)
+      --- PASS: TestCommandCatalogListsEveryLeafFlag/trust-add (0.00s)
+      --- PASS: TestCommandCatalogListsEveryLeafFlag/status (0.00s)
+      --- PASS: TestCommandCatalogListsEveryLeafFlag/heads (0.00s)
+      --- PASS: TestCommandCatalogListsEveryLeafFlag/show (0.00s)
+      --- PASS: TestCommandCatalogListsEveryLeafFlag/verify (0.00s)
+      --- PASS: TestCommandCatalogListsEveryLeafFlag/log (0.00s)
+      --- PASS: TestCommandCatalogListsEveryLeafFlag/query (0.00s)
+      --- PASS: TestCommandCatalogListsEveryLeafFlag/commit (0.00s)
+      --- PASS: TestCommandCatalogListsEveryLeafFlag/checkpoint (0.00s)
+      --- PASS: TestCommandCatalogListsEveryLeafFlag/index_status (0.00s)
+      --- PASS: TestCommandCatalogListsEveryLeafFlag/index_rebuild (0.00s)
+      --- PASS: TestCommandCatalogListsEveryLeafFlag/hash (0.00s)
+  === RUN   TestAttentionStatusUsesAttentionColor
+  --- PASS: TestAttentionStatusUsesAttentionColor (0.00s)
+  === RUN   TestFailedStatusAutoColorUsesActualOutputTerminal
+  === RUN   TestFailedStatusAutoColorUsesActualOutputTerminal/attention/redirected-stderr
+  === RUN   TestFailedStatusAutoColorUsesActualOutputTerminal/attention/terminal-stderr
+  === RUN   TestFailedStatusAutoColorUsesActualOutputTerminal/broken/redirected-stderr
+  === RUN   TestFailedStatusAutoColorUsesActualOutputTerminal/broken/terminal-stderr
+  --- PASS: TestFailedStatusAutoColorUsesActualOutputTerminal (1.62s)
+      --- PASS: TestFailedStatusAutoColorUsesActualOutputTerminal/attention/redirected-stderr (0.42s)
+      --- PASS: TestFailedStatusAutoColorUsesActualOutputTerminal/attention/terminal-stderr (0.33s)
+      --- PASS: TestFailedStatusAutoColorUsesActualOutputTerminal/broken/redirected-stderr (0.44s)
+      --- PASS: TestFailedStatusAutoColorUsesActualOutputTerminal/broken/terminal-stderr (0.43s)
+  === RUN   TestStatusAcceptsEqualsRepositoryFlag
+  --- PASS: TestStatusAcceptsEqualsRepositoryFlag (0.29s)
+  === RUN   TestInvalidHelpPathUsesUsageDiagnosticAndWriterFailuresStayUnexpected
+  --- PASS: TestInvalidHelpPathUsesUsageDiagnosticAndWriterFailuresStayUnexpected (0.00s)
+  === RUN   TestStatusMissingExplicitRepositoryDoesNotCreateIt
+  --- PASS: TestStatusMissingExplicitRepositoryDoesNotCreateIt (0.02s)
+  === RUN   TestStatusExistingRepositoryWithoutStoreGetsSetupAction
+  --- PASS: TestStatusExistingRepositoryWithoutStoreGetsSetupAction (0.01s)
+  === RUN   TestStatusUnsafeStoreUsesValidationDiagnostic
+  --- PASS: TestStatusUnsafeStoreUsesValidationDiagnostic (0.00s)
+  === RUN   TestRunQueryUsesBoundedQueryPageSerializer
+  --- PASS: TestRunQueryUsesBoundedQueryPageSerializer (0.33s)
+  === RUN   TestRunLogAndQueryReportJSONOutputFailures
+  === RUN   TestRunLogAndQueryReportJSONOutputFailures/log/write_error
+  === RUN   TestRunLogAndQueryReportJSONOutputFailures/log/short_write
+  === RUN   TestRunLogAndQueryReportJSONOutputFailures/query/write_error
+  === RUN   TestRunLogAndQueryReportJSONOutputFailures/query/short_write
+  --- PASS: TestRunLogAndQueryReportJSONOutputFailures (0.34s)
+      --- PASS: TestRunLogAndQueryReportJSONOutputFailures/log/write_error (0.02s)
+      --- PASS: TestRunLogAndQueryReportJSONOutputFailures/log/short_write (0.01s)
+      --- PASS: TestRunLogAndQueryReportJSONOutputFailures/query/write_error (0.02s)
+      --- PASS: TestRunLogAndQueryReportJSONOutputFailures/query/short_write (0.01s)
+  === RUN   TestRunLogAndQueryRejectInvalidShapes
+  --- PASS: TestRunLogAndQueryRejectInvalidShapes (0.13s)
+  === RUN   TestQueryExitTableUsesTypedSafeErrors
+  === RUN   TestQueryExitTableUsesTypedSafeErrors/usage
+  === RUN   TestQueryExitTableUsesTypedSafeErrors/invalid_cursor
+  === RUN   TestQueryExitTableUsesTypedSafeErrors/query_mismatch
+  === RUN   TestQueryExitTableUsesTypedSafeErrors/source_invalid
+  === RUN   TestQueryExitTableUsesTypedSafeErrors/index_missing
+  === RUN   TestQueryExitTableUsesTypedSafeErrors/index_stale
+  === RUN   TestQueryExitTableUsesTypedSafeErrors/index_corrupt
+  === RUN   TestQueryExitTableUsesTypedSafeErrors/index_incompatible
+  === RUN   TestQueryExitTableUsesTypedSafeErrors/index_partial_build
+  === RUN   TestQueryExitTableUsesTypedSafeErrors/source_changed
+  === RUN   TestQueryExitTableUsesTypedSafeErrors/stale_cursor
+  === RUN   TestQueryExitTableUsesTypedSafeErrors/missing_dependency
+  === RUN   TestQueryExitTableUsesTypedSafeErrors/resource_limit
+  === RUN   TestQueryExitTableUsesTypedSafeErrors/mixed_source_changed
+  === RUN   TestQueryExitTableUsesTypedSafeErrors/mixed_resource_limit
+  === RUN   TestQueryExitTableUsesTypedSafeErrors/source_changed_plus_missing_dependency
+  === RUN   TestQueryExitTableUsesTypedSafeErrors/resource_limit_plus_integrity
+  === RUN   TestQueryExitTableUsesTypedSafeErrors/publication
+  === RUN   TestQueryExitTableUsesTypedSafeErrors/unexpected
+  --- PASS: TestQueryExitTableUsesTypedSafeErrors (0.00s)
+      --- PASS: TestQueryExitTableUsesTypedSafeErrors/usage (0.00s)
+      --- PASS: TestQueryExitTableUsesTypedSafeErrors/invalid_cursor (0.00s)
+      --- PASS: TestQueryExitTableUsesTypedSafeErrors/query_mismatch (0.00s)
+      --- PASS: TestQueryExitTableUsesTypedSafeErrors/source_invalid (0.00s)
+      --- PASS: TestQueryExitTableUsesTypedSafeErrors/index_missing (0.00s)
+      --- PASS: TestQueryExitTableUsesTypedSafeErrors/index_stale (0.00s)
+      --- PASS: TestQueryExitTableUsesTypedSafeErrors/index_corrupt (0.00s)
+      --- PASS: TestQueryExitTableUsesTypedSafeErrors/index_incompatible (0.00s)
+      --- PASS: TestQueryExitTableUsesTypedSafeErrors/index_partial_build (0.00s)
+      --- PASS: TestQueryExitTableUsesTypedSafeErrors/source_changed (0.00s)
+      --- PASS: TestQueryExitTableUsesTypedSafeErrors/stale_cursor (0.00s)
+      --- PASS: TestQueryExitTableUsesTypedSafeErrors/missing_dependency (0.00s)
+      --- PASS: TestQueryExitTableUsesTypedSafeErrors/resource_limit (0.00s)
+      --- PASS: TestQueryExitTableUsesTypedSafeErrors/mixed_source_changed (0.00s)
+      --- PASS: TestQueryExitTableUsesTypedSafeErrors/mixed_resource_limit (0.00s)
+      --- PASS: TestQueryExitTableUsesTypedSafeErrors/source_changed_plus_missing_dependency (0.00s)
+      --- PASS: TestQueryExitTableUsesTypedSafeErrors/resource_limit_plus_integrity (0.00s)
+      --- PASS: TestQueryExitTableUsesTypedSafeErrors/publication (0.00s)
+      --- PASS: TestQueryExitTableUsesTypedSafeErrors/unexpected (0.00s)
+  === RUN   TestRunQueryCarriesAllRepeatedFiltersAndStructuredFields
+  --- PASS: TestRunQueryCarriesAllRepeatedFiltersAndStructuredFields (0.33s)
+  === RUN   TestRunLogIsCompactAndSupportsCursorContinuation
+  --- PASS: TestRunLogIsCompactAndSupportsCursorContinuation (0.28s)
+  === RUN   TestRunQueryEmptyResultHasNoCursor
+  --- PASS: TestRunQueryEmptyResultHasNoCursor (0.28s)
+  === RUN   TestRunQueryRejectsSecretLikeFilterWithoutEcho
+  --- PASS: TestRunQueryRejectsSecretLikeFilterWithoutEcho (0.26s)
+  === RUN   TestRunQueryMismatchCursorIsSafeUsageError
+  --- PASS: TestRunQueryMismatchCursorIsSafeUsageError (0.27s)
+  === RUN   TestRunLogAndQueryHumanOutputStatesCausalLimits
+  --- PASS: TestRunLogAndQueryHumanOutputStatesCausalLimits (0.26s)
+  === RUN   TestHumanQueryEscapesSubjectControls
+  --- PASS: TestHumanQueryEscapesSubjectControls (0.00s)
+  === RUN   TestRunQueryMissingIndexAndInvalidCursorUseStableExitCodes
+  --- PASS: TestRunQueryMissingIndexAndInvalidCursorUseStableExitCodes (0.37s)
+  === RUN   TestRunVerifyCompletenessPreservesKeysAndReportsRealIndexStatus
+  --- PASS: TestRunVerifyCompletenessPreservesKeysAndReportsRealIndexStatus (0.31s)
+  === RUN   TestQuickstartEmitsCanonicalGoSkill
+  --- PASS: TestQuickstartEmitsCanonicalGoSkill (0.00s)
+  === RUN   TestQuickstartJSONContainsCanonicalSkill
+  --- PASS: TestQuickstartJSONContainsCanonicalSkill (0.00s)
+  === RUN   TestQuickstartRejectsArgumentsAndReportsWriterFailures
+  === RUN   TestQuickstartRejectsArgumentsAndReportsWriterFailures/arguments
+  === RUN   TestQuickstartRejectsArgumentsAndReportsWriterFailures/raw_writer
+  --- PASS: TestQuickstartRejectsArgumentsAndReportsWriterFailures (0.00s)
+      --- PASS: TestQuickstartRejectsArgumentsAndReportsWriterFailures/arguments (0.00s)
+      --- PASS: TestQuickstartRejectsArgumentsAndReportsWriterFailures/raw_writer (0.00s)
+  === RUN   TestQuickstartCatalogAndHelp
+  --- PASS: TestQuickstartCatalogAndHelp (0.00s)
+  === RUN   TestBarePactAnimatesThenPrintsHelp
+  --- PASS: TestBarePactAnimatesThenPrintsHelp (0.00s)
+  === RUN   TestBarePactFallbacksAndExplicitHelp
+  === RUN   TestBarePactFallbacksAndExplicitHelp/redirected_static
+  === RUN   TestBarePactFallbacksAndExplicitHelp/TTY_unknown_geometry
+  === RUN   TestBarePactFallbacksAndExplicitHelp/TERM_dumb_static
+  === RUN   TestBarePactFallbacksAndExplicitHelp/JSON_no_seal
+  === RUN   TestBarePactFallbacksAndExplicitHelp/explicit_help
+  === RUN   TestBarePactFallbacksAndExplicitHelp/explicit_flag_help
+  === RUN   TestBarePactFallbacksAndExplicitHelp/too_small
+  --- PASS: TestBarePactFallbacksAndExplicitHelp (0.00s)
+      --- PASS: TestBarePactFallbacksAndExplicitHelp/redirected_static (0.00s)
+      --- PASS: TestBarePactFallbacksAndExplicitHelp/TTY_unknown_geometry (0.00s)
+      --- PASS: TestBarePactFallbacksAndExplicitHelp/TERM_dumb_static (0.00s)
+      --- PASS: TestBarePactFallbacksAndExplicitHelp/JSON_no_seal (0.00s)
+      --- PASS: TestBarePactFallbacksAndExplicitHelp/explicit_help (0.00s)
+      --- PASS: TestBarePactFallbacksAndExplicitHelp/explicit_flag_help (0.00s)
+      --- PASS: TestBarePactFallbacksAndExplicitHelp/too_small (0.00s)
+  === RUN   TestTerminalAnimationConfig
+  === RUN   TestTerminalAnimationConfig/geometry_error
+  === RUN   TestTerminalAnimationConfig/zero_width
+  === RUN   TestTerminalAnimationConfig/zero_height
+  === RUN   TestTerminalAnimationConfig/valid_dimensions
+  --- PASS: TestTerminalAnimationConfig (0.00s)
+      --- PASS: TestTerminalAnimationConfig/geometry_error (0.00s)
+      --- PASS: TestTerminalAnimationConfig/zero_width (0.00s)
+      --- PASS: TestTerminalAnimationConfig/zero_height (0.00s)
+      --- PASS: TestTerminalAnimationConfig/valid_dimensions (0.00s)
+  === RUN   TestBarePactSealColorPrecedence
+  === RUN   TestBarePactSealColorPrecedence/terminal_auto
+  === RUN   TestBarePactSealColorPrecedence/redirected_auto
+  === RUN   TestBarePactSealColorPrecedence/NO_COLOR
+  === RUN   TestBarePactSealColorPrecedence/TERM_dumb
+  === RUN   TestBarePactSealColorPrecedence/forced_always
+  === RUN   TestBarePactSealColorPrecedence/forced_never
+  --- PASS: TestBarePactSealColorPrecedence (0.00s)
+      --- PASS: TestBarePactSealColorPrecedence/terminal_auto (0.00s)
+      --- PASS: TestBarePactSealColorPrecedence/redirected_auto (0.00s)
+      --- PASS: TestBarePactSealColorPrecedence/NO_COLOR (0.00s)
+      --- PASS: TestBarePactSealColorPrecedence/TERM_dumb (0.00s)
+      --- PASS: TestBarePactSealColorPrecedence/forced_always (0.00s)
+      --- PASS: TestBarePactSealColorPrecedence/forced_never (0.00s)
+  === RUN   TestProductionSealAnimationIsFinite
+  === RUN   TestProductionSealAnimationIsFinite/width_40
+  === RUN   TestProductionSealAnimationIsFinite/width_12
+  --- PASS: TestProductionSealAnimationIsFinite (0.00s)
+      --- PASS: TestProductionSealAnimationIsFinite/width_40 (0.00s)
+      --- PASS: TestProductionSealAnimationIsFinite/width_12 (0.00s)
+  === RUN   TestBarePactSealWriteFailureReturnsUnexpectedExit
+  --- PASS: TestBarePactSealWriteFailureReturnsUnexpectedExit (0.00s)
+  === RUN   TestBarePactCursorWriteFailureReturnsUnexpectedExit
+  --- PASS: TestBarePactCursorWriteFailureReturnsUnexpectedExit (0.00s)
+  === RUN   TestProductionSealAnimationContract
+  --- PASS: TestProductionSealAnimationContract (0.00s)
+  === RUN   TestSealFrameMatchesPlainGolden
+  --- PASS: TestSealFrameMatchesPlainGolden (0.00s)
+  === RUN   TestSealColorStripsToPlainFrame
+  --- PASS: TestSealColorStripsToPlainFrame (0.00s)
+  === RUN   TestPlainSealKeepsLandAndWaterDistinct
+  --- PASS: TestPlainSealKeepsLandAndWaterDistinct (0.00s)
+  === RUN   TestPlainSealLinesHaveNoTrailingSpaces
+  --- PASS: TestPlainSealLinesHaveNoTrailingSpaces (0.00s)
+  === RUN   TestSealGlobeWidthFitsTerminal
+  === RUN   TestSealGlobeWidthFitsTerminal/full
+  === RUN   TestSealGlobeWidthFitsTerminal/short
+  === RUN   TestSealGlobeWidthFitsTerminal/narrow
+  === RUN   TestSealGlobeWidthFitsTerminal/too_small
+  --- PASS: TestSealGlobeWidthFitsTerminal (0.00s)
+      --- PASS: TestSealGlobeWidthFitsTerminal/full (0.00s)
+      --- PASS: TestSealGlobeWidthFitsTerminal/short (0.00s)
+      --- PASS: TestSealGlobeWidthFitsTerminal/narrow (0.00s)
+      --- PASS: TestSealGlobeWidthFitsTerminal/too_small (0.00s)
+  === RUN   TestHelpListsSetupWithEveryFlag
+  --- PASS: TestHelpListsSetupWithEveryFlag (0.00s)
+  === RUN   TestSetupJSONUsesWorkingDirectoryWithoutReadingStdin
+  --- PASS: TestSetupJSONUsesWorkingDirectoryWithoutReadingStdin (0.19s)
+  === RUN   TestSetupRedirectedHumanUsesExplicitRepositoryWithoutReadingStdin
+  --- PASS: TestSetupRedirectedHumanUsesExplicitRepositoryWithoutReadingStdin (0.18s)
+  === RUN   TestSetupMissingValuesExitUsageBeforeWrites
+  === RUN   TestSetupMissingValuesExitUsageBeforeWrites/JSON_namespace
+  === RUN   TestSetupMissingValuesExitUsageBeforeWrites/JSON_actor
+  === RUN   TestSetupMissingValuesExitUsageBeforeWrites/JSON_key_file
+  === RUN   TestSetupMissingValuesExitUsageBeforeWrites/redirected_namespace
+  === RUN   TestSetupMissingValuesExitUsageBeforeWrites/redirected_actor
+  === RUN   TestSetupMissingValuesExitUsageBeforeWrites/redirected_key_file
+  --- PASS: TestSetupMissingValuesExitUsageBeforeWrites (0.06s)
+      --- PASS: TestSetupMissingValuesExitUsageBeforeWrites/JSON_namespace (0.00s)
+      --- PASS: TestSetupMissingValuesExitUsageBeforeWrites/JSON_actor (0.02s)
+      --- PASS: TestSetupMissingValuesExitUsageBeforeWrites/JSON_key_file (0.01s)
+      --- PASS: TestSetupMissingValuesExitUsageBeforeWrites/redirected_namespace (0.00s)
+      --- PASS: TestSetupMissingValuesExitUsageBeforeWrites/redirected_actor (0.02s)
+      --- PASS: TestSetupMissingValuesExitUsageBeforeWrites/redirected_key_file (0.00s)
+  === RUN   TestSetupTerminalPromptsInOrderPlansOnceAndCancelsWithoutWrites
+  --- PASS: TestSetupTerminalPromptsInOrderPlansOnceAndCancelsWithoutWrites (0.02s)
+  === RUN   TestSetupTerminalAcceptsObservedDefaultsAndExplicitYes
+  --- PASS: TestSetupTerminalAcceptsObservedDefaultsAndExplicitYes (0.24s)
+  === RUN   TestSetupTerminalEscapesObservedDefaultsAndPlanWithoutChangingRequest
+  --- PASS: TestSetupTerminalEscapesObservedDefaultsAndPlanWithoutChangingRequest (0.21s)
+  === RUN   TestSetupTerminalFreshExamplesAreNotDefaults
+  --- PASS: TestSetupTerminalFreshExamplesAreNotDefaults (0.01s)
+  === RUN   TestSetupTerminalRejectsOverlongLineBeforeWrites
+  --- PASS: TestSetupTerminalRejectsOverlongLineBeforeWrites (0.02s)
+  === RUN   TestSetupInputAllowsExact64KiBWithCRLF
+  --- PASS: TestSetupInputAllowsExact64KiBWithCRLF (0.00s)
+  === RUN   TestSetupTerminalTextEscapesControlsAndPreservesPrintableUnicode
+  --- PASS: TestSetupTerminalTextEscapesControlsAndPreservesPrintableUnicode (0.00s)
+  === RUN   TestSetupTerminalWriterFailuresPrecedeAllMutation
+  === RUN   TestSetupTerminalWriterFailuresPrecedeAllMutation/stderr_write_1
+  === RUN   TestSetupTerminalWriterFailuresPrecedeAllMutation/stderr_write_2
+  === RUN   TestSetupTerminalWriterFailuresPrecedeAllMutation/stderr_write_3
+  === RUN   TestSetupTerminalWriterFailuresPrecedeAllMutation/stderr_write_4
+  === RUN   TestSetupTerminalWriterFailuresPrecedeAllMutation/stderr_write_5
+  --- PASS: TestSetupTerminalWriterFailuresPrecedeAllMutation (0.01s)
+      --- PASS: TestSetupTerminalWriterFailuresPrecedeAllMutation/stderr_write_1 (0.01s)
+      --- PASS: TestSetupTerminalWriterFailuresPrecedeAllMutation/stderr_write_2 (0.00s)
+      --- PASS: TestSetupTerminalWriterFailuresPrecedeAllMutation/stderr_write_3 (0.00s)
+      --- PASS: TestSetupTerminalWriterFailuresPrecedeAllMutation/stderr_write_4 (0.00s)
+      --- PASS: TestSetupTerminalWriterFailuresPrecedeAllMutation/stderr_write_5 (0.00s)
+  === RUN   TestSetupHumanColorAndNarrowMeaning
+  --- PASS: TestSetupHumanColorAndNarrowMeaning (0.21s)
+  === RUN   TestSetupHumanRenderersEscapeFactsErrorsAndActions
+  --- PASS: TestSetupHumanRenderersEscapeFactsErrorsAndActions (0.00s)
+  === RUN   TestSetupJSONKeepsControlCharactersAsStructuredValues
+  --- PASS: TestSetupJSONKeepsControlCharactersAsStructuredValues (0.00s)
+  === RUN   TestSetupPreApplyErrorEscapesHumanAndPreservesJSONError
+  --- PASS: TestSetupPreApplyErrorEscapesHumanAndPreservesJSONError (0.02s)
+  === RUN   TestSetupApplyErrorRendersOnlyProvenPartialActions
+  --- PASS: TestSetupApplyErrorRendersOnlyProvenPartialActions (0.23s)
+  === RUN   TestSetupZeroActionApplyErrorRendersSafeResolvedFacts
+  --- PASS: TestSetupZeroActionApplyErrorRendersSafeResolvedFacts (0.00s)
+  === RUN   TestSetupNamespaceConflictUsesStoreExitInHumanAndJSON
+  === RUN   TestSetupNamespaceConflictUsesStoreExitInHumanAndJSON/human
+  === RUN   TestSetupNamespaceConflictUsesStoreExitInHumanAndJSON/JSON
+  --- PASS: TestSetupNamespaceConflictUsesStoreExitInHumanAndJSON (0.08s)
+      --- PASS: TestSetupNamespaceConflictUsesStoreExitInHumanAndJSON/human (0.00s)
+      --- PASS: TestSetupNamespaceConflictUsesStoreExitInHumanAndJSON/JSON (0.00s)
+  === RUN   TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult
+  === RUN   TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult/index_source_changed
+  === RUN   TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult/index_source_changed/human
+  === RUN   TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult/index_source_changed/JSON
+  === RUN   TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult/operation-only_source_changed_lock
+  === RUN   TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult/operation-only_source_changed_lock/human
+  === RUN   TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult/operation-only_source_changed_lock/JSON
+  === RUN   TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult/ledger_resource_limit
+  === RUN   TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult/ledger_resource_limit/human
+  === RUN   TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult/ledger_resource_limit/JSON
+  === RUN   TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult/source_changed_resource_limit
+  === RUN   TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult/source_changed_resource_limit/human
+  === RUN   TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult/source_changed_resource_limit/JSON
+  === RUN   TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult/mixed_index_source_changed
+  === RUN   TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult/mixed_index_source_changed/human
+  === RUN   TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult/mixed_index_source_changed/JSON
+  === RUN   TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult/mixed_ledger_resource_limit
+  === RUN   TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult/mixed_ledger_resource_limit/human
+  === RUN   TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult/mixed_ledger_resource_limit/JSON
+  === RUN   TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult/typed_lock_release
+  === RUN   TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult/typed_lock_release/human
+  === RUN   TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult/typed_lock_release/JSON
+  === RUN   TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult/mixed_store_conflict
+  === RUN   TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult/mixed_store_conflict/human
+  === RUN   TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult/mixed_store_conflict/JSON
+  === RUN   TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult/unexpected
+  === RUN   TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult/unexpected/human
+  === RUN   TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult/unexpected/JSON
+  --- PASS: TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult (0.14s)
+      --- PASS: TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult/index_source_changed (0.01s)
+          --- PASS: TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult/index_source_changed/human (0.00s)
+          --- PASS: TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult/index_source_changed/JSON (0.00s)
+      --- PASS: TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult/operation-only_source_changed_lock (0.01s)
+          --- PASS: TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult/operation-only_source_changed_lock/human (0.00s)
+          --- PASS: TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult/operation-only_source_changed_lock/JSON (0.00s)
+      --- PASS: TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult/ledger_resource_limit (0.01s)
+          --- PASS: TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult/ledger_resource_limit/human (0.00s)
+          --- PASS: TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult/ledger_resource_limit/JSON (0.01s)
+      --- PASS: TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult/source_changed_resource_limit (0.03s)
+          --- PASS: TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult/source_changed_resource_limit/human (0.02s)
+          --- PASS: TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult/source_changed_resource_limit/JSON (0.01s)
+      --- PASS: TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult/mixed_index_source_changed (0.02s)
+          --- PASS: TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult/mixed_index_source_changed/human (0.01s)
+          --- PASS: TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult/mixed_index_source_changed/JSON (0.01s)
+      --- PASS: TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult/mixed_ledger_resource_limit (0.01s)
+          --- PASS: TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult/mixed_ledger_resource_limit/human (0.01s)
+          --- PASS: TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult/mixed_ledger_resource_limit/JSON (0.01s)
+      --- PASS: TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult/typed_lock_release (0.01s)
+          --- PASS: TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult/typed_lock_release/human (0.01s)
+          --- PASS: TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult/typed_lock_release/JSON (0.00s)
+      --- PASS: TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult/mixed_store_conflict (0.01s)
+          --- PASS: TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult/mixed_store_conflict/human (0.01s)
+          --- PASS: TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult/mixed_store_conflict/JSON (0.01s)
+      --- PASS: TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult/unexpected (0.02s)
+          --- PASS: TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult/unexpected/human (0.02s)
+          --- PASS: TestSetupApplyDomainErrorsUseOwnerExitAndPreservePartialResult/unexpected/JSON (0.00s)
+  === RUN   TestNormalizedRunConfigSuppliesClock
+  --- PASS: TestNormalizedRunConfigSuppliesClock (0.00s)
+  === RUN   TestSetupWriterFailuresReturnUnexpectedAfterDurableApply
+  === RUN   TestSetupWriterFailuresReturnUnexpectedAfterDurableApply/human
+  === RUN   TestSetupWriterFailuresReturnUnexpectedAfterDurableApply/JSON
+  --- PASS: TestSetupWriterFailuresReturnUnexpectedAfterDurableApply (0.35s)
+      --- PASS: TestSetupWriterFailuresReturnUnexpectedAfterDurableApply/human (0.20s)
+      --- PASS: TestSetupWriterFailuresReturnUnexpectedAfterDurableApply/JSON (0.14s)
+  === RUN   TestSetupStderrFailureWhileReportingOutputFailureReturnsUnexpected
+  --- PASS: TestSetupStderrFailureWhileReportingOutputFailureReturnsUnexpected (0.19s)
+  PASS
+  ok  	pact/cmd/pact	16.150s
+  ?   	pact/docs/pact-ledger	[no test files]
+  === RUN   TestParseContextHonorsCancellationDuringIntegerValidation
+  --- PASS: TestParseContextHonorsCancellationDuringIntegerValidation (0.00s)
+  === RUN   TestDigestContextHonorsCanceledEmptyInput
+  --- PASS: TestDigestContextHonorsCanceledEmptyInput (0.00s)
+  === RUN   TestParseBoundsAttackerControlledObjectKeyDiagnostics
+  --- PASS: TestParseBoundsAttackerControlledObjectKeyDiagnostics (0.00s)
+  === RUN   TestParsePreservesOrdinaryDuplicateKeyDiagnostic
+  --- PASS: TestParsePreservesOrdinaryDuplicateKeyDiagnostic (0.00s)
+  === RUN   TestVectors
+  === PAUSE TestVectors
+  === RUN   TestParseRejectsTrailingJSONAndInvalidUTF8
+  === PAUSE TestParseRejectsTrailingJSONAndInvalidUTF8
+  === RUN   TestParseValidatesUnicodeSurrogateEscapes
+  === PAUSE TestParseValidatesUnicodeSurrogateEscapes
+  === RUN   TestMarshalNormalizesNestedStringsAndEmptyValues
+  === PAUSE TestMarshalNormalizesNestedStringsAndEmptyValues
+  === RUN   TestSafeIntegerBoundaries
+  === PAUSE TestSafeIntegerBoundaries
+  === CONT  TestVectors
+  === RUN   TestVectors/key-ordering
+  === RUN   TestVectors/unicode-nfc
+  === RUN   TestVectors/nested-values
+  === RUN   TestVectors/integer-limits
+  === RUN   TestVectors/utf8-unescaped
+  === RUN   TestVectors/float-forbidden
+  === RUN   TestVectors/integer-too-large
+  === RUN   TestVectors/duplicate-key
+  === RUN   TestVectors/normalized-key-collision
+  === RUN   TestVectors/bom-forbidden
+  --- PASS: TestVectors (0.00s)
+      --- PASS: TestVectors/key-ordering (0.00s)
+      --- PASS: TestVectors/unicode-nfc (0.00s)
+      --- PASS: TestVectors/nested-values (0.00s)
+      --- PASS: TestVectors/integer-limits (0.00s)
+      --- PASS: TestVectors/utf8-unescaped (0.00s)
+      --- PASS: TestVectors/float-forbidden (0.00s)
+      --- PASS: TestVectors/integer-too-large (0.00s)
+      --- PASS: TestVectors/duplicate-key (0.00s)
+      --- PASS: TestVectors/normalized-key-collision (0.00s)
+      --- PASS: TestVectors/bom-forbidden (0.00s)
+  === CONT  TestSafeIntegerBoundaries
+  === RUN   TestSafeIntegerBoundaries/minimum
+  === RUN   TestSafeIntegerBoundaries/maximum
+  --- PASS: TestSafeIntegerBoundaries (0.00s)
+      --- PASS: TestSafeIntegerBoundaries/minimum (0.00s)
+      --- PASS: TestSafeIntegerBoundaries/maximum (0.00s)
+  === CONT  TestMarshalNormalizesNestedStringsAndEmptyValues
+  --- PASS: TestMarshalNormalizesNestedStringsAndEmptyValues (0.00s)
+  === CONT  TestParseValidatesUnicodeSurrogateEscapes
+  === RUN   TestParseValidatesUnicodeSurrogateEscapes/unpaired_high_surrogate
+  === RUN   TestParseValidatesUnicodeSurrogateEscapes/unpaired_low_surrogate
+  === RUN   TestParseValidatesUnicodeSurrogateEscapes/surrogate_pair
+  === RUN   TestParseValidatesUnicodeSurrogateEscapes/escaped_backslash
+  --- PASS: TestParseValidatesUnicodeSurrogateEscapes (0.00s)
+      --- PASS: TestParseValidatesUnicodeSurrogateEscapes/unpaired_high_surrogate (0.00s)
+      --- PASS: TestParseValidatesUnicodeSurrogateEscapes/unpaired_low_surrogate (0.00s)
+      --- PASS: TestParseValidatesUnicodeSurrogateEscapes/surrogate_pair (0.00s)
+      --- PASS: TestParseValidatesUnicodeSurrogateEscapes/escaped_backslash (0.00s)
+  === CONT  TestParseRejectsTrailingJSONAndInvalidUTF8
+  === RUN   TestParseRejectsTrailingJSONAndInvalidUTF8/trailing_JSON
+  === RUN   TestParseRejectsTrailingJSONAndInvalidUTF8/invalid_UTF-8
+  --- PASS: TestParseRejectsTrailingJSONAndInvalidUTF8 (0.00s)
+      --- PASS: TestParseRejectsTrailingJSONAndInvalidUTF8/trailing_JSON (0.00s)
+      --- PASS: TestParseRejectsTrailingJSONAndInvalidUTF8/invalid_UTF-8 (0.00s)
+  PASS
+  ok  	pact/internal/canonical	0.173s
+  === RUN   TestCanonicalizationVectors
+  === RUN   TestCanonicalizationVectors/key-ordering
+  === RUN   TestCanonicalizationVectors/unicode-nfc
+  === RUN   TestCanonicalizationVectors/nested-values
+  === RUN   TestCanonicalizationVectors/integer-limits
+  === RUN   TestCanonicalizationVectors/utf8-unescaped
+  --- PASS: TestCanonicalizationVectors (0.00s)
+      --- PASS: TestCanonicalizationVectors/key-ordering (0.00s)
+      --- PASS: TestCanonicalizationVectors/unicode-nfc (0.00s)
+      --- PASS: TestCanonicalizationVectors/nested-values (0.00s)
+      --- PASS: TestCanonicalizationVectors/integer-limits (0.00s)
+      --- PASS: TestCanonicalizationVectors/utf8-unescaped (0.00s)
+  PASS
+  ok  	pact/internal/conformance	0.102s
+  === RUN   TestProfileArtifactsArePublished
+  --- PASS: TestProfileArtifactsArePublished (0.24s)
+  === RUN   TestProfileCorpusAgainstReferenceJSONSchema
+      profile_test.go:64: Validated 40 payloads in 16 public cases; semantic/projection expectations remain declarative.
+  --- PASS: TestProfileCorpusAgainstReferenceJSONSchema (0.39s)
+  === RUN   TestPositiveCorpusSignsAndReadsThroughRawLedger
+  --- PASS: TestPositiveCorpusSignsAndReadsThroughRawLedger (0.55s)
+  PASS
+  ok  	pact/internal/development	1.290s
+  ?   	pact/internal/development/cmd/profilegen	[no test files]
+  === RUN   TestKeyIDAndSignBodyMatchPACTVector
+  --- PASS: TestKeyIDAndSignBodyMatchPACTVector (0.00s)
+  === RUN   TestIdentityRejectsAlteredInputsAndInvalidLengths
+  === RUN   TestIdentityRejectsAlteredInputsAndInvalidLengths/body
+  === RUN   TestIdentityRejectsAlteredInputsAndInvalidLengths/digest
+  === RUN   TestIdentityRejectsAlteredInputsAndInvalidLengths/key
+  === RUN   TestIdentityRejectsAlteredInputsAndInvalidLengths/signature
+  --- PASS: TestIdentityRejectsAlteredInputsAndInvalidLengths (0.00s)
+      --- PASS: TestIdentityRejectsAlteredInputsAndInvalidLengths/body (0.00s)
+      --- PASS: TestIdentityRejectsAlteredInputsAndInvalidLengths/digest (0.00s)
+      --- PASS: TestIdentityRejectsAlteredInputsAndInvalidLengths/key (0.00s)
+      --- PASS: TestIdentityRejectsAlteredInputsAndInvalidLengths/signature (0.00s)
+  === RUN   TestSafeKeyDiagnosticOmitsKeyBytes
+  --- PASS: TestSafeKeyDiagnosticOmitsKeyBytes (0.00s)
+  === RUN   TestNormalizeActorCanonicalizesAndValidates
+  === RUN   TestNormalizeActorCanonicalizesAndValidates/empty
+  === RUN   TestNormalizeActorCanonicalizesAndValidates/over_255_runes
+  --- PASS: TestNormalizeActorCanonicalizesAndValidates (0.00s)
+      --- PASS: TestNormalizeActorCanonicalizesAndValidates/empty (0.00s)
+      --- PASS: TestNormalizeActorCanonicalizesAndValidates/over_255_runes (0.00s)
+  === RUN   TestValidateSigningKeyPathAcceptsExternalTargetsWithoutWriting
+  --- PASS: TestValidateSigningKeyPathAcceptsExternalTargetsWithoutWriting (0.05s)
+  === RUN   TestInspectSecretSafetyErrorClassifiesTaintedErrorWithoutEchoingIt
+  --- PASS: TestInspectSecretSafetyErrorClassifiesTaintedErrorWithoutEchoingIt (0.00s)
+  === RUN   TestValidateSigningKeyPathRejectsProjectContainmentWithoutLeakingKeyBytes
+  === RUN   TestValidateSigningKeyPathRejectsProjectContainmentWithoutLeakingKeyBytes/lexical
+  === RUN   TestValidateSigningKeyPathRejectsProjectContainmentWithoutLeakingKeyBytes/resolved_missing
+  === RUN   TestValidateSigningKeyPathRejectsProjectContainmentWithoutLeakingKeyBytes/resolved_existing
+  --- PASS: TestValidateSigningKeyPathRejectsProjectContainmentWithoutLeakingKeyBytes (0.09s)
+      --- PASS: TestValidateSigningKeyPathRejectsProjectContainmentWithoutLeakingKeyBytes/lexical (0.00s)
+      --- PASS: TestValidateSigningKeyPathRejectsProjectContainmentWithoutLeakingKeyBytes/resolved_missing (0.01s)
+      --- PASS: TestValidateSigningKeyPathRejectsProjectContainmentWithoutLeakingKeyBytes/resolved_existing (0.00s)
+  === RUN   TestGenerateKeyFileCreatesOwnerOnlyVerifiedKey
+  --- PASS: TestGenerateKeyFileCreatesOwnerOnlyVerifiedKey (0.06s)
+  === RUN   TestGenerateKeyFileReportsCreatedAfterDirectorySyncFailure
+  --- PASS: TestGenerateKeyFileReportsCreatedAfterDirectorySyncFailure (0.06s)
+  === RUN   TestGenerateKeyFileReportsCreatedAfterDirectoryCloseFailure
+  --- PASS: TestGenerateKeyFileReportsCreatedAfterDirectoryCloseFailure (0.07s)
+  === RUN   TestGenerateKeyFileReportsCreatedAfterTemporaryCleanupFailure
+  --- PASS: TestGenerateKeyFileReportsCreatedAfterTemporaryCleanupFailure (0.06s)
+  === RUN   TestGenerateKeyFilePreservesMixedNotExistTemporaryCleanupFailure
+  --- PASS: TestGenerateKeyFilePreservesMixedNotExistTemporaryCleanupFailure (0.06s)
+  === RUN   TestGenerateKeyFilePreservesDirectorySyncAndTemporaryCleanupFailures
+  --- PASS: TestGenerateKeyFilePreservesDirectorySyncAndTemporaryCleanupFailures (0.04s)
+  === RUN   TestGenerateKeyFileClassifiesOnlyExistingTargetAsConflict
+  --- PASS: TestGenerateKeyFileClassifiesOnlyExistingTargetAsConflict (0.05s)
+  === RUN   TestGenerateKeyFileRefusesOverwrite
+  --- PASS: TestGenerateKeyFileRefusesOverwrite (0.04s)
+  === RUN   TestGenerateKeyFileRejectsInitializedProjectRoot
+  --- PASS: TestGenerateKeyFileRejectsInitializedProjectRoot (0.22s)
+  === RUN   TestGenerateKeyFileRejectsSymlinkedOutputWithinProject
+  --- PASS: TestGenerateKeyFileRejectsSymlinkedOutputWithinProject (0.24s)
+  === RUN   TestLoadKeyFileRejectsNonStrictJSON
+  === RUN   TestLoadKeyFileRejectsNonStrictJSON/BOM
+  === RUN   TestLoadKeyFileRejectsNonStrictJSON/trailing
+  === RUN   TestLoadKeyFileRejectsNonStrictJSON/duplicate
+  === RUN   TestLoadKeyFileRejectsNonStrictJSON/nfc_collision
+  --- PASS: TestLoadKeyFileRejectsNonStrictJSON (0.10s)
+      --- PASS: TestLoadKeyFileRejectsNonStrictJSON/BOM (0.01s)
+      --- PASS: TestLoadKeyFileRejectsNonStrictJSON/trailing (0.01s)
+      --- PASS: TestLoadKeyFileRejectsNonStrictJSON/duplicate (0.01s)
+      --- PASS: TestLoadKeyFileRejectsNonStrictJSON/nfc_collision (0.01s)
+  === RUN   TestLoadKeyFileRejectsPrivatePublicMismatch
+  --- PASS: TestLoadKeyFileRejectsPrivatePublicMismatch (0.06s)
+  === RUN   TestLoadKeyFileRejectsKeyIDMismatch
+  --- PASS: TestLoadKeyFileRejectsKeyIDMismatch (0.12s)
+  === RUN   TestLoadSigningKeyEnforcesExternalRegularOwnerOnlyFile
+  === RUN   TestLoadSigningKeyEnforcesExternalRegularOwnerOnlyFile/direct_inside
+  === RUN   TestLoadSigningKeyEnforcesExternalRegularOwnerOnlyFile/resolved_target_inside
+  === RUN   TestLoadSigningKeyEnforcesExternalRegularOwnerOnlyFile/lexical_path_inside
+  === RUN   TestLoadSigningKeyEnforcesExternalRegularOwnerOnlyFile/non-regular_final_target
+  === RUN   TestLoadSigningKeyEnforcesExternalRegularOwnerOnlyFile/group-readable
+  --- PASS: TestLoadSigningKeyEnforcesExternalRegularOwnerOnlyFile (0.30s)
+      --- PASS: TestLoadSigningKeyEnforcesExternalRegularOwnerOnlyFile/direct_inside (0.00s)
+      --- PASS: TestLoadSigningKeyEnforcesExternalRegularOwnerOnlyFile/resolved_target_inside (0.00s)
+      --- PASS: TestLoadSigningKeyEnforcesExternalRegularOwnerOnlyFile/lexical_path_inside (0.00s)
+      --- PASS: TestLoadSigningKeyEnforcesExternalRegularOwnerOnlyFile/non-regular_final_target (0.00s)
+      --- PASS: TestLoadSigningKeyEnforcesExternalRegularOwnerOnlyFile/group-readable (0.00s)
+  === RUN   TestLoadPublicKeyAllowsReadablePublicOnlyFile
+  --- PASS: TestLoadPublicKeyAllowsReadablePublicOnlyFile (0.08s)
+  PASS
+  ok  	pact/internal/identity	1.884s
+  === RUN   TestCursorFixedQueryDigestChecksumAndTokenVectors
+  --- PASS: TestCursorFixedQueryDigestChecksumAndTokenVectors (0.00s)
+  === RUN   TestCursorDecodeStrictCanonicalShapeAndSafeErrors
+  === RUN   TestCursorDecodeStrictCanonicalShapeAndSafeErrors/padding
+  === RUN   TestCursorDecodeStrictCanonicalShapeAndSafeErrors/alphabet
+  === RUN   TestCursorDecodeStrictCanonicalShapeAndSafeErrors/noncanonical_whitespace
+  === RUN   TestCursorDecodeStrictCanonicalShapeAndSafeErrors/extra_key
+  === RUN   TestCursorDecodeStrictCanonicalShapeAndSafeErrors/missing_key
+  === RUN   TestCursorDecodeStrictCanonicalShapeAndSafeErrors/wrong_type
+  === RUN   TestCursorDecodeStrictCanonicalShapeAndSafeErrors/damaged_checksum
+  === RUN   TestCursorDecodeStrictCanonicalShapeAndSafeErrors/bad_event_ref
+  === RUN   TestCursorDecodeStrictCanonicalShapeAndSafeErrors/unsupported_format
+  --- PASS: TestCursorDecodeStrictCanonicalShapeAndSafeErrors (0.00s)
+      --- PASS: TestCursorDecodeStrictCanonicalShapeAndSafeErrors/padding (0.00s)
+      --- PASS: TestCursorDecodeStrictCanonicalShapeAndSafeErrors/alphabet (0.00s)
+      --- PASS: TestCursorDecodeStrictCanonicalShapeAndSafeErrors/noncanonical_whitespace (0.00s)
+      --- PASS: TestCursorDecodeStrictCanonicalShapeAndSafeErrors/extra_key (0.00s)
+      --- PASS: TestCursorDecodeStrictCanonicalShapeAndSafeErrors/missing_key (0.00s)
+      --- PASS: TestCursorDecodeStrictCanonicalShapeAndSafeErrors/wrong_type (0.00s)
+      --- PASS: TestCursorDecodeStrictCanonicalShapeAndSafeErrors/damaged_checksum (0.00s)
+      --- PASS: TestCursorDecodeStrictCanonicalShapeAndSafeErrors/bad_event_ref (0.00s)
+      --- PASS: TestCursorDecodeStrictCanonicalShapeAndSafeErrors/unsupported_format (0.00s)
+  === RUN   TestCursorRejectsNonCanonicalRawURLTrailingBits
+  --- PASS: TestCursorRejectsNonCanonicalRawURLTrailingBits (0.00s)
+  === RUN   TestCursorRejectsBoundsBeforeBase64Decode
+  --- PASS: TestCursorRejectsBoundsBeforeBase64Decode (0.00s)
+  === RUN   TestCursorClassifiesQueryMismatchAndStaleDimensions
+  === RUN   TestCursorClassifiesQueryMismatchAndStaleDimensions/view_filter_or_limit_digest
+  === RUN   TestCursorClassifiesQueryMismatchAndStaleDimensions/schema
+  === RUN   TestCursorClassifiesQueryMismatchAndStaleDimensions/source
+  === RUN   TestCursorClassifiesQueryMismatchAndStaleDimensions/logical
+  --- PASS: TestCursorClassifiesQueryMismatchAndStaleDimensions (0.00s)
+      --- PASS: TestCursorClassifiesQueryMismatchAndStaleDimensions/view_filter_or_limit_digest (0.00s)
+      --- PASS: TestCursorClassifiesQueryMismatchAndStaleDimensions/schema (0.00s)
+      --- PASS: TestCursorClassifiesQueryMismatchAndStaleDimensions/source (0.00s)
+      --- PASS: TestCursorClassifiesQueryMismatchAndStaleDimensions/logical (0.00s)
+  === RUN   TestCursorClassifiesValidDifferentSchemaAsStale
+  --- PASS: TestCursorClassifiesValidDifferentSchemaAsStale (0.00s)
+  === RUN   TestCursorRequiresValidGroupBatchPair
+  --- PASS: TestCursorRequiresValidGroupBatchPair (0.00s)
+  === RUN   TestCursorContinuationMustExistInValidatedIndex
+  --- PASS: TestCursorContinuationMustExistInValidatedIndex (1.09s)
+  === RUN   TestLogicalDigestFixedVectors
+  === RUN   TestLogicalDigestFixedVectors/empty_scan
+  === RUN   TestLogicalDigestFixedVectors/signed_partial_replica
+  --- PASS: TestLogicalDigestFixedVectors (0.89s)
+      --- PASS: TestLogicalDigestFixedVectors/empty_scan (0.11s)
+      --- PASS: TestLogicalDigestFixedVectors/signed_partial_replica (0.73s)
+  === RUN   TestLogicalDigestChangesWithOneLogicalValue
+  --- PASS: TestLogicalDigestChangesWithOneLogicalValue (0.63s)
+  === RUN   TestLogicalDigestRejectsInvalidCanonicalRowValue
+  --- PASS: TestLogicalDigestRejectsInvalidCanonicalRowValue (0.00s)
+  === RUN   TestLogicalDigestRejectsTableNameFramingOverflow
+  --- PASS: TestLogicalDigestRejectsTableNameFramingOverflow (0.00s)
+  === RUN   TestLogicalDigestHonorsMidDigestCancellation
+  --- PASS: TestLogicalDigestHonorsMidDigestCancellation (0.01s)
+  === RUN   TestHydrationQueriesRealRebuildAcrossRestartAndSameSourceRebuild
+  --- PASS: TestHydrationQueriesRealRebuildAcrossRestartAndSameSourceRebuild (1.05s)
+  === RUN   TestPageSplitCausalBatchIsIncompleteOnBothPages
+  --- PASS: TestPageSplitCausalBatchIsIncompleteOnBothPages (0.99s)
+  === RUN   TestPageCursorTransitionsFromLastOrderedToFirstUnresolvedExactlyOnce
+  --- PASS: TestPageCursorTransitionsFromLastOrderedToFirstUnresolvedExactlyOnce (0.93s)
+  === RUN   TestPageKeepsMissingSupersedesOrderedAndMissingCausedByUnresolved
+  --- PASS: TestPageKeepsMissingSupersedesOrderedAndMissingCausedByUnresolved (0.80s)
+  === RUN   TestParityRejectsTamperedIndexedScalarTagLinkAndMissingRow
+  === RUN   TestParityRejectsTamperedIndexedScalarTagLinkAndMissingRow/scalar
+  === RUN   TestParityRejectsTamperedIndexedScalarTagLinkAndMissingRow/tag
+  === RUN   TestParityRejectsTamperedIndexedScalarTagLinkAndMissingRow/link
+  === RUN   TestParityRejectsTamperedIndexedScalarTagLinkAndMissingRow/row
+  --- PASS: TestParityRejectsTamperedIndexedScalarTagLinkAndMissingRow (3.15s)
+      --- PASS: TestParityRejectsTamperedIndexedScalarTagLinkAndMissingRow/scalar (0.76s)
+      --- PASS: TestParityRejectsTamperedIndexedScalarTagLinkAndMissingRow/tag (0.71s)
+      --- PASS: TestParityRejectsTamperedIndexedScalarTagLinkAndMissingRow/link (0.69s)
+      --- PASS: TestParityRejectsTamperedIndexedScalarTagLinkAndMissingRow/row (0.99s)
+  === RUN   TestParentParityRejectsResolvedFlagTamperedAfterValidation
+  --- PASS: TestParentParityRejectsResolvedFlagTamperedAfterValidation (0.86s)
+  === RUN   TestCanonicalHydrationRejectsSelectedCommitChangedAfterValidation
+  === RUN   TestCanonicalHydrationRejectsSelectedCommitChangedAfterValidation/removed
+  === RUN   TestCanonicalHydrationRejectsSelectedCommitChangedAfterValidation/mutated
+  --- PASS: TestCanonicalHydrationRejectsSelectedCommitChangedAfterValidation (1.47s)
+      --- PASS: TestCanonicalHydrationRejectsSelectedCommitChangedAfterValidation/removed (0.73s)
+      --- PASS: TestCanonicalHydrationRejectsSelectedCommitChangedAfterValidation/mutated (0.75s)
+  === RUN   TestHydrationResolvesEachDistinctCommitExactlyOnce
+  --- PASS: TestHydrationResolvesEachDistinctCommitExactlyOnce (0.57s)
+  === RUN   TestCanonicalWriterWaitsBehindReadLockThroughHydration
+  --- PASS: TestCanonicalWriterWaitsBehindReadLockThroughHydration (0.60s)
+  === RUN   TestPageJSONOmitsForbiddenFieldsAndEnforcesEncodedLimit
+  --- PASS: TestPageJSONOmitsForbiddenFieldsAndEnforcesEncodedLimit (0.54s)
+  === RUN   TestQueryPageStreamingJSONExactBoundPassesAndFirstExcessFails
+  --- PASS: TestQueryPageStreamingJSONExactBoundPassesAndFirstExcessFails (0.53s)
+  === RUN   TestQueryPageStreamingJSONProductionMaximumPassesExactly
+  --- PASS: TestQueryPageStreamingJSONProductionMaximumPassesExactly (0.08s)
+  === RUN   TestQueryPageStreamingJSONMatchesStandardEscapesAndEmptyValues
+  --- PASS: TestQueryPageStreamingJSONMatchesStandardEscapesAndEmptyValues (0.00s)
+  === RUN   TestQueryJSONMixedWidthStringPollsCancellationAfterCrossedThreshold
+  --- PASS: TestQueryJSONMixedWidthStringPollsCancellationAfterCrossedThreshold (0.00s)
+  === RUN   TestQueryBudgetsExactPageBeforeRetainingEachCandidate
+  --- PASS: TestQueryBudgetsExactPageBeforeRetainingEachCandidate (0.63s)
+  === RUN   TestQueryRefusesNonCurrentIndexAndPropagatesCancellation
+  --- PASS: TestQueryRefusesNonCurrentIndexAndPropagatesCancellation (0.45s)
+  === RUN   TestQueryHonorsCancellationAfterRealResolutionOnFinalUnresolvedPage
+  --- PASS: TestQueryHonorsCancellationAfterRealResolutionOnFinalUnresolvedPage (0.51s)
+  === RUN   TestQueryCloseReaderFailureIsSafeIndexCorruption
+  --- PASS: TestQueryCloseReaderFailureIsSafeIndexCorruption (0.46s)
+  === RUN   TestQueryCloseReaderContextFailurePreservesSentinelAndZeroesPage
+  === RUN   TestQueryCloseReaderContextFailurePreservesSentinelAndZeroesPage/context_canceled
+  === RUN   TestQueryCloseReaderContextFailurePreservesSentinelAndZeroesPage/context_deadline_exceeded
+  --- PASS: TestQueryCloseReaderContextFailurePreservesSentinelAndZeroesPage (0.73s)
+      --- PASS: TestQueryCloseReaderContextFailurePreservesSentinelAndZeroesPage/context_canceled (0.39s)
+      --- PASS: TestQueryCloseReaderContextFailurePreservesSentinelAndZeroesPage/context_deadline_exceeded (0.34s)
+  === RUN   TestIndexReadErrorsHideDriverDetailsAndPreserveContext
+  --- PASS: TestIndexReadErrorsHideDriverDetailsAndPreserveContext (0.00s)
+  === RUN   TestProjectHonorsMidProjectionAndMidSortCancellation
+  --- PASS: TestProjectHonorsMidProjectionAndMidSortCancellation (0.00s)
+  === RUN   TestProjectionCancellationPropagatesThroughLockedOperations
+  === RUN   TestProjectionCancellationPropagatesThroughLockedOperations/rebuild
+  === RUN   TestProjectionCancellationPropagatesThroughLockedOperations/status
+  === RUN   TestProjectionCancellationPropagatesThroughLockedOperations/log
+  === RUN   TestProjectionCancellationPropagatesThroughLockedOperations/query
+  --- PASS: TestProjectionCancellationPropagatesThroughLockedOperations (0.19s)
+      --- PASS: TestProjectionCancellationPropagatesThroughLockedOperations/rebuild (0.00s)
+      --- PASS: TestProjectionCancellationPropagatesThroughLockedOperations/status (0.00s)
+      --- PASS: TestProjectionCancellationPropagatesThroughLockedOperations/log (0.00s)
+      --- PASS: TestProjectionCancellationPropagatesThroughLockedOperations/query (0.00s)
+  === RUN   TestProjectSignedPartialReplicaExactRows
+  --- PASS: TestProjectSignedPartialReplicaExactRows (0.18s)
+  === RUN   TestProjectIsIndependentOfSourceMapInsertionOrder
+  --- PASS: TestProjectIsIndependentOfSourceMapInsertionOrder (0.15s)
+  === RUN   TestProjectEmptyAndPartialReplicaMetadata
+  --- PASS: TestProjectEmptyAndPartialReplicaMetadata (0.18s)
+  === RUN   TestSnapshotForbiddenCanonicalAndPrivateFields
+  --- PASS: TestSnapshotForbiddenCanonicalAndPrivateFields (0.00s)
+  === RUN   TestSignedFixtureHasExpectedSourceCounts
+  --- PASS: TestSignedFixtureHasExpectedSourceCounts (0.16s)
+  === RUN   TestFilterNormalizationSortsDeduplicatesAndReturnsEveryFamily
+  --- PASS: TestFilterNormalizationSortsDeduplicatesAndReturnsEveryFamily (0.00s)
+  === RUN   TestFilterValidationUsesLedgerDomainGrammar
+  === RUN   TestFilterValidationUsesLedgerDomainGrammar/namespace
+  === RUN   TestFilterValidationUsesLedgerDomainGrammar/type
+  === RUN   TestFilterValidationUsesLedgerDomainGrammar/kind
+  === RUN   TestFilterValidationUsesLedgerDomainGrammar/subject
+  === RUN   TestFilterValidationUsesLedgerDomainGrammar/actor
+  === RUN   TestFilterValidationUsesLedgerDomainGrammar/tag
+  === RUN   TestFilterValidationUsesLedgerDomainGrammar/schema
+  === RUN   TestFilterValidationUsesLedgerDomainGrammar/event_ref
+  === RUN   TestFilterValidationUsesLedgerDomainGrammar/caused_by
+  === RUN   TestFilterValidationUsesLedgerDomainGrammar/supersedes
+  --- PASS: TestFilterValidationUsesLedgerDomainGrammar (0.00s)
+      --- PASS: TestFilterValidationUsesLedgerDomainGrammar/namespace (0.00s)
+      --- PASS: TestFilterValidationUsesLedgerDomainGrammar/type (0.00s)
+      --- PASS: TestFilterValidationUsesLedgerDomainGrammar/kind (0.00s)
+      --- PASS: TestFilterValidationUsesLedgerDomainGrammar/subject (0.00s)
+      --- PASS: TestFilterValidationUsesLedgerDomainGrammar/actor (0.00s)
+      --- PASS: TestFilterValidationUsesLedgerDomainGrammar/tag (0.00s)
+      --- PASS: TestFilterValidationUsesLedgerDomainGrammar/schema (0.00s)
+      --- PASS: TestFilterValidationUsesLedgerDomainGrammar/event_ref (0.00s)
+      --- PASS: TestFilterValidationUsesLedgerDomainGrammar/caused_by (0.00s)
+      --- PASS: TestFilterValidationUsesLedgerDomainGrammar/supersedes (0.00s)
+  === RUN   TestFilterSecretHazardRunsBeforeGrammarAndNeverEchoesRawValue
+  --- PASS: TestFilterSecretHazardRunsBeforeGrammarAndNeverEchoesRawValue (0.00s)
+  === RUN   TestFilterAndPageLimitsAllowExactBoundsAndRejectFirstExcess
+  --- PASS: TestFilterAndPageLimitsAllowExactBoundsAndRejectFirstExcess (0.00s)
+  === RUN   TestFilterLimitStopsAtFirstUniqueExcess
+  --- PASS: TestFilterLimitStopsAtFirstUniqueExcess (0.00s)
+  === RUN   TestQueryValidatesManagerAndContextBeforeNormalization
+  --- PASS: TestQueryValidatesManagerAndContextBeforeNormalization (0.00s)
+  === RUN   TestPredicateSQLUsesFixedClausesParametersAndCausalOrder
+  --- PASS: TestPredicateSQLUsesFixedClausesParametersAndCausalOrder (0.00s)
+  === RUN   TestPredicateFamiliesUseORWithinAndANDAcrossAndRespectNamespaceBoundary
+  === RUN   TestPredicateFamiliesUseORWithinAndANDAcrossAndRespectNamespaceBoundary/or_within
+  === RUN   TestPredicateFamiliesUseORWithinAndANDAcrossAndRespectNamespaceBoundary/and_across
+  === RUN   TestPredicateFamiliesUseORWithinAndANDAcrossAndRespectNamespaceBoundary/exact_namespace
+  === RUN   TestPredicateFamiliesUseORWithinAndANDAcrossAndRespectNamespaceBoundary/not_lexical_prefix
+  --- PASS: TestPredicateFamiliesUseORWithinAndANDAcrossAndRespectNamespaceBoundary (0.16s)
+      --- PASS: TestPredicateFamiliesUseORWithinAndANDAcrossAndRespectNamespaceBoundary/or_within (0.00s)
+      --- PASS: TestPredicateFamiliesUseORWithinAndANDAcrossAndRespectNamespaceBoundary/and_across (0.00s)
+      --- PASS: TestPredicateFamiliesUseORWithinAndANDAcrossAndRespectNamespaceBoundary/exact_namespace (0.00s)
+      --- PASS: TestPredicateFamiliesUseORWithinAndANDAcrossAndRespectNamespaceBoundary/not_lexical_prefix (0.00s)
+  === RUN   TestSelectedRowRejectsNegativeCausalBatchAsIndexCorrupt
+  --- PASS: TestSelectedRowRejectsNegativeCausalBatchAsIndexCorrupt (0.00s)
+  === RUN   TestRebuildIgnoresDeepRefPathOutsideCanonicalSource
+  --- PASS: TestRebuildIgnoresDeepRefPathOutsideCanonicalSource (0.18s)
+  === RUN   TestCanonicalSourceProofDetectsObjectChange
+  --- PASS: TestCanonicalSourceProofDetectsObjectChange (0.16s)
+  === RUN   TestRebuildCreatesThenReplacesValidatedIndex
+  --- PASS: TestRebuildCreatesThenReplacesValidatedIndex (0.20s)
+  === RUN   TestPrepareIndexPathsCreatesMissingDirectory
+  --- PASS: TestPrepareIndexPathsCreatesMissingDirectory (0.00s)
+  === RUN   TestPrepareIndexPathsPreservesObstructions
+  === RUN   TestPrepareIndexPathsPreservesObstructions/file
+  === RUN   TestPrepareIndexPathsPreservesObstructions/symlink
+  === RUN   TestPrepareIndexPathsPreservesObstructions/dangling-symlink
+  --- PASS: TestPrepareIndexPathsPreservesObstructions (0.00s)
+      --- PASS: TestPrepareIndexPathsPreservesObstructions/file (0.00s)
+      --- PASS: TestPrepareIndexPathsPreservesObstructions/symlink (0.00s)
+      --- PASS: TestPrepareIndexPathsPreservesObstructions/dangling-symlink (0.00s)
+  === RUN   TestRebuildRefusesInvalidSourceAndCancellation
+  --- PASS: TestRebuildRefusesInvalidSourceAndCancellation (0.05s)
+  === RUN   TestRebuildCleansOnlySafeStaleTemps
+  --- PASS: TestRebuildCleansOnlySafeStaleTemps (0.06s)
+  === RUN   TestRebuildRefusesSymlinkedTempWithoutFollowingIt
+  --- PASS: TestRebuildRefusesSymlinkedTempWithoutFollowingIt (0.03s)
+  === RUN   TestRebuildRefusesSymlinkedStoreBeforeTempCleanup
+  --- PASS: TestRebuildRefusesSymlinkedStoreBeforeTempCleanup (0.03s)
+  === RUN   TestRebuildPrePublicationFaultsPreserveOldBytes
+  === RUN   TestRebuildPrePublicationFaultsPreserveOldBytes/writer
+  === RUN   TestRebuildPrePublicationFaultsPreserveOldBytes/commit
+  === RUN   TestRebuildPrePublicationFaultsPreserveOldBytes/close
+  === RUN   TestRebuildPrePublicationFaultsPreserveOldBytes/file_sync
+  === RUN   TestRebuildPrePublicationFaultsPreserveOldBytes/built_validation
+  === RUN   TestRebuildPrePublicationFaultsPreserveOldBytes/rename
+  --- PASS: TestRebuildPrePublicationFaultsPreserveOldBytes (1.13s)
+      --- PASS: TestRebuildPrePublicationFaultsPreserveOldBytes/writer (0.17s)
+      --- PASS: TestRebuildPrePublicationFaultsPreserveOldBytes/commit (0.18s)
+      --- PASS: TestRebuildPrePublicationFaultsPreserveOldBytes/close (0.18s)
+      --- PASS: TestRebuildPrePublicationFaultsPreserveOldBytes/file_sync (0.18s)
+      --- PASS: TestRebuildPrePublicationFaultsPreserveOldBytes/built_validation (0.23s)
+      --- PASS: TestRebuildPrePublicationFaultsPreserveOldBytes/rename (0.18s)
+  === RUN   TestRebuildFirstBuildFaultLeavesNoLiveFile
+  --- PASS: TestRebuildFirstBuildFaultLeavesNoLiveFile (0.04s)
+  === RUN   TestRebuildRefusesOversizeBuiltDatabaseBeforeRename
+  --- PASS: TestRebuildRefusesOversizeBuiltDatabaseBeforeRename (0.16s)
+  === RUN   TestRebuildRefusesSidecarBeforePublication
+  --- PASS: TestRebuildRefusesSidecarBeforePublication (0.03s)
+  === RUN   TestRebuildRefusesLiveSidecarBeforeRename
+  --- PASS: TestRebuildRefusesLiveSidecarBeforeRename (0.20s)
+  === RUN   TestRebuildPropagatesCancellationDuringPreparedExec
+  --- PASS: TestRebuildPropagatesCancellationDuringPreparedExec (0.16s)
+  === RUN   TestRebuildPreparedExecFailurePreservesCauseAndOldBytes
+  --- PASS: TestRebuildPreparedExecFailurePreservesCauseAndOldBytes (0.17s)
+  === RUN   TestIndexRowWriteErrorsHideDriverTextAndPreserveCause
+  === RUN   TestIndexRowWriteErrorsHideDriverTextAndPreserveCause/actual_prepare_failure
+  === RUN   TestIndexRowWriteErrorsHideDriverTextAndPreserveCause/custom_execution_failure
+  === RUN   TestIndexRowWriteErrorsHideDriverTextAndPreserveCause/context_remains_exact
+  === RUN   TestIndexRowWriteErrorsHideDriverTextAndPreserveCause/deadline_remains_exact
+  --- PASS: TestIndexRowWriteErrorsHideDriverTextAndPreserveCause (0.00s)
+      --- PASS: TestIndexRowWriteErrorsHideDriverTextAndPreserveCause/actual_prepare_failure (0.00s)
+      --- PASS: TestIndexRowWriteErrorsHideDriverTextAndPreserveCause/custom_execution_failure (0.00s)
+      --- PASS: TestIndexRowWriteErrorsHideDriverTextAndPreserveCause/context_remains_exact (0.00s)
+      --- PASS: TestIndexRowWriteErrorsHideDriverTextAndPreserveCause/deadline_remains_exact (0.00s)
+  === RUN   TestRebuildCancellationAfterSyncPreventsRename
+  --- PASS: TestRebuildCancellationAfterSyncPreventsRename (0.28s)
+  === RUN   TestRebuildReportsPostPublicationFaults
+  === RUN   TestRebuildReportsPostPublicationFaults/directory_sync/create
+  === RUN   TestRebuildReportsPostPublicationFaults/directory_sync/replace
+  === RUN   TestRebuildReportsPostPublicationFaults/published_reopen/create
+  === RUN   TestRebuildReportsPostPublicationFaults/published_reopen/replace
+  --- PASS: TestRebuildReportsPostPublicationFaults (0.32s)
+      --- PASS: TestRebuildReportsPostPublicationFaults/directory_sync/create (0.04s)
+      --- PASS: TestRebuildReportsPostPublicationFaults/directory_sync/replace (0.10s)
+      --- PASS: TestRebuildReportsPostPublicationFaults/published_reopen/create (0.07s)
+      --- PASS: TestRebuildReportsPostPublicationFaults/published_reopen/replace (0.10s)
+  === RUN   TestConcurrentCanonicalPublicationWaitsForFullRebuildLock
+  --- PASS: TestConcurrentCanonicalPublicationWaitsForFullRebuildLock (0.30s)
+  === RUN   TestCreateSchemaInstallsExactSQLiteV1Schema
+  --- PASS: TestCreateSchemaInstallsExactSQLiteV1Schema (0.00s)
+  === RUN   TestCreateSchemaEnforcesChecksAndForeignKeys
+  --- PASS: TestCreateSchemaEnforcesChecksAndForeignKeys (0.00s)
+  === RUN   TestSchemaDigestFixedVector
+  --- PASS: TestSchemaDigestFixedVector (0.00s)
+  === RUN   TestValidateRejectsConnectionWithoutFixedReaderPragmas
+  --- PASS: TestValidateRejectsConnectionWithoutFixedReaderPragmas (0.16s)
+  === RUN   TestStatusClassifiesCurrentCompleteReplica
+  --- PASS: TestStatusClassifiesCurrentCompleteReplica (0.07s)
+  === RUN   TestStatusInvalidSourceRetainsStableCode
+  --- PASS: TestStatusInvalidSourceRetainsStableCode (0.08s)
+  === RUN   TestStatusClassifiesMissingWithoutMutatingIndexDirectory
+  --- PASS: TestStatusClassifiesMissingWithoutMutatingIndexDirectory (0.03s)
+  === RUN   TestStatusClassifiesCurrentPartialReplica
+  --- PASS: TestStatusClassifiesCurrentPartialReplica (0.16s)
+  === RUN   TestStatusClassifiesRecognizedDatabaseStates
+  === RUN   TestStatusClassifiesRecognizedDatabaseStates/corrupt_metadata_digest
+  === RUN   TestStatusClassifiesRecognizedDatabaseStates/incompatible_application_ID
+  === RUN   TestStatusClassifiesRecognizedDatabaseStates/incompatible_user_version
+  === RUN   TestStatusClassifiesRecognizedDatabaseStates/unauthorized_view
+  --- PASS: TestStatusClassifiesRecognizedDatabaseStates (0.59s)
+      --- PASS: TestStatusClassifiesRecognizedDatabaseStates/corrupt_metadata_digest (0.16s)
+      --- PASS: TestStatusClassifiesRecognizedDatabaseStates/incompatible_application_ID (0.14s)
+      --- PASS: TestStatusClassifiesRecognizedDatabaseStates/incompatible_user_version (0.14s)
+      --- PASS: TestStatusClassifiesRecognizedDatabaseStates/unauthorized_view (0.15s)
+  === RUN   TestStatusClassificationPrecedence
+  === RUN   TestStatusClassificationPrecedence/corrupt_beats_incompatible
+  === RUN   TestStatusClassificationPrecedence/same-source_row_divergence_is_partial-build
+  === RUN   TestStatusClassificationPrecedence/corrupt_metadata_beats_safely_queryable_incompatible_schema
+  --- PASS: TestStatusClassificationPrecedence (0.44s)
+      --- PASS: TestStatusClassificationPrecedence/corrupt_beats_incompatible (0.15s)
+      --- PASS: TestStatusClassificationPrecedence/same-source_row_divergence_is_partial-build (0.15s)
+      --- PASS: TestStatusClassificationPrecedence/corrupt_metadata_beats_safely_queryable_incompatible_schema (0.14s)
+  === RUN   TestStatusClassifiesValidSourceShrinkAsStale
+  --- PASS: TestStatusClassifiesValidSourceShrinkAsStale (0.08s)
+  === RUN   TestDeclaredStoredCountsEnforceFixedBoundsAndRelationships
+  === RUN   TestDeclaredStoredCountsEnforceFixedBoundsAndRelationships/source_count_objects=100001
+  === RUN   TestDeclaredStoredCountsEnforceFixedBoundsAndRelationships/row_count_events=250001
+  === RUN   TestDeclaredStoredCountsEnforceFixedBoundsAndRelationships/source_count_edges=1000001
+  === RUN   TestDeclaredStoredCountsEnforceFixedBoundsAndRelationships/source_count_canonical_bytes=1073741825
+  === RUN   TestDeclaredStoredCountsEnforceFixedBoundsAndRelationships/row_count_event_tags=101
+  === RUN   TestDeclaredStoredCountsEnforceFixedBoundsAndRelationships/row_count_checkpoint_schema_refs=101
+  === RUN   TestDeclaredStoredCountsEnforceFixedBoundsAndRelationships/row_count_commits=2
+  === RUN   TestDeclaredStoredCountsEnforceFixedBoundsAndRelationships/row_count_index_meta=24
+  === RUN   TestDeclaredStoredCountsEnforceFixedBoundsAndRelationships/commit_addition_operand
+  === RUN   TestDeclaredStoredCountsEnforceFixedBoundsAndRelationships/checkpoint_addition_operand
+  === RUN   TestDeclaredStoredCountsEnforceFixedBoundsAndRelationships/parent_edge_addition_operand
+  === RUN   TestDeclaredStoredCountsEnforceFixedBoundsAndRelationships/event_link_addition_operand
+  === RUN   TestDeclaredStoredCountsEnforceFixedBoundsAndRelationships/frontier_addition_operand
+  --- PASS: TestDeclaredStoredCountsEnforceFixedBoundsAndRelationships (0.00s)
+      --- PASS: TestDeclaredStoredCountsEnforceFixedBoundsAndRelationships/source_count_objects=100001 (0.00s)
+      --- PASS: TestDeclaredStoredCountsEnforceFixedBoundsAndRelationships/row_count_events=250001 (0.00s)
+      --- PASS: TestDeclaredStoredCountsEnforceFixedBoundsAndRelationships/source_count_edges=1000001 (0.00s)
+      --- PASS: TestDeclaredStoredCountsEnforceFixedBoundsAndRelationships/source_count_canonical_bytes=1073741825 (0.00s)
+      --- PASS: TestDeclaredStoredCountsEnforceFixedBoundsAndRelationships/row_count_event_tags=101 (0.00s)
+      --- PASS: TestDeclaredStoredCountsEnforceFixedBoundsAndRelationships/row_count_checkpoint_schema_refs=101 (0.00s)
+      --- PASS: TestDeclaredStoredCountsEnforceFixedBoundsAndRelationships/row_count_commits=2 (0.00s)
+      --- PASS: TestDeclaredStoredCountsEnforceFixedBoundsAndRelationships/row_count_index_meta=24 (0.00s)
+      --- PASS: TestDeclaredStoredCountsEnforceFixedBoundsAndRelationships/commit_addition_operand (0.00s)
+      --- PASS: TestDeclaredStoredCountsEnforceFixedBoundsAndRelationships/checkpoint_addition_operand (0.00s)
+      --- PASS: TestDeclaredStoredCountsEnforceFixedBoundsAndRelationships/parent_edge_addition_operand (0.00s)
+      --- PASS: TestDeclaredStoredCountsEnforceFixedBoundsAndRelationships/event_link_addition_operand (0.00s)
+      --- PASS: TestDeclaredStoredCountsEnforceFixedBoundsAndRelationships/frontier_addition_operand (0.00s)
+  === RUN   TestStatusValidationDamageMatrix
+  === RUN   TestStatusValidationDamageMatrix/metadata_key_missing
+  === RUN   TestStatusValidationDamageMatrix/metadata_numeric_malformed
+  === RUN   TestStatusValidationDamageMatrix/metadata_format_unsupported
+  === RUN   TestStatusValidationDamageMatrix/metadata_schema_digest_unsupported
+  === RUN   TestStatusValidationDamageMatrix/required_index_missing
+  === RUN   TestStatusValidationDamageMatrix/required_column_missing
+  === RUN   TestStatusValidationDamageMatrix/required_check_changed
+  === RUN   TestStatusValidationDamageMatrix/unauthorized_table
+  === RUN   TestStatusValidationDamageMatrix/unauthorized_trigger
+  === RUN   TestStatusValidationDamageMatrix/typed_row_changed
+  === RUN   TestStatusValidationDamageMatrix/stored_row_count_changed
+  === RUN   TestStatusValidationDamageMatrix/foreign_key_violation
+  --- PASS: TestStatusValidationDamageMatrix (2.15s)
+      --- PASS: TestStatusValidationDamageMatrix/metadata_key_missing (0.16s)
+      --- PASS: TestStatusValidationDamageMatrix/metadata_numeric_malformed (0.17s)
+      --- PASS: TestStatusValidationDamageMatrix/metadata_format_unsupported (0.17s)
+      --- PASS: TestStatusValidationDamageMatrix/metadata_schema_digest_unsupported (0.15s)
+      --- PASS: TestStatusValidationDamageMatrix/required_index_missing (0.15s)
+      --- PASS: TestStatusValidationDamageMatrix/required_column_missing (0.29s)
+      --- PASS: TestStatusValidationDamageMatrix/required_check_changed (0.18s)
+      --- PASS: TestStatusValidationDamageMatrix/unauthorized_table (0.17s)
+      --- PASS: TestStatusValidationDamageMatrix/unauthorized_trigger (0.19s)
+      --- PASS: TestStatusValidationDamageMatrix/typed_row_changed (0.18s)
+      --- PASS: TestStatusValidationDamageMatrix/stored_row_count_changed (0.16s)
+      --- PASS: TestStatusValidationDamageMatrix/foreign_key_violation (0.18s)
+  === RUN   TestStatusMissingIndexDirectoryIsMissing
+  --- PASS: TestStatusMissingIndexDirectoryIsMissing (0.04s)
+  === RUN   TestStatusRejectsLiveSidecars
+  --- PASS: TestStatusRejectsLiveSidecars (0.17s)
+  === RUN   TestValidationPropagatesCancellationDuringRepresentativeIteration
+  --- PASS: TestValidationPropagatesCancellationDuringRepresentativeIteration (0.18s)
+  === RUN   TestValidationPropagatesCancellationDuringStreamedRowValidation
+  --- PASS: TestValidationPropagatesCancellationDuringStreamedRowValidation (0.17s)
+  === RUN   TestStatusClassifiesRealQuickCheckDamageCorrupt
+  --- PASS: TestStatusClassifiesRealQuickCheckDamageCorrupt (0.19s)
+  === RUN   TestReaderCloseFailureClassifiesCorrupt
+  --- PASS: TestReaderCloseFailureClassifiesCorrupt (0.19s)
+  === RUN   TestValidationPreflightRejectsExcessRowsAtAdmissionSentinel
+  --- PASS: TestValidationPreflightRejectsExcessRowsAtAdmissionSentinel (0.00s)
+  === RUN   TestValidationPreflightUsesStoredTextBytes
+  --- PASS: TestValidationPreflightUsesStoredTextBytes (0.01s)
+  === RUN   TestStatusHandlesSparse900MiBDatabaseWithoutMaterializingIt
+  --- PASS: TestStatusHandlesSparse900MiBDatabaseWithoutMaterializingIt (0.18s)
+  === RUN   TestStatusClassifiesUnsafeAndOversizeFilesAsCorrupt
+  === RUN   TestStatusClassifiesUnsafeAndOversizeFilesAsCorrupt/live_symlink
+  === RUN   TestStatusClassifiesUnsafeAndOversizeFilesAsCorrupt/sparse_exact_maximum_reaches_SQLite_validation
+  === RUN   TestStatusClassifiesUnsafeAndOversizeFilesAsCorrupt/sparse_oversize_file
+  === RUN   TestStatusClassifiesUnsafeAndOversizeFilesAsCorrupt/damaged_SQLite_header
+  --- PASS: TestStatusClassifiesUnsafeAndOversizeFilesAsCorrupt (0.73s)
+      --- PASS: TestStatusClassifiesUnsafeAndOversizeFilesAsCorrupt/live_symlink (0.19s)
+      --- PASS: TestStatusClassifiesUnsafeAndOversizeFilesAsCorrupt/sparse_exact_maximum_reaches_SQLite_validation (0.19s)
+      --- PASS: TestStatusClassifiesUnsafeAndOversizeFilesAsCorrupt/sparse_oversize_file (0.18s)
+      --- PASS: TestStatusClassifiesUnsafeAndOversizeFilesAsCorrupt/damaged_SQLite_header (0.17s)
+  === RUN   TestStatusClassifiesSelfConsistentRowsBeyondCurrentSourceAsPartialBuild
+  --- PASS: TestStatusClassifiesSelfConsistentRowsBeyondCurrentSourceAsPartialBuild (0.19s)
+  === RUN   TestStatusClassifiesStaleWhenRowsRemainInternallyValid
+  --- PASS: TestStatusClassifiesStaleWhenRowsRemainInternallyValid (0.18s)
+  PASS
+  ok  	pact/internal/index	27.699s
+  === RUN   TestCheckpointSelectsCanonicalScopedFrontierAndSchemaRefs
+  --- PASS: TestCheckpointSelectsCanonicalScopedFrontierAndSchemaRefs (0.54s)
+  === RUN   TestCheckpointWireVector
+  --- PASS: TestCheckpointWireVector (0.33s)
+  === RUN   TestCheckpointRequiresTrustedRootBeforePersistence
+  --- PASS: TestCheckpointRequiresTrustedRootBeforePersistence (0.32s)
+  === RUN   TestCheckpointAdmitsExactObjectLimit
+  --- PASS: TestCheckpointAdmitsExactObjectLimit (1.22s)
+  === RUN   TestCheckpointRejectsFirstObjectByteOverLimitBeforePersistence
+  --- PASS: TestCheckpointRejectsFirstObjectByteOverLimitBeforePersistence (0.69s)
+  === RUN   TestCheckpointRejectsEmptyScopeBadPreviousAndMalformedRefsBeforePersistence
+  --- PASS: TestCheckpointRejectsEmptyScopeBadPreviousAndMalformedRefsBeforePersistence (0.29s)
+  === RUN   TestCheckpointChainsOnlyToValidCheckpoint
+  --- PASS: TestCheckpointChainsOnlyToValidCheckpoint (0.33s)
+  === RUN   TestCheckpointRefusesInvalidOrIncompleteStrictStore
+  === RUN   TestCheckpointRefusesInvalidOrIncompleteStrictStore/invalid_object
+  === RUN   TestCheckpointRefusesInvalidOrIncompleteStrictStore/unresolved_reference
+  --- PASS: TestCheckpointRefusesInvalidOrIncompleteStrictStore (0.52s)
+      --- PASS: TestCheckpointRefusesInvalidOrIncompleteStrictStore/invalid_object (0.28s)
+      --- PASS: TestCheckpointRefusesInvalidOrIncompleteStrictStore/unresolved_reference (0.24s)
+  === RUN   TestVerifyCheckpointTreatsFrontierAsHistoricalCut
+  --- PASS: TestVerifyCheckpointTreatsFrontierAsHistoricalCut (0.42s)
+  === RUN   TestPrepareParentsAdmitsExactLimitAndRejectsFirstExcess
+  === RUN   TestPrepareParentsAdmitsExactLimitAndRejectsFirstExcess/64_parents
+  === RUN   TestPrepareParentsAdmitsExactLimitAndRejectsFirstExcess/65_parents
+  --- PASS: TestPrepareParentsAdmitsExactLimitAndRejectsFirstExcess (0.00s)
+      --- PASS: TestPrepareParentsAdmitsExactLimitAndRejectsFirstExcess/64_parents (0.00s)
+      --- PASS: TestPrepareParentsAdmitsExactLimitAndRejectsFirstExcess/65_parents (0.00s)
+  === RUN   TestPrepareParentsStopsAtFirstDistinctExcess
+  --- PASS: TestPrepareParentsStopsAtFirstDistinctExcess (0.00s)
+  === RUN   TestCommitRejectsOversizeCanonicalObjectBeforePublication
+  --- PASS: TestCommitRejectsOversizeCanonicalObjectBeforePublication (0.79s)
+  === RUN   TestCommitSignsNormalizedBatchAndExpandsLocalRefsInResult
+  --- PASS: TestCommitSignsNormalizedBatchAndExpandsLocalRefsInResult (0.20s)
+  === RUN   TestCommitDefaultsToAllExactNamespaceHeadsAndAllowsExplicitFork
+  --- PASS: TestCommitDefaultsToAllExactNamespaceHeadsAndAllowsExplicitFork (0.44s)
+  === RUN   TestCommitRejectsUnavailableOrCrossNamespaceParents
+  --- PASS: TestCommitRejectsUnavailableOrCrossNamespaceParents (0.28s)
+  === RUN   TestCommitPreflightRejectsMutatedBatchBeforePersistence
+  --- PASS: TestCommitPreflightRejectsMutatedBatchBeforePersistence (0.22s)
+  === RUN   TestCommitPreflightRejectsInvalidKeyAndDeduplicatesExplicitParents
+  --- PASS: TestCommitPreflightRejectsInvalidKeyAndDeduplicatesExplicitParents (0.23s)
+  === RUN   TestHeadsAndCommitRefuseInvalidCanonicalHistory
+  --- PASS: TestHeadsAndCommitRefuseInvalidCanonicalHistory (0.20s)
+  === RUN   TestEventReferenceNormalizationHonorsMidLoopCancellation
+  --- PASS: TestEventReferenceNormalizationHonorsMidLoopCancellation (0.00s)
+  === RUN   TestExactKeyValidationHonorsMidLoopCancellation
+  --- PASS: TestExactKeyValidationHonorsMidLoopCancellation (0.00s)
+  === RUN   TestCanonicalObjectNormalizationHonorsMidLoopCancellation
+  --- PASS: TestCanonicalObjectNormalizationHonorsMidLoopCancellation (0.00s)
+  === RUN   TestEventBatchSortingHonorsMidLoopCancellation
+  --- PASS: TestEventBatchSortingHonorsMidLoopCancellation (0.00s)
+  === RUN   TestNormalizeEventBatchAdmitsExactEventLimitAndRejectsFirstExcess
+  === RUN   TestNormalizeEventBatchAdmitsExactEventLimitAndRejectsFirstExcess/1024_events
+  === RUN   TestNormalizeEventBatchAdmitsExactEventLimitAndRejectsFirstExcess/1025_events
+  --- PASS: TestNormalizeEventBatchAdmitsExactEventLimitAndRejectsFirstExcess (0.01s)
+      --- PASS: TestNormalizeEventBatchAdmitsExactEventLimitAndRejectsFirstExcess/1024_events (0.01s)
+      --- PASS: TestNormalizeEventBatchAdmitsExactEventLimitAndRejectsFirstExcess/1025_events (0.00s)
+  === RUN   TestNormalizeEventBatchCanonicalizesAndSorts
+  --- PASS: TestNormalizeEventBatchCanonicalizesAndSorts (0.00s)
+  === RUN   TestNormalizeEventBatchRejectsInvalidInputAndSecretHazards
+  === RUN   TestNormalizeEventBatchRejectsInvalidInputAndSecretHazards/duplicate_local_id
+  === RUN   TestNormalizeEventBatchRejectsInvalidInputAndSecretHazards/missing_local_cause
+  === RUN   TestNormalizeEventBatchRejectsInvalidInputAndSecretHazards/self_cause
+  === RUN   TestNormalizeEventBatchRejectsInvalidInputAndSecretHazards/bad_namespace
+  === RUN   TestNormalizeEventBatchRejectsInvalidInputAndSecretHazards/unsupported_field
+  --- PASS: TestNormalizeEventBatchRejectsInvalidInputAndSecretHazards (0.00s)
+      --- PASS: TestNormalizeEventBatchRejectsInvalidInputAndSecretHazards/duplicate_local_id (0.00s)
+      --- PASS: TestNormalizeEventBatchRejectsInvalidInputAndSecretHazards/missing_local_cause (0.00s)
+      --- PASS: TestNormalizeEventBatchRejectsInvalidInputAndSecretHazards/self_cause (0.00s)
+      --- PASS: TestNormalizeEventBatchRejectsInvalidInputAndSecretHazards/bad_namespace (0.00s)
+      --- PASS: TestNormalizeEventBatchRejectsInvalidInputAndSecretHazards/unsupported_field (0.00s)
+  === RUN   TestNormalizeEventBatchReportsCredentialBearingURLWithoutValue
+  --- PASS: TestNormalizeEventBatchReportsCredentialBearingURLWithoutValue (0.00s)
+  === RUN   TestNormalizeEventBatchScansRawReferencesBeforeValidationWithoutLeakingValues
+  === RUN   TestNormalizeEventBatchScansRawReferencesBeforeValidationWithoutLeakingValues/caused_by/PEM
+  === RUN   TestNormalizeEventBatchScansRawReferencesBeforeValidationWithoutLeakingValues/caused_by/token
+  === RUN   TestNormalizeEventBatchScansRawReferencesBeforeValidationWithoutLeakingValues/supersedes/token
+  === RUN   TestNormalizeEventBatchScansRawReferencesBeforeValidationWithoutLeakingValues/supersedes/PEM
+  --- PASS: TestNormalizeEventBatchScansRawReferencesBeforeValidationWithoutLeakingValues (0.00s)
+      --- PASS: TestNormalizeEventBatchScansRawReferencesBeforeValidationWithoutLeakingValues/caused_by/PEM (0.00s)
+      --- PASS: TestNormalizeEventBatchScansRawReferencesBeforeValidationWithoutLeakingValues/caused_by/token (0.00s)
+      --- PASS: TestNormalizeEventBatchScansRawReferencesBeforeValidationWithoutLeakingValues/supersedes/token (0.00s)
+      --- PASS: TestNormalizeEventBatchScansRawReferencesBeforeValidationWithoutLeakingValues/supersedes/PEM (0.00s)
+  === RUN   TestNormalizeEventBatchInvalidReferencesReportOnlyPathAndClass
+  --- PASS: TestNormalizeEventBatchInvalidReferencesReportOnlyPathAndClass (0.00s)
+  === RUN   TestNormalizeEventBatchSecretEnvironmentPlaceholdersMatchOracle
+  --- PASS: TestNormalizeEventBatchSecretEnvironmentPlaceholdersMatchOracle (0.00s)
+  === RUN   TestNormalizeEventBatchUsesRuneLimits
+  --- PASS: TestNormalizeEventBatchUsesRuneLimits (0.00s)
+  === RUN   TestNormalizeEventBatchExactKeyErrorsAreSortedAndStable
+  === RUN   TestNormalizeEventBatchExactKeyErrorsAreSortedAndStable/missing
+  === RUN   TestNormalizeEventBatchExactKeyErrorsAreSortedAndStable/extra
+  --- PASS: TestNormalizeEventBatchExactKeyErrorsAreSortedAndStable (0.00s)
+      --- PASS: TestNormalizeEventBatchExactKeyErrorsAreSortedAndStable/missing (0.00s)
+      --- PASS: TestNormalizeEventBatchExactKeyErrorsAreSortedAndStable/extra (0.00s)
+  === RUN   TestCausalGraphUsesSyntheticGatesParentsAndCausedByButNotSupersedes
+  --- PASS: TestCausalGraphUsesSyntheticGatesParentsAndCausedByButNotSupersedes (0.00s)
+  === RUN   TestCausalGraphPropagatesMissingParentsAndCausedByButNotSupersedes
+  --- PASS: TestCausalGraphPropagatesMissingParentsAndCausedByButNotSupersedes (0.00s)
+  === RUN   TestCausalGraphAllowsResolvedCrossNamespaceCausedBy
+  --- PASS: TestCausalGraphAllowsResolvedCrossNamespaceCausedBy (0.00s)
+  === RUN   TestCausalGraphProcessesWholeSortedFrontierDeterministically
+  --- PASS: TestCausalGraphProcessesWholeSortedFrontierDeterministically (0.00s)
+  === RUN   TestCausalGraphReportsParentAndCausedByCycles
+  --- PASS: TestCausalGraphReportsParentAndCausedByCycles (0.00s)
+  === RUN   TestCausalDepthAllows4096AndRejects4097SignedEdges
+  === RUN   TestCausalDepthAllows4096AndRejects4097SignedEdges/4096
+  === RUN   TestCausalDepthAllows4096AndRejects4097SignedEdges/4097
+  --- PASS: TestCausalDepthAllows4096AndRejects4097SignedEdges (0.02s)
+      --- PASS: TestCausalDepthAllows4096AndRejects4097SignedEdges/4096 (0.01s)
+      --- PASS: TestCausalDepthAllows4096AndRejects4097SignedEdges/4097 (0.01s)
+  === RUN   TestGraphFrontierAllows4096AndRejects4097Nodes
+  === RUN   TestGraphFrontierAllows4096AndRejects4097Nodes/4096
+  === RUN   TestGraphFrontierAllows4096AndRejects4097Nodes/4097
+  --- PASS: TestGraphFrontierAllows4096AndRejects4097Nodes (0.03s)
+      --- PASS: TestGraphFrontierAllows4096AndRejects4097Nodes/4096 (0.02s)
+      --- PASS: TestGraphFrontierAllows4096AndRejects4097Nodes/4097 (0.01s)
+  === RUN   TestGraphRejectsSubsequentFrontierAtFirstExcessAppend
+  --- PASS: TestGraphRejectsSubsequentFrontierAtFirstExcessAppend (0.00s)
+  === RUN   TestGraphEdgeCounterAllowsMillionAndRejectsFirstExcess
+  --- PASS: TestGraphEdgeCounterAllowsMillionAndRejectsFirstExcess (0.00s)
+  === RUN   TestCausalGraphHonorsCanceledContext
+  --- PASS: TestCausalGraphHonorsCanceledContext (0.00s)
+  === RUN   TestCausalGraphHonorsCancellationDuringInnerWork
+  --- PASS: TestCausalGraphHonorsCancellationDuringInnerWork (0.00s)
+  === RUN   TestUnresolvedPropagationHonorsCancellationWithinLargeOutgoingSet
+  --- PASS: TestUnresolvedPropagationHonorsCancellationWithinLargeOutgoingSet (0.00s)
+  === RUN   TestCausalGraphReportsEveryStableParentCycleWitness
+  --- PASS: TestCausalGraphReportsEveryStableParentCycleWitness (0.00s)
+  === RUN   TestCausalGraphCountsAllCyclesButRetainsOnlyBoundedWitnesses
+  --- PASS: TestCausalGraphCountsAllCyclesButRetainsOnlyBoundedWitnesses (0.00s)
+  === RUN   TestPhase2LimitsMatchApprovedProfile
+  --- PASS: TestPhase2LimitsMatchApprovedProfile (0.00s)
+  === RUN   TestLimitErrorDoesNotExposeUntrustedDetails
+  --- PASS: TestLimitErrorDoesNotExposeUntrustedDetails (0.00s)
+  === RUN   TestSourceFingerprintExactVectors
+  --- PASS: TestSourceFingerprintExactVectors (0.00s)
+  === RUN   TestBoundedSortingStopsBeforeScanningCanceledCollections
+  --- PASS: TestBoundedSortingStopsBeforeScanningCanceledCollections (0.00s)
+  === RUN   TestLedgerMergeSortChecksCancellationBeforeFullBufferAllocation
+  --- PASS: TestLedgerMergeSortChecksCancellationBeforeFullBufferAllocation (0.00s)
+  === RUN   TestCheckpointProjectionCloneHonorsMidLoopCancellation
+  --- PASS: TestCheckpointProjectionCloneHonorsMidLoopCancellation (0.00s)
+  === RUN   TestStoredCommitProjectionHonorsMidLoopCancellation
+  --- PASS: TestStoredCommitProjectionHonorsMidLoopCancellation (0.00s)
+  === RUN   TestStoredCheckpointProjectionHonorsNestedCancellation
+  --- PASS: TestStoredCheckpointProjectionHonorsNestedCancellation (0.00s)
+  === RUN   TestEventRecordProjectionHonorsMidLoopCancellation
+  --- PASS: TestEventRecordProjectionHonorsMidLoopCancellation (0.00s)
+  === RUN   TestEventRecordPublicationHonorsMidLoopCancellation
+  --- PASS: TestEventRecordPublicationHonorsMidLoopCancellation (0.00s)
+  === RUN   TestFinalHeadCloneHonorsNestedCancellation
+  --- PASS: TestFinalHeadCloneHonorsNestedCancellation (0.00s)
+  === RUN   TestResolveCommitProjectionHonorsMidLoopCancellation
+  --- PASS: TestResolveCommitProjectionHonorsMidLoopCancellation (0.21s)
+  === RUN   TestResolveCommitPropagatesCancellationDuringCanonicalParse
+  --- PASS: TestResolveCommitPropagatesCancellationDuringCanonicalParse (0.23s)
+  === RUN   TestDigestMismatchFallbackReadHonorsMidReadCancellation
+  --- PASS: TestDigestMismatchFallbackReadHonorsMidReadCancellation (0.26s)
+  === RUN   TestCanonicalConfirmationHonorsCancellationInsideMarshal
+  --- PASS: TestCanonicalConfirmationHonorsCancellationInsideMarshal (0.00s)
+  === RUN   TestScanEmptyReplica
+  --- PASS: TestScanEmptyReplica (0.10s)
+  === RUN   TestScanCompleteReplicaReturnsTypedImmutableRecords
+  --- PASS: TestScanCompleteReplicaReturnsTypedImmutableRecords (0.19s)
+  === RUN   TestScanPreservesParentsForImplicitCommitChain
+  --- PASS: TestScanPreservesParentsForImplicitCommitChain (0.21s)
+  === RUN   TestScanCompletenessBlockersAreSortedUniqueAndStrictOnlyFailsBlockers
+  --- PASS: TestScanCompletenessBlockersAreSortedUniqueAndStrictOnlyFailsBlockers (0.27s)
+  === RUN   TestRecordCompletenessPropagatesAcrossPresentDependencyClosure
+  --- PASS: TestRecordCompletenessPropagatesAcrossPresentDependencyClosure (0.00s)
+  === RUN   TestScanEnforcesObjectByteEventEdgeAndTotalBounds
+  === RUN   TestScanEnforcesObjectByteEventEdgeAndTotalBounds/object_bytes
+  === RUN   TestScanEnforcesObjectByteEventEdgeAndTotalBounds/canonical_bytes
+  === RUN   TestScanEnforcesObjectByteEventEdgeAndTotalBounds/events
+  === RUN   TestScanEnforcesObjectByteEventEdgeAndTotalBounds/edges
+  --- PASS: TestScanEnforcesObjectByteEventEdgeAndTotalBounds (0.31s)
+      --- PASS: TestScanEnforcesObjectByteEventEdgeAndTotalBounds/object_bytes (0.00s)
+      --- PASS: TestScanEnforcesObjectByteEventEdgeAndTotalBounds/canonical_bytes (0.00s)
+      --- PASS: TestScanEnforcesObjectByteEventEdgeAndTotalBounds/events (0.01s)
+      --- PASS: TestScanEnforcesObjectByteEventEdgeAndTotalBounds/edges (0.00s)
+  === RUN   TestEffectiveScanLimitsCanReduceButNeverRaisePhaseTwoCaps
+  --- PASS: TestEffectiveScanLimitsCanReduceButNeverRaisePhaseTwoCaps (0.00s)
+  === RUN   TestScanResourceAccountingRejectsRawCommitCountsBeforeProjection
+  --- PASS: TestScanResourceAccountingRejectsRawCommitCountsBeforeProjection (0.00s)
+  === RUN   TestScanPreflightsRawCanonicalArraysBeforeStructuralValidation
+  --- PASS: TestScanPreflightsRawCanonicalArraysBeforeStructuralValidation (0.52s)
+  === RUN   TestScanEdgeAccountingIncludesEveryContractCategory
+  --- PASS: TestScanEdgeAccountingIncludesEveryContractCategory (0.33s)
+  === RUN   TestScanProcessesRecordLimitsInObjectIDOrder
+  --- PASS: TestScanProcessesRecordLimitsInObjectIDOrder (0.49s)
+  === RUN   TestScanHonorsCanceledContext
+  --- PASS: TestScanHonorsCanceledContext (0.18s)
+  === RUN   TestScanBoundsDiagnosticSamplesAndText
+  --- PASS: TestScanBoundsDiagnosticSamplesAndText (0.25s)
+  === RUN   TestUnsupportedKeySampleOmissionMarksVerificationDiagnosticsTruncated
+  --- PASS: TestUnsupportedKeySampleOmissionMarksVerificationDiagnosticsTruncated (0.25s)
+  === RUN   TestCanonicalAttackerKeyTruncationReachesVerification
+  --- PASS: TestCanonicalAttackerKeyTruncationReachesVerification (0.15s)
+  === RUN   TestDiagnosticCollectorBoundsAtAppendAndPreservesUTF8
+  --- PASS: TestDiagnosticCollectorBoundsAtAppendAndPreservesUTF8 (0.00s)
+  === RUN   TestVerifyCountsObjectsCanonicalOnce
+  --- PASS: TestVerifyCountsObjectsCanonicalOnce (0.11s)
+  === RUN   TestVerifyPublishesCompletenessAndLimitsFromScan
+  --- PASS: TestVerifyPublishesCompletenessAndLimitsFromScan (0.24s)
+  === RUN   TestResolveCommitUsesBoundedDirectCanonicalLookup
+  --- PASS: TestResolveCommitUsesBoundedDirectCanonicalLookup (0.23s)
+  === RUN   TestResolveCommitReportsTheLimitingEventResource
+  --- PASS: TestResolveCommitReportsTheLimitingEventResource (0.20s)
+  === RUN   TestShowDirectLookupRejectsOversizeCanonicalObject
+  --- PASS: TestShowDirectLookupRejectsOversizeCanonicalObject (0.23s)
+  === RUN   TestRootsContextHonorsCancellationDuringCanonicalWork
+  --- PASS: TestRootsContextHonorsCancellationDuringCanonicalWork (0.15s)
+  === RUN   TestAddRootIsIdempotent
+  --- PASS: TestAddRootIsIdempotent (0.13s)
+  === RUN   TestAddRootRejectsConflictingPublicBytes
+  --- PASS: TestAddRootRejectsConflictingPublicBytes (0.13s)
+  === RUN   TestAddRootPreservesCreatedResultThroughOperationAndLockReleaseFailure
+  --- PASS: TestAddRootPreservesCreatedResultThroughOperationAndLockReleaseFailure (0.12s)
+  === RUN   TestAddRootRefusesTrustFileWithoutExplicitRoots
+  --- PASS: TestAddRootRefusesTrustFileWithoutExplicitRoots (0.13s)
+  === RUN   TestRootsRejectsNonStrictTrustJSON
+  === RUN   TestRootsRejectsNonStrictTrustJSON/trailing
+  === RUN   TestRootsRejectsNonStrictTrustJSON/duplicate
+  === RUN   TestRootsRejectsNonStrictTrustJSON/nfc_collision
+  === RUN   TestRootsRejectsNonStrictTrustJSON/BOM
+  --- PASS: TestRootsRejectsNonStrictTrustJSON (0.09s)
+      --- PASS: TestRootsRejectsNonStrictTrustJSON/trailing (0.00s)
+      --- PASS: TestRootsRejectsNonStrictTrustJSON/duplicate (0.00s)
+      --- PASS: TestRootsRejectsNonStrictTrustJSON/nfc_collision (0.01s)
+      --- PASS: TestRootsRejectsNonStrictTrustJSON/BOM (0.00s)
+  === RUN   TestVerifyContextPreservesCancellationIdentity
+  --- PASS: TestVerifyContextPreservesCancellationIdentity (0.09s)
+  === RUN   TestCommitParentStructuralValidationHonorsMidLoopCancellation
+  --- PASS: TestCommitParentStructuralValidationHonorsMidLoopCancellation (0.00s)
+  === RUN   TestSignatureMaterialProcessingHonorsMidLoopCancellation
+  --- PASS: TestSignatureMaterialProcessingHonorsMidLoopCancellation (0.13s)
+  === RUN   TestCanonicalVerificationPropagatesSignatureCancellation
+  --- PASS: TestCanonicalVerificationPropagatesSignatureCancellation (0.12s)
+  === RUN   TestSignatureBodyCanonicalizationHonorsMidLoopCancellation
+  --- PASS: TestSignatureBodyCanonicalizationHonorsMidLoopCancellation (0.21s)
+  === RUN   TestSignatureEncodedLengthRejectsBeforeDecodeAllocation
+  --- PASS: TestSignatureEncodedLengthRejectsBeforeDecodeAllocation (0.00s)
+  === RUN   TestVerifySeparatesAuthorizationFromAuthenticityAndShowExpandsEvent
+  --- PASS: TestVerifySeparatesAuthorizationFromAuthenticityAndShowExpandsEvent (0.14s)
+  === RUN   TestVerifyPreservesPartialResultWhenTrustEvaluationFails
+  --- PASS: TestVerifyPreservesPartialResultWhenTrustEvaluationFails (0.11s)
+  === RUN   TestVerifyReportsCanonicalPathDigestMismatch
+  --- PASS: TestVerifyReportsCanonicalPathDigestMismatch (0.13s)
+  === RUN   TestShowReturnsTypedIntegrityDetailsForCorruptCanonicalBytes
+  --- PASS: TestShowReturnsTypedIntegrityDetailsForCorruptCanonicalBytes (0.14s)
+  === RUN   TestShowReturnsTypedIntegrityDetailsForUnparseableCanonicalBytes
+  --- PASS: TestShowReturnsTypedIntegrityDetailsForUnparseableCanonicalBytes (0.13s)
+  === RUN   TestShowReturnsTypedIntegrityDetailsForUnreadableCanonicalBytes
+  --- PASS: TestShowReturnsTypedIntegrityDetailsForUnreadableCanonicalBytes (0.15s)
+  === RUN   TestShowAllowsInspectionWhenOnlySignatureAuthenticityFails
+  --- PASS: TestShowAllowsInspectionWhenOnlySignatureAuthenticityFails (0.14s)
+  === RUN   TestShowMissingObjectUsesTypedDependencyError
+  --- PASS: TestShowMissingObjectUsesTypedDependencyError (0.14s)
+  === RUN   TestVerifyStrictEscalatesMissingExternalReferences
+  --- PASS: TestVerifyStrictEscalatesMissingExternalReferences (0.15s)
+  === RUN   TestVerifyRejectsSignatureSubstitution
+  --- PASS: TestVerifyRejectsSignatureSubstitution (0.17s)
+  === RUN   TestVerifyReportsMalformedSignatureFieldsWithoutPanicking
+  --- PASS: TestVerifyReportsMalformedSignatureFieldsWithoutPanicking (0.14s)
+  === RUN   TestVerifyReportsActorSignatureMismatch
+  --- PASS: TestVerifyReportsActorSignatureMismatch (0.18s)
+  === RUN   TestCorrectionCommitLeavesOriginalObjectBytesImmutable
+  --- PASS: TestCorrectionCommitLeavesOriginalObjectBytesImmutable (0.14s)
+  === RUN   TestVerifyMarksFailedCommitStructureInvalid
+  --- PASS: TestVerifyMarksFailedCommitStructureInvalid (0.10s)
+  === RUN   TestVerifyMarksCanonicalNonObjectStructureInvalid
+  --- PASS: TestVerifyMarksCanonicalNonObjectStructureInvalid (0.18s)
+  === RUN   TestVerifyReportsMissingAndCrossNamespaceParentsInDAGLayer
+  --- PASS: TestVerifyReportsMissingAndCrossNamespaceParentsInDAGLayer (0.20s)
+  === RUN   TestVerifyRejectsCheckpointWithMissingOrWrongNamespaceHeads
+  === RUN   TestVerifyRejectsCheckpointWithMissingOrWrongNamespaceHeads/missing_head
+  === RUN   TestVerifyRejectsCheckpointWithMissingOrWrongNamespaceHeads/wrong_namespace
+  --- PASS: TestVerifyRejectsCheckpointWithMissingOrWrongNamespaceHeads (0.29s)
+      --- PASS: TestVerifyRejectsCheckpointWithMissingOrWrongNamespaceHeads/missing_head (0.12s)
+      --- PASS: TestVerifyRejectsCheckpointWithMissingOrWrongNamespaceHeads/wrong_namespace (0.18s)
+  === RUN   TestVerifyRejectsUnavailablePreviousCheckpoint
+  --- PASS: TestVerifyRejectsUnavailablePreviousCheckpoint (0.11s)
+  === RUN   TestVerifyRejectsNoncanonicalCheckpointBody
+  --- PASS: TestVerifyRejectsNoncanonicalCheckpointBody (0.15s)
+  === RUN   TestVerifyRejectsCheckpointFrontierOutsideBodyScope
+  --- PASS: TestVerifyRejectsCheckpointFrontierOutsideBodyScope (0.18s)
+  === RUN   TestVerifyGraphDiagnosticsPublishStableIterativeCycleWitnesses
+  --- PASS: TestVerifyGraphDiagnosticsPublishStableIterativeCycleWitnesses (0.00s)
+  === RUN   TestVerifyReportsStableCausedByCycleFromSignedCommit
+  --- PASS: TestVerifyReportsStableCausedByCycleFromSignedCommit (0.14s)
+  PASS
+  ok  	pact/internal/ledger	16.721s
+  === RUN   TestInspectRejectsInvalidRequestWithoutWrites
+  === RUN   TestInspectRejectsInvalidRequestWithoutWrites/missing_repository
+  === RUN   TestInspectRejectsInvalidRequestWithoutWrites/missing_namespace
+  === RUN   TestInspectRejectsInvalidRequestWithoutWrites/missing_actor
+  === RUN   TestInspectRejectsInvalidRequestWithoutWrites/missing_key_file
+  === RUN   TestInspectRejectsInvalidRequestWithoutWrites/nil_context
+  === RUN   TestInspectRejectsInvalidRequestWithoutWrites/bad_namespace
+  === RUN   TestInspectRejectsInvalidRequestWithoutWrites/unsafe_key_path
+  === RUN   TestInspectRejectsInvalidRequestWithoutWrites/bad_actor
+  --- PASS: TestInspectRejectsInvalidRequestWithoutWrites (0.15s)
+      --- PASS: TestInspectRejectsInvalidRequestWithoutWrites/missing_repository (0.03s)
+      --- PASS: TestInspectRejectsInvalidRequestWithoutWrites/missing_namespace (0.03s)
+      --- PASS: TestInspectRejectsInvalidRequestWithoutWrites/missing_actor (0.01s)
+      --- PASS: TestInspectRejectsInvalidRequestWithoutWrites/missing_key_file (0.03s)
+      --- PASS: TestInspectRejectsInvalidRequestWithoutWrites/nil_context (0.01s)
+      --- PASS: TestInspectRejectsInvalidRequestWithoutWrites/bad_namespace (0.01s)
+      --- PASS: TestInspectRejectsInvalidRequestWithoutWrites/unsafe_key_path (0.01s)
+      --- PASS: TestInspectRejectsInvalidRequestWithoutWrites/bad_actor (0.01s)
+  === RUN   TestInspectObservesSetupStateWithoutWrites
+  === RUN   TestInspectObservesSetupStateWithoutWrites/fresh
+  === RUN   TestInspectObservesSetupStateWithoutWrites/complete
+  === RUN   TestInspectObservesSetupStateWithoutWrites/store_only
+  === RUN   TestInspectObservesSetupStateWithoutWrites/store_and_key
+  === RUN   TestInspectObservesSetupStateWithoutWrites/store_key_and_trust_at_verification_boundary
+  === RUN   TestInspectObservesSetupStateWithoutWrites/store_namespace_conflict
+  === RUN   TestInspectObservesSetupStateWithoutWrites/key_actor_conflict
+  === RUN   TestInspectObservesSetupStateWithoutWrites/malformed_key
+  === RUN   TestInspectObservesSetupStateWithoutWrites/unsafe_key_mode
+  === RUN   TestInspectObservesSetupStateWithoutWrites/project_contained_key
+  === RUN   TestInspectObservesSetupStateWithoutWrites/trust_public_byte_conflict
+  === RUN   TestInspectObservesSetupStateWithoutWrites/corrupt_canonical_state
+  === RUN   TestInspectObservesSetupStateWithoutWrites/missing_index
+  === RUN   TestInspectObservesSetupStateWithoutWrites/stale_index
+  === RUN   TestInspectObservesSetupStateWithoutWrites/corrupt_index
+  === RUN   TestInspectObservesSetupStateWithoutWrites/incompatible_index
+  === RUN   TestInspectObservesSetupStateWithoutWrites/partial_build_index
+  --- PASS: TestInspectObservesSetupStateWithoutWrites (3.91s)
+      --- PASS: TestInspectObservesSetupStateWithoutWrites/fresh (0.01s)
+      --- PASS: TestInspectObservesSetupStateWithoutWrites/complete (0.48s)
+      --- PASS: TestInspectObservesSetupStateWithoutWrites/store_only (0.21s)
+      --- PASS: TestInspectObservesSetupStateWithoutWrites/store_and_key (0.30s)
+      --- PASS: TestInspectObservesSetupStateWithoutWrites/store_key_and_trust_at_verification_boundary (0.29s)
+      --- PASS: TestInspectObservesSetupStateWithoutWrites/store_namespace_conflict (0.11s)
+      --- PASS: TestInspectObservesSetupStateWithoutWrites/key_actor_conflict (0.07s)
+      --- PASS: TestInspectObservesSetupStateWithoutWrites/malformed_key (0.06s)
+      --- PASS: TestInspectObservesSetupStateWithoutWrites/unsafe_key_mode (0.10s)
+      --- PASS: TestInspectObservesSetupStateWithoutWrites/project_contained_key (0.00s)
+      --- PASS: TestInspectObservesSetupStateWithoutWrites/trust_public_byte_conflict (0.18s)
+      --- PASS: TestInspectObservesSetupStateWithoutWrites/corrupt_canonical_state (0.26s)
+      --- PASS: TestInspectObservesSetupStateWithoutWrites/missing_index (0.19s)
+      --- PASS: TestInspectObservesSetupStateWithoutWrites/stale_index (0.38s)
+      --- PASS: TestInspectObservesSetupStateWithoutWrites/corrupt_index (0.32s)
+      --- PASS: TestInspectObservesSetupStateWithoutWrites/incompatible_index (0.36s)
+      --- PASS: TestInspectObservesSetupStateWithoutWrites/partial_build_index (0.57s)
+  === RUN   TestApplyCreatesThenReusesCompleteSetup
+  --- PASS: TestApplyCreatesThenReusesCompleteSetup (0.28s)
+  === RUN   TestApplyResumesFromEachPersistedBoundary
+  === RUN   TestApplyResumesFromEachPersistedBoundary/store
+  === RUN   TestApplyResumesFromEachPersistedBoundary/store_and_key
+  === RUN   TestApplyResumesFromEachPersistedBoundary/store_key_and_trust
+  --- PASS: TestApplyResumesFromEachPersistedBoundary (0.94s)
+      --- PASS: TestApplyResumesFromEachPersistedBoundary/store (0.40s)
+      --- PASS: TestApplyResumesFromEachPersistedBoundary/store_and_key (0.36s)
+      --- PASS: TestApplyResumesFromEachPersistedBoundary/store_key_and_trust (0.18s)
+  === RUN   TestApplyPreservesWinnerBytesOnNamespaceAndActorConflicts
+  === RUN   TestApplyPreservesWinnerBytesOnNamespaceAndActorConflicts/namespace
+  === RUN   TestApplyPreservesWinnerBytesOnNamespaceAndActorConflicts/actor
+  --- PASS: TestApplyPreservesWinnerBytesOnNamespaceAndActorConflicts (0.57s)
+      --- PASS: TestApplyPreservesWinnerBytesOnNamespaceAndActorConflicts/namespace (0.26s)
+      --- PASS: TestApplyPreservesWinnerBytesOnNamespaceAndActorConflicts/actor (0.31s)
+  === RUN   TestApplyRefusesUnsafeKeyWithoutChangingWinner
+  --- PASS: TestApplyRefusesUnsafeKeyWithoutChangingWinner (0.16s)
+  === RUN   TestApplyStopsAtTrustConflictWithoutChangingWinner
+  --- PASS: TestApplyStopsAtTrustConflictWithoutChangingWinner (0.19s)
+  === RUN   TestApplyRefusesCorruptStoreWithoutChangingBytes
+  --- PASS: TestApplyRefusesCorruptStoreWithoutChangingBytes (0.01s)
+  === RUN   TestApplyStopsBeforeIndexWhenStrictVerificationFails
+  --- PASS: TestApplyStopsBeforeIndexWhenStrictVerificationFails (0.24s)
+  === RUN   TestApplyPreservesArbitraryIndexRebuildFailure
+  --- PASS: TestApplyPreservesArbitraryIndexRebuildFailure (0.23s)
+  === RUN   TestApplyPreservesUnsafeLiveIndexWhenRealRebuildFails
+  --- PASS: TestApplyPreservesUnsafeLiveIndexWhenRealRebuildFails (0.25s)
+  === RUN   TestApplyMapsIndexReplacementToRebuilt
+  --- PASS: TestApplyMapsIndexReplacementToRebuilt (0.42s)
+  === RUN   TestApplyNeverConvergesArbitraryOwnerErrors
+  === RUN   TestApplyNeverConvergesArbitraryOwnerErrors/store
+  === RUN   TestApplyNeverConvergesArbitraryOwnerErrors/key
+  === RUN   TestApplyNeverConvergesArbitraryOwnerErrors/trust
+  === RUN   TestApplyNeverConvergesArbitraryOwnerErrors/verify
+  === RUN   TestApplyNeverConvergesArbitraryOwnerErrors/index_status
+  --- PASS: TestApplyNeverConvergesArbitraryOwnerErrors (0.67s)
+      --- PASS: TestApplyNeverConvergesArbitraryOwnerErrors/store (0.01s)
+      --- PASS: TestApplyNeverConvergesArbitraryOwnerErrors/key (0.16s)
+      --- PASS: TestApplyNeverConvergesArbitraryOwnerErrors/trust (0.19s)
+      --- PASS: TestApplyNeverConvergesArbitraryOwnerErrors/verify (0.13s)
+      --- PASS: TestApplyNeverConvergesArbitraryOwnerErrors/index_status (0.19s)
+  === RUN   TestApplyReturnsStoreReleaseErrorAfterValidatedCollision
+  --- PASS: TestApplyReturnsStoreReleaseErrorAfterValidatedCollision (0.13s)
+  === RUN   TestApplyAcceptsDocumentedStoreRenameCollisions
+  === RUN   TestApplyAcceptsDocumentedStoreRenameCollisions/exists
+  === RUN   TestApplyAcceptsDocumentedStoreRenameCollisions/directory_not_empty
+  --- PASS: TestApplyAcceptsDocumentedStoreRenameCollisions (0.58s)
+      --- PASS: TestApplyAcceptsDocumentedStoreRenameCollisions/exists (0.26s)
+      --- PASS: TestApplyAcceptsDocumentedStoreRenameCollisions/directory_not_empty (0.32s)
+  === RUN   TestApplyReturnsJoinedKeyErrorAfterValidatedCollision
+  --- PASS: TestApplyReturnsJoinedKeyErrorAfterValidatedCollision (0.28s)
+  === RUN   TestApplyRejectsConflictStatusWithoutOwnerError
+  === RUN   TestApplyRejectsConflictStatusWithoutOwnerError/store
+  === RUN   TestApplyRejectsConflictStatusWithoutOwnerError/key
+  --- PASS: TestApplyRejectsConflictStatusWithoutOwnerError (0.38s)
+      --- PASS: TestApplyRejectsConflictStatusWithoutOwnerError/store (0.18s)
+      --- PASS: TestApplyRejectsConflictStatusWithoutOwnerError/key (0.20s)
+  === RUN   TestApplyReportsPublishedStoreBeforePostRenameFailure
+  --- PASS: TestApplyReportsPublishedStoreBeforePostRenameFailure (0.34s)
+  === RUN   TestApplyReportsPublishedKeyBeforePostLinkFailure
+  --- PASS: TestApplyReportsPublishedKeyBeforePostLinkFailure (0.32s)
+  === RUN   TestApplyReportsPublishedTrustBeforePostRenameFailure
+  --- PASS: TestApplyReportsPublishedTrustBeforePostRenameFailure (0.36s)
+  === RUN   TestApplyReportsPublishedIndexBeforePostRenameFailure
+  --- PASS: TestApplyReportsPublishedIndexBeforePostRenameFailure (0.31s)
+  === RUN   TestApplyConcurrentIdenticalRequestsConverge
+  --- PASS: TestApplyConcurrentIdenticalRequestsConverge (0.33s)
+  === RUN   TestApplyConcurrentConflictingRequestsPreserveWinner
+  === RUN   TestApplyConcurrentConflictingRequestsPreserveWinner/namespace
+  === RUN   TestApplyConcurrentConflictingRequestsPreserveWinner/actor
+  --- PASS: TestApplyConcurrentConflictingRequestsPreserveWinner (0.61s)
+      --- PASS: TestApplyConcurrentConflictingRequestsPreserveWinner/namespace (0.31s)
+      --- PASS: TestApplyConcurrentConflictingRequestsPreserveWinner/actor (0.31s)
+  === RUN   TestInspectNormalizesActorAndUsesStoreResolvedRoot
+  --- PASS: TestInspectNormalizesActorAndUsesStoreResolvedRoot (0.11s)
+  PASS
+  ok  	pact/internal/setup	11.993s
+  === RUN   TestInspectClassifiesMissingAndCurrentIndex
+  --- PASS: TestInspectClassifiesMissingAndCurrentIndex (0.31s)
+  === RUN   TestInspectPreservesCancellation
+  --- PASS: TestInspectPreservesCancellation (0.15s)
+  === RUN   TestInspectChecksCancellationBeforeMetadata
+  --- PASS: TestInspectChecksCancellationBeforeMetadata (0.20s)
+  === RUN   TestInspectStopsBeforeIndexWhenCanonicalVerificationFails
+  --- PASS: TestInspectStopsBeforeIndexWhenCanonicalVerificationFails (0.25s)
+  PASS
+  ok  	pact/internal/status	1.067s
+  === RUN   TestInitResultReportsCreatedAndConflict
+  --- PASS: TestInitResultReportsCreatedAndConflict (0.16s)
+  === RUN   TestIsCleanInitCollisionRejectsMixedFailures
+  === RUN   TestIsCleanInitCollisionRejectsMixedFailures/direct
+  === RUN   TestIsCleanInitCollisionRejectsMixedFailures/documented_rename
+  === RUN   TestIsCleanInitCollisionRejectsMixedFailures/operation-only_lock
+  === RUN   TestIsCleanInitCollisionRejectsMixedFailures/unexpected_member
+  === RUN   TestIsCleanInitCollisionRejectsMixedFailures/cleanup_member
+  === RUN   TestIsCleanInitCollisionRejectsMixedFailures/lock_release
+  === RUN   TestIsCleanInitCollisionRejectsMixedFailures/nested_typed_lock_release
+  --- PASS: TestIsCleanInitCollisionRejectsMixedFailures (0.00s)
+      --- PASS: TestIsCleanInitCollisionRejectsMixedFailures/direct (0.00s)
+      --- PASS: TestIsCleanInitCollisionRejectsMixedFailures/documented_rename (0.00s)
+      --- PASS: TestIsCleanInitCollisionRejectsMixedFailures/operation-only_lock (0.00s)
+      --- PASS: TestIsCleanInitCollisionRejectsMixedFailures/unexpected_member (0.00s)
+      --- PASS: TestIsCleanInitCollisionRejectsMixedFailures/cleanup_member (0.00s)
+      --- PASS: TestIsCleanInitCollisionRejectsMixedFailures/lock_release (0.00s)
+      --- PASS: TestIsCleanInitCollisionRejectsMixedFailures/nested_typed_lock_release (0.00s)
+  === RUN   TestInitResultSurvivesPostPublicationFailure
+  --- PASS: TestInitResultSurvivesPostPublicationFailure (0.12s)
+  === RUN   TestInitResultSurvivesPostPublicationDirectoryCloseFailure
+  --- PASS: TestInitResultSurvivesPostPublicationDirectoryCloseFailure (0.19s)
+  === RUN   TestInitResultCallbackFailureIsNotConflict
+  --- PASS: TestInitResultCallbackFailureIsNotConflict (0.18s)
+  === RUN   TestLockErrorPreservesOperationAndReleaseFailures
+  --- PASS: TestLockErrorPreservesOperationAndReleaseFailures (0.23s)
+  === RUN   TestLockErrorReleaseOnlyUnwrapOmitsNilOperation
+  --- PASS: TestLockErrorReleaseOnlyUnwrapOmitsNilOperation (0.00s)
+  === RUN   TestLockErrorFlockFailurePreservesCloseFailure
+  --- PASS: TestLockErrorFlockFailurePreservesCloseFailure (0.00s)
+  === RUN   TestLockErrorFlockFailureOmitsNilCloseCause
+  --- PASS: TestLockErrorFlockFailureOmitsNilCloseCause (0.04s)
+  === RUN   TestInitLocksRepositoryDirectory
+  --- PASS: TestInitLocksRepositoryDirectory (0.19s)
+  === RUN   TestMutationLockLocksStoreDirectory
+  --- PASS: TestMutationLockLocksStoreDirectory (0.19s)
+  === RUN   TestInitSerializesAliases
+  --- PASS: TestInitSerializesAliases (0.25s)
+  === RUN   TestMutationLockSerializesAliases
+  --- PASS: TestMutationLockSerializesAliases (0.25s)
+  === RUN   TestInitCreatesReferenceLayout
+  --- PASS: TestInitCreatesReferenceLayout (0.15s)
+  === RUN   TestDefaultNamespaceReadsValidatedStoreMetadata
+  --- PASS: TestDefaultNamespaceReadsValidatedStoreMetadata (0.18s)
+  === RUN   TestDefaultNamespaceRejectsCorruptConfiguredNamespace
+  --- PASS: TestDefaultNamespaceRejectsCorruptConfiguredNamespace (0.17s)
+  === RUN   TestWriteLocalJSONMarksPostRenameSyncFailurePublished
+  --- PASS: TestWriteLocalJSONMarksPostRenameSyncFailurePublished (0.17s)
+  === RUN   TestWriteLocalJSONMarksTrustPublishedAfterDirectoryCloseFailure
+  --- PASS: TestWriteLocalJSONMarksTrustPublishedAfterDirectoryCloseFailure (0.18s)
+  === RUN   TestInitRefusesExistingStore
+  --- PASS: TestInitRefusesExistingStore (0.17s)
+  === RUN   TestInitReturnsPublishedStoreWithBothReleaseErrors
+  --- PASS: TestInitReturnsPublishedStoreWithBothReleaseErrors (0.13s)
+  === RUN   TestWithMutationLockPreservesOperationAndBothReleaseErrors
+  --- PASS: TestWithMutationLockPreservesOperationAndBothReleaseErrors (0.15s)
+  === RUN   TestInitRejectsSymlinkedStore
+  --- PASS: TestInitRejectsSymlinkedStore (0.01s)
+  === RUN   TestInitAllowsRepositoryReachedThroughSymlink
+  --- PASS: TestInitAllowsRepositoryReachedThroughSymlink (0.18s)
+  === RUN   TestConcurrentInitHasOneWinner
+  --- PASS: TestConcurrentInitHasOneWinner (0.12s)
+  === RUN   TestInitCleansStagingAfterPublishConflictAndRetries
+  --- PASS: TestInitCleansStagingAfterPublishConflictAndRetries (0.26s)
+  === RUN   TestInitPreservesPrePublicationOperationAndStagingRemovalFailures
+  --- PASS: TestInitPreservesPrePublicationOperationAndStagingRemovalFailures (0.37s)
+  === RUN   TestInitPreservesMixedNotExistStagingRemovalFailure
+  --- PASS: TestInitPreservesMixedNotExistStagingRemovalFailure (0.14s)
+  === RUN   TestOpenRejectsNonStrictFormatJSON
+  === RUN   TestOpenRejectsNonStrictFormatJSON/duplicate
+  === RUN   TestOpenRejectsNonStrictFormatJSON/nfc_collision
+  === RUN   TestOpenRejectsNonStrictFormatJSON/BOM
+  === RUN   TestOpenRejectsNonStrictFormatJSON/trailing
+  --- PASS: TestOpenRejectsNonStrictFormatJSON (0.16s)
+      --- PASS: TestOpenRejectsNonStrictFormatJSON/duplicate (0.01s)
+      --- PASS: TestOpenRejectsNonStrictFormatJSON/nfc_collision (0.01s)
+      --- PASS: TestOpenRejectsNonStrictFormatJSON/BOM (0.01s)
+      --- PASS: TestOpenRejectsNonStrictFormatJSON/trailing (0.02s)
+  === RUN   TestPutCanonicalIsIdempotent
+  --- PASS: TestPutCanonicalIsIdempotent (0.18s)
+  === RUN   TestObjectFilesEnumeratesCanonicalObjectPaths
+  --- PASS: TestObjectFilesEnumeratesCanonicalObjectPaths (0.27s)
+  === RUN   TestObjectFilesRejectsMalformedCanonicalTreeEntries
+  === RUN   TestObjectFilesRejectsMalformedCanonicalTreeEntries/malformed_shard_directory
+  === RUN   TestObjectFilesRejectsMalformedCanonicalTreeEntries/uppercase_shard_directory
+  === RUN   TestObjectFilesRejectsMalformedCanonicalTreeEntries/non-directory_shard_entry
+  === RUN   TestObjectFilesRejectsMalformedCanonicalTreeEntries/nested_object_directory
+  === RUN   TestObjectFilesRejectsMalformedCanonicalTreeEntries/non-json_object_entry
+  --- PASS: TestObjectFilesRejectsMalformedCanonicalTreeEntries (0.57s)
+      --- PASS: TestObjectFilesRejectsMalformedCanonicalTreeEntries/malformed_shard_directory (0.17s)
+      --- PASS: TestObjectFilesRejectsMalformedCanonicalTreeEntries/uppercase_shard_directory (0.10s)
+      --- PASS: TestObjectFilesRejectsMalformedCanonicalTreeEntries/non-directory_shard_entry (0.11s)
+      --- PASS: TestObjectFilesRejectsMalformedCanonicalTreeEntries/nested_object_directory (0.09s)
+      --- PASS: TestObjectFilesRejectsMalformedCanonicalTreeEntries/non-json_object_entry (0.10s)
+  === RUN   TestObjectFilesAllowsEmptyLowerHexShard
+  --- PASS: TestObjectFilesAllowsEmptyLowerHexShard (0.12s)
+  === RUN   TestObjectFilesRejectsCanonicalFIFO
+  --- PASS: TestObjectFilesRejectsCanonicalFIFO (0.14s)
+  === RUN   TestGetBoundedRejectsCanonicalFIFOBeforeOpen
+  --- PASS: TestGetBoundedRejectsCanonicalFIFOBeforeOpen (0.14s)
+  === RUN   TestWithReadLockBlocksCanonicalPublication
+  --- PASS: TestWithReadLockBlocksCanonicalPublication (0.24s)
+  === RUN   TestMutationLockBlocksReadLock
+  --- PASS: TestMutationLockBlocksReadLock (0.22s)
+  === RUN   TestObjectFilesBoundedStopsAtFirstExcess
+  --- PASS: TestObjectFilesBoundedStopsAtFirstExcess (0.20s)
+  === RUN   TestObjectFilesBoundedContextHonorsCancellationDuringEnumeration
+  --- PASS: TestObjectFilesBoundedContextHonorsCancellationDuringEnumeration (0.41s)
+  === RUN   TestObjectPathOrderingHonorsMidSortCancellation
+  --- PASS: TestObjectPathOrderingHonorsMidSortCancellation (0.00s)
+  === RUN   TestObjectPathOrderingChecksCancellationBeforeFullBufferAllocation
+  --- PASS: TestObjectPathOrderingChecksCancellationBeforeFullBufferAllocation (0.00s)
+  === RUN   TestGetBoundedRejectsOversizeBeforeRead
+  --- PASS: TestGetBoundedRejectsOversizeBeforeRead (0.13s)
+  === RUN   TestGetBoundedContextHonorsCancellationDuringDigest
+  --- PASS: TestGetBoundedContextHonorsCancellationDuringDigest (0.15s)
+  === RUN   TestGetBoundedContextReturnsReadCancellationUnchanged
+  --- PASS: TestGetBoundedContextReturnsReadCancellationUnchanged (0.16s)
+  === RUN   TestGetBoundedMarksDigestMismatch
+  --- PASS: TestGetBoundedMarksDigestMismatch (0.13s)
+  === RUN   TestGetBoundedRejectsGrowthAfterStat
+  --- PASS: TestGetBoundedRejectsGrowthAfterStat (0.12s)
+  === RUN   TestObjectFilesBoundedStopsWithinLargeShard
+  --- PASS: TestObjectFilesBoundedStopsWithinLargeShard (0.53s)
+  === RUN   TestWithMutationLockRetainsPhaseOneErrorWording
+  --- PASS: TestWithMutationLockRetainsPhaseOneErrorWording (0.00s)
+  === RUN   TestObjectFilesRejectsSymlinkedShard
+  --- PASS: TestObjectFilesRejectsSymlinkedShard (0.11s)
+  === RUN   TestPutCanonicalRejectsSymlinkedObjectDirectory
+  --- PASS: TestPutCanonicalRejectsSymlinkedObjectDirectory (0.12s)
+  === RUN   TestPutCanonicalRecreatesDisposableTempDirectory
+  --- PASS: TestPutCanonicalRecreatesDisposableTempDirectory (0.16s)
+  === RUN   TestPutCanonicalRefusesMissingImmutableObjectTree
+  --- PASS: TestPutCanonicalRefusesMissingImmutableObjectTree (0.13s)
+  === RUN   TestPutCanonicalRefusesDifferentBytesAtSameDigestPath
+  --- PASS: TestPutCanonicalRefusesDifferentBytesAtSameDigestPath (0.16s)
+  === RUN   TestPutCanonicalVerifiesPersistedHash
+  --- PASS: TestPutCanonicalVerifiesPersistedHash (0.24s)
+  === RUN   TestPutCanonicalRollsBackEveryPostLinkFailureAndSyncsRemoval
+  === RUN   TestPutCanonicalRollsBackEveryPostLinkFailureAndSyncsRemoval/shard_sync
+  === RUN   TestPutCanonicalRollsBackEveryPostLinkFailureAndSyncsRemoval/post-link_hook
+  === RUN   TestPutCanonicalRollsBackEveryPostLinkFailureAndSyncsRemoval/readback
+  --- PASS: TestPutCanonicalRollsBackEveryPostLinkFailureAndSyncsRemoval (0.59s)
+      --- PASS: TestPutCanonicalRollsBackEveryPostLinkFailureAndSyncsRemoval/shard_sync (0.20s)
+      --- PASS: TestPutCanonicalRollsBackEveryPostLinkFailureAndSyncsRemoval/post-link_hook (0.18s)
+      --- PASS: TestPutCanonicalRollsBackEveryPostLinkFailureAndSyncsRemoval/readback (0.20s)
+  === RUN   TestPutCanonicalSerializesRollbackAgainstIdenticalAdmission
+  --- PASS: TestPutCanonicalSerializesRollbackAgainstIdenticalAdmission (0.21s)
+  === RUN   TestStoreMutationLockSerializes
+  --- PASS: TestStoreMutationLockSerializes (0.17s)
+  === RUN   TestPutCanonicalLeavesNoObjectAfterPreLinkFailure
+  --- PASS: TestPutCanonicalLeavesNoObjectAfterPreLinkFailure (0.14s)
+  === RUN   TestGetRejectsTamperedObject
+  --- PASS: TestGetRejectsTamperedObject (0.19s)
+  === RUN   TestStoreLockHelperProcess
+  --- PASS: TestStoreLockHelperProcess (0.00s)
+  PASS
+  ok  	pact/internal/store	10.449s
+  === RUN   TestCLIProductLifecycle
+  --- PASS: TestCLIProductLifecycle (1.52s)
+  === RUN   TestREADMEInstallCommandPlacesPactAtDocumentedDestination
+  --- PASS: TestREADMEInstallCommandPlacesPactAtDocumentedDestination (0.47s)
+  === RUN   TestReleaseWorkflowInstallsMiseBeforeRunningGoReleaser
+  --- PASS: TestReleaseWorkflowInstallsMiseBeforeRunningGoReleaser (0.00s)
+  === RUN   TestCanonicalCheckRunsRealSetupAndIndexLifecycle
+  --- PASS: TestCanonicalCheckRunsRealSetupAndIndexLifecycle (0.01s)
+  === RUN   TestSetupDeliveryArtifactsMatchShippedContract
+  --- PASS: TestSetupDeliveryArtifactsMatchShippedContract (0.00s)
+  === RUN   TestCLIReviewSecurityAndResolvedPathContract
+  === RUN   TestCLIReviewSecurityAndResolvedPathContract/direct_project_path
+  === RUN   TestCLIReviewSecurityAndResolvedPathContract/resolved_project_target
+  === RUN   TestCLIReviewSecurityAndResolvedPathContract/lexical_project_path
+  === RUN   TestCLIReviewSecurityAndResolvedPathContract/group-readable_private_key
+  --- PASS: TestCLIReviewSecurityAndResolvedPathContract (1.00s)
+      --- PASS: TestCLIReviewSecurityAndResolvedPathContract/direct_project_path (0.01s)
+      --- PASS: TestCLIReviewSecurityAndResolvedPathContract/resolved_project_target (0.01s)
+      --- PASS: TestCLIReviewSecurityAndResolvedPathContract/lexical_project_path (0.01s)
+      --- PASS: TestCLIReviewSecurityAndResolvedPathContract/group-readable_private_key (0.01s)
+  === RUN   TestCLIConcurrentTrustAddPreservesDistinctAndIdenticalRoots
+  --- PASS: TestCLIConcurrentTrustAddPreservesDistinctAndIdenticalRoots (2.10s)
+  === RUN   TestCLIVerifyMalformedTrustPreservesFullStrictDetails
+  --- PASS: TestCLIVerifyMalformedTrustPreservesFullStrictDetails (0.85s)
+  === RUN   TestCLIDevelopmentCorpusRawTransport
+      development_test.go:30: fixture git [fast-import --quiet]: exit status 1
+          warning: not updating refs/heads/main (new tip fd0a35409b7f10ea96d6f2af192632bb79b5d810 does not contain fd1f227794d6bf9956bd8eea0798254e0134918f)
+  --- FAIL: TestCLIDevelopmentCorpusRawTransport (0.72s)
+  === RUN   TestCLIIndexLifecycleAndImmutability
+  --- PASS: TestCLIIndexLifecycleAndImmutability (1.39s)
+  === RUN   TestCLIQueryFiltersPaginationRestartAndPartialReplica
+  === RUN   TestCLIQueryFiltersPaginationRestartAndPartialReplica/namespace
+  === RUN   TestCLIQueryFiltersPaginationRestartAndPartialReplica/type
+  === RUN   TestCLIQueryFiltersPaginationRestartAndPartialReplica/kind
+  === RUN   TestCLIQueryFiltersPaginationRestartAndPartialReplica/subject
+  === RUN   TestCLIQueryFiltersPaginationRestartAndPartialReplica/actor
+  === RUN   TestCLIQueryFiltersPaginationRestartAndPartialReplica/tag
+  === RUN   TestCLIQueryFiltersPaginationRestartAndPartialReplica/schema_ref
+  === RUN   TestCLIQueryFiltersPaginationRestartAndPartialReplica/event_ref
+  === RUN   TestCLIQueryFiltersPaginationRestartAndPartialReplica/caused_by
+  === RUN   TestCLIQueryFiltersPaginationRestartAndPartialReplica/supersedes
+  --- PASS: TestCLIQueryFiltersPaginationRestartAndPartialReplica (2.10s)
+      --- PASS: TestCLIQueryFiltersPaginationRestartAndPartialReplica/namespace (0.01s)
+      --- PASS: TestCLIQueryFiltersPaginationRestartAndPartialReplica/type (0.01s)
+      --- PASS: TestCLIQueryFiltersPaginationRestartAndPartialReplica/kind (0.01s)
+      --- PASS: TestCLIQueryFiltersPaginationRestartAndPartialReplica/subject (0.01s)
+      --- PASS: TestCLIQueryFiltersPaginationRestartAndPartialReplica/actor (0.01s)
+      --- PASS: TestCLIQueryFiltersPaginationRestartAndPartialReplica/tag (0.01s)
+      --- PASS: TestCLIQueryFiltersPaginationRestartAndPartialReplica/schema_ref (0.01s)
+      --- PASS: TestCLIQueryFiltersPaginationRestartAndPartialReplica/event_ref (0.01s)
+      --- PASS: TestCLIQueryFiltersPaginationRestartAndPartialReplica/caused_by (0.01s)
+      --- PASS: TestCLIQueryFiltersPaginationRestartAndPartialReplica/supersedes (0.01s)
+  === RUN   TestCLIIndexStateRefusalAndRecovery
+  === RUN   TestCLIIndexStateRefusalAndRecovery/stale
+  === RUN   TestCLIIndexStateRefusalAndRecovery/corrupt
+  === RUN   TestCLIIndexStateRefusalAndRecovery/incompatible
+  === RUN   TestCLIIndexStateRefusalAndRecovery/partial-build
+  --- PASS: TestCLIIndexStateRefusalAndRecovery (2.52s)
+      --- PASS: TestCLIIndexStateRefusalAndRecovery/stale (0.67s)
+      --- PASS: TestCLIIndexStateRefusalAndRecovery/corrupt (0.54s)
+      --- PASS: TestCLIIndexStateRefusalAndRecovery/incompatible (0.44s)
+      --- PASS: TestCLIIndexStateRefusalAndRecovery/partial-build (0.41s)
+  === RUN   TestCLILimitBoundariesAndSafeDiagnostics
+  --- PASS: TestCLILimitBoundariesAndSafeDiagnostics (0.84s)
+  === RUN   TestCLISymlinkMalformedAndOversizedPaths
+  === RUN   TestCLISymlinkMalformedAndOversizedPaths/malformed_object_shard
+  === RUN   TestCLISymlinkMalformedAndOversizedPaths/symlinked_canonical_path
+  === RUN   TestCLISymlinkMalformedAndOversizedPaths/symlinked_index_path
+  === RUN   TestCLISymlinkMalformedAndOversizedPaths/sparse_oversized_SQLite
+  --- PASS: TestCLISymlinkMalformedAndOversizedPaths (1.33s)
+      --- PASS: TestCLISymlinkMalformedAndOversizedPaths/malformed_object_shard (0.33s)
+      --- PASS: TestCLISymlinkMalformedAndOversizedPaths/symlinked_canonical_path (0.16s)
+      --- PASS: TestCLISymlinkMalformedAndOversizedPaths/symlinked_index_path (0.20s)
+      --- PASS: TestCLISymlinkMalformedAndOversizedPaths/sparse_oversized_SQLite (0.34s)
+  === RUN   TestCLISignedLocalCausedByCycleIsCanonicalFailure
+  --- PASS: TestCLISignedLocalCausedByCycleIsCanonicalFailure (0.76s)
+  === RUN   TestCLIConcurrentAndInterruptedIndexOperations
+  === RUN   TestCLIConcurrentAndInterruptedIndexOperations/query_and_rebuild_serialize_safely
+  === RUN   TestCLIConcurrentAndInterruptedIndexOperations/commit_rebuild_and_query_return_contract_states
+  === RUN   TestCLIConcurrentAndInterruptedIndexOperations/interrupted_rebuild_preserves_prior_live_index
+  --- PASS: TestCLIConcurrentAndInterruptedIndexOperations (3.43s)
+      --- PASS: TestCLIConcurrentAndInterruptedIndexOperations/query_and_rebuild_serialize_safely (0.46s)
+      --- PASS: TestCLIConcurrentAndInterruptedIndexOperations/commit_rebuild_and_query_return_contract_states (0.40s)
+      --- PASS: TestCLIConcurrentAndInterruptedIndexOperations/interrupted_rebuild_preserves_prior_live_index (2.20s)
+  === RUN   TestOperatorCLIContract
+  --- PASS: TestOperatorCLIContract (0.76s)
+  === RUN   TestQuickstartCompiledBinaryWritesCanonicalSkill
+  --- PASS: TestQuickstartCompiledBinaryWritesCanonicalSkill (0.44s)
+  === RUN   TestSetupCompiledLifecycle
+  === RUN   TestSetupCompiledLifecycle/fresh_rerun_partial_conflicts_and_refusals
+  === RUN   TestSetupCompiledLifecycle/canonical_and_symlink_process_races
+  === RUN   TestSetupCompiledLifecycle/canonical_and_symlink_process_races/identical
+  === RUN   TestSetupCompiledLifecycle/canonical_and_symlink_process_races/conflicting
+  --- PASS: TestSetupCompiledLifecycle (1.04s)
+      --- PASS: TestSetupCompiledLifecycle/fresh_rerun_partial_conflicts_and_refusals (0.40s)
+      --- PASS: TestSetupCompiledLifecycle/canonical_and_symlink_process_races (0.28s)
+          --- PASS: TestSetupCompiledLifecycle/canonical_and_symlink_process_races/identical (0.16s)
+          --- PASS: TestSetupCompiledLifecycle/canonical_and_symlink_process_races/conflicting (0.12s)
+  === RUN   TestSetupRealPTYPromptContract
+  === RUN   TestSetupRealPTYPromptContract/cancel
+  === RUN   TestSetupRealPTYPromptContract/accept
+  --- PASS: TestSetupRealPTYPromptContract (0.58s)
+      --- PASS: TestSetupRealPTYPromptContract/cancel (0.12s)
+      --- PASS: TestSetupRealPTYPromptContract/accept (0.12s)
+  === RUN   TestSetupSnapshotMismatchDiagnosticHidesSecretBytes
+  --- PASS: TestSetupSnapshotMismatchDiagnosticHidesSecretBytes (0.00s)
+  FAIL
+  FAIL	pact/tests/e2e	22.005s
+  FAIL
+  unit tests failed
+go fix -diff.............................................................Failed
+- hook id: go-fix
+- exit code: 1
+
+  --- /Users/harper/.codex/worktrees/3f32/pact/internal/development/profile_test.go (old)
+  +++ /Users/harper/.codex/worktrees/3f32/pact/internal/development/profile_test.go (new)
+  @@ -5,7 +5,8 @@
+   import (
+   	"bytes"
+   	"encoding/json"
+  -	"os"
+  +	"maps"
+  +	"os"
+   	"os/exec"
+   	"path/filepath"
+   	"testing"
+  @@ -132,9 +133,7 @@
+   	for _, event := range input.Events {
+   		definition := definitions[event.Type]
+   		payload := make(map[string]any, len(event.Payload)+2)
+  -		for name, value := range event.Payload {
+  -			payload[name] = value
+  -		}
+  +		maps.Copy(payload, event.Payload)
+   		payload["operation_id"] = input.OperationID
+   		payload["source"] = map[string]any{"repository": input.Source.Repository, "revision": input.Source.Revision}
+   		events = append(events, map[string]any{"local_id": event.LocalID, "type": event.Type, "kind": definition.Kind, "subject": input.Subject, "schema_ref": canonical.Digest(artifacts[definition.Artifact]), "payload": payload, "evidence": event.Evidence, "caused_by": event.CausedBy, "supersedes": event.Supersedes, "tags": []string{}})
+  --- /Users/harper/.codex/worktrees/3f32/pact/tests/e2e/development_test.go (old)
+  +++ /Users/harper/.codex/worktrees/3f32/pact/tests/e2e/development_test.go (new)
+  @@ -5,7 +5,8 @@
+   import (
+   	"bytes"
+   	"encoding/json"
+  -	"os"
+  +	"maps"
+  +	"os"
+   	"os/exec"
+   	"path/filepath"
+   	"testing"
+  @@ -96,9 +97,7 @@
+   	for _, event := range input.Events {
+   		definition := definitions[event.Type]
+   		payload := make(map[string]any, len(event.Payload)+2)
+  -		for name, value := range event.Payload {
+  -			payload[name] = value
+  -		}
+  +		maps.Copy(payload, event.Payload)
+   		payload["operation_id"] = input.OperationID
+   		payload["source"] = input.Source
+   		events = append(events, map[string]any{"local_id": event.LocalID, "kind": definition.Kind, "type": event.Type, "subject": input.Subject, "schema_ref": canonical.Digest(artifacts[definition.Artifact]), "payload": payload, "evidence": event.Evidence, "caused_by": event.CausedBy, "supersedes": event.Supersedes, "tags": []string{}})
+go mod verify........................................(no files to check)Skipped
+go vet...................................................................Passed
