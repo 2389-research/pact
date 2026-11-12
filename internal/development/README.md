@@ -7,15 +7,15 @@
 `source` belong to that object once. Each `InputEvent` supplies only `local_id`,
 `type`, `payload`, `evidence`, `caused_by`, and `supersedes`. Payloads contain the
 caller fields below; callers do not supply `operation_id` or `source` inside them.
-The validator will inject those two facts into each signed payload, and supply
+The validator injects those two facts into each signed payload, and supplies
 `kind`, `subject`, and the exact bundled schema digest on the ledger envelope.
-The recorder will own its request digest in batch metadata.
+The recorder owns its request digest in batch metadata.
 
 `EventDefinitions()` returns fresh closed field definitions and conditional
 schema rules. `CheckOutcomes()`, `ReviewVerdicts()`, `FindingSeverities()`, and
 `AcceptanceDecisions()` own the enum lists. Runtime validation must reuse these
 field/enum definitions and the core ledger normalizer; this package does not
-interpret arbitrary schemas or validate caller input yet.
+interpret arbitrary schemas. Its fixed validator checks caller input against these definitions.
 
 All signed payloads require `operation_id` and `source` and allow an optional
 nonempty `summary`. A source requires a repository label and full lowercase Git
