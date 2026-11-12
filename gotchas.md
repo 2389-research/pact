@@ -3,6 +3,14 @@
 
 # PACT gotchas
 
+- 2026-11-11: The development workflow direction is a small profile above the
+  domain-neutral ledger, with exact source/proof, explicit finding resolution,
+  and separate recorded decisions versus supported local acceptance. Planning
+  lives in docs/plans/development-workflow/implementation-plan.md and epic
+  pact#ns4y. Kata holds execution state; PACT holds signed provenance. Existing
+  log/query/show already passed a fresh-context baseline, so a new brief must
+  earn publication through the plan's measured comparison gate.
+
 - 2026-11-06: When Doctor Biz requests the review-squad workflow, discover and
   invoke that specific workflow or state that it is unavailable. Ad hoc parallel
   reviewers do not establish that the named workflow ran.

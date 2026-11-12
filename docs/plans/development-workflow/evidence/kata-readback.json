@@ -1,0 +1,103 @@
+{
+  "project": "pact",
+  "epic": {
+    "short_id": "ns4y",
+    "uid": "01M76WAB5PY8HEZNVV2RGCNS4Y",
+    "title": "Make PACT support development recording and handoffs",
+    "file": "docs/plans/development-workflow/epic.md"
+  },
+  "tasks": [
+    {
+      "short_id": "khqq",
+      "uid": "01M76WASSA4S87TQ09NZ81KHQQ",
+      "title": "Define the development profile and synthetic scenario corpus",
+      "status_at_readback": "open",
+      "parent": "ns4y",
+      "blocked_by": [],
+      "body_digest": "sha256:e29aa78ce7c660a1afeda437d44cc2cb7bd2dab68075530627283a9f324a84f6"
+    },
+    {
+      "short_id": "3ezv",
+      "uid": "01M76WASVWN3A5W6TAY0GD3EZV",
+      "title": "Validate development inputs before immutable signing",
+      "status_at_readback": "open",
+      "parent": "ns4y",
+      "blocked_by": [
+        "khqq"
+      ],
+      "body_digest": "sha256:c2186d1beb99af5cef2d5178388966c75abb47c6dc4531400940a9e7e88fa8a3"
+    },
+    {
+      "short_id": "spns",
+      "uid": "01M76WASYP3PPDEPV3BA8CSPNS",
+      "title": "Resolve and check local files and immutable Git evidence",
+      "status_at_readback": "open",
+      "parent": "ns4y",
+      "blocked_by": [
+        "khqq"
+      ],
+      "body_digest": "sha256:59f1193f3ccec0f228abb995240090d313ea51e70947c3e4bfeee0415c519564"
+    },
+    {
+      "short_id": "x9r1",
+      "uid": "01M76WAT10HV26XBB4EP69X9R1",
+      "title": "Record validated workflow events with recoverable idempotency",
+      "status_at_readback": "open",
+      "parent": "ns4y",
+      "blocked_by": [
+        "3ezv",
+        "spns"
+      ],
+      "body_digest": "sha256:5640fd806f84bbbfbade083c727c2bea6f638b5a0fbfbbc25a19f5b148d9f49b"
+    },
+    {
+      "short_id": "pzm4",
+      "uid": "01M76WAT3DRFQ5PHCA423GPZM4",
+      "title": "Derive development state without losing findings or uncertainty",
+      "status_at_readback": "open",
+      "parent": "ns4y",
+      "blocked_by": [
+        "3ezv",
+        "spns"
+      ],
+      "body_digest": "sha256:8f3827bdd85c67ea4ed8d5e58d8a6945e961a881761f3b5c4813c8ad38b539fa"
+    },
+    {
+      "short_id": "w5cf",
+      "uid": "01M76WAT5QA6WRW2W4H9TCW5CF",
+      "title": "Evaluate and expose a bounded development work brief",
+      "status_at_readback": "open",
+      "parent": "ns4y",
+      "blocked_by": [
+        "pzm4",
+        "x9r1"
+      ],
+      "body_digest": "sha256:988537f37bfebba05e001e9521200cad631fc732dbed41814c23ff1087b71cdc"
+    },
+    {
+      "short_id": "z895",
+      "uid": "01M76WAT855FHD31SHQM45Z895",
+      "title": "Prove the complete recording and handoff lifecycle",
+      "status_at_readback": "open",
+      "parent": "ns4y",
+      "blocked_by": [
+        "pzm4",
+        "w5cf",
+        "x9r1"
+      ],
+      "body_digest": "sha256:f5df68e8b172ac61a06a851c22e39763a3cb05e73e8eeae46380d6bbb5815092"
+    },
+    {
+      "short_id": "k7cc",
+      "uid": "01M76WATAK34V9VGN0FYREK7CC",
+      "title": "Validate fresh-context handoffs and publish the supported workflow",
+      "status_at_readback": "open",
+      "parent": "ns4y",
+      "blocked_by": [
+        "z895"
+      ],
+      "body_digest": "sha256:570542a1057853106e9354a571e23adf0aaf08fddb00b3023aa8c20b33b60276"
+    }
+  ],
+  "implementation_completed": false
+}
