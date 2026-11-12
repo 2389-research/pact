@@ -1,0 +1,54 @@
+{
+  "merged_source": "b6a308bd39818ba11c2696dd7d0922c9cfa6e1bf",
+  "tested_product_source": "b1e00dd1c9b2280c18af0ce50a65191dc24480d0",
+  "release_kata": "pact#839x",
+  "authorization": "Doctor Biz explicitly requested main merge, release tag, and publication.",
+  "checks": [
+    {
+      "argv": [
+        "env",
+        "-u",
+        "GOROOT",
+        "mise",
+        "exec",
+        "--",
+        "scripts/check"
+      ],
+      "cwd": "/Users/harper/Public/src/2389/pact",
+      "exit_code": 0,
+      "log": "merged-check.log.gz"
+    },
+    {
+      "argv": [
+        "env",
+        "-u",
+        "GOROOT",
+        "mise",
+        "exec",
+        "--",
+        "goreleaser",
+        "check"
+      ],
+      "exit_code": 0,
+      "log": "goreleaser-check.log.gz"
+    }
+  ],
+  "main_merge": {
+    "method": "fast-forward",
+    "initial_attempt": "refused untracked canonical objects without mutation",
+    "registered_objects": 21,
+    "all_canonical_objects_verified": 25,
+    "private_keys_moved": false,
+    "live_store_objects_moved": false,
+    "local_config_hashes_unchanged": true
+  },
+  "prepublication_scan": {
+    "blobs": 105,
+    "expanded_bytes": 3363838,
+    "credential_pattern_files": [],
+    "preserved_main_files": {
+      ".gitignore": "93efe0a0888bc91683ddd7932b40dc6c1aad458eaf2d81416458beae0cfee3f9",
+      ".kata.toml": "32e6c7ee1210ca63fdfc257827337aa06f1a6265ba5c735e6dce4fe8724e6b08"
+    }
+  }
+}
