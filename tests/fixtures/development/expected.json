@@ -1,0 +1,77 @@
+{
+  "open-finding": {
+    "schema_valid": true,
+    "domain_valid": true,
+    "recorded_decision": "not_recorded",
+    "supported_acceptance": "unsupported",
+    "open_findings": [
+      "finding-1"
+    ]
+  },
+  "corrected": {
+    "schema_valid": true,
+    "domain_valid": true,
+    "recorded_decision": "accepted",
+    "supported_acceptance": "supported",
+    "open_findings": [],
+    "resolved_findings": [
+      "finding-1"
+    ]
+  },
+  "partial-outcome": {
+    "schema_valid": false,
+    "domain_valid": false
+  },
+  "missing-revision": {
+    "schema_valid": false,
+    "domain_valid": false
+  },
+  "mismatched-exit": {
+    "schema_valid": false,
+    "domain_valid": false
+  },
+  "bad-event-ref": {
+    "schema_valid": false,
+    "domain_valid": false
+  },
+  "duplicate-finding": {
+    "schema_valid": true,
+    "domain_valid": false
+  },
+  "check-failed": {
+    "schema_valid": true,
+    "domain_valid": true
+  },
+  "check-interrupted": {
+    "schema_valid": true,
+    "domain_valid": true
+  },
+  "check-not_run": {
+    "schema_valid": true,
+    "domain_valid": true
+  },
+  "check-unknown": {
+    "schema_valid": true,
+    "domain_valid": true
+  },
+  "severity-critical": {
+    "schema_valid": true,
+    "domain_valid": true
+  },
+  "severity-minor": {
+    "schema_valid": true,
+    "domain_valid": true
+  },
+  "inconclusive": {
+    "schema_valid": true,
+    "domain_valid": true
+  },
+  "rejected": {
+    "schema_valid": true,
+    "domain_valid": true
+  },
+  "partial-coverage": {
+    "schema_valid": true,
+    "domain_valid": true
+  }
+}

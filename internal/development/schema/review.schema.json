@@ -1,0 +1,181 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "verdict": {
+            "const": "changes_required"
+          }
+        },
+        "required": [
+          "verdict"
+        ]
+      },
+      "then": {
+        "properties": {
+          "findings": {
+            "minItems": 1
+          }
+        }
+      }
+    }
+  ],
+  "properties": {
+    "evidence_indexes": {
+      "items": {
+        "minimum": 0,
+        "type": "integer"
+      },
+      "minItems": 0,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "findings": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "evidence_indexes": {
+            "items": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "severity": {
+            "enum": [
+              "critical",
+              "important",
+              "minor"
+            ],
+            "type": "string"
+          },
+          "summary": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "evidence_indexes",
+          "id",
+          "severity",
+          "summary"
+        ],
+        "type": "object"
+      },
+      "minItems": 0,
+      "type": "array"
+    },
+    "operation_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "resolves": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "correction_source": {
+            "additionalProperties": false,
+            "properties": {
+              "repository": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "revision": {
+                "not": {
+                  "pattern": "\\s"
+                },
+                "pattern": "^([0-9a-f]{40}|[0-9a-f]{64})$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "repository",
+              "revision"
+            ],
+            "type": "object"
+          },
+          "evidence_indexes": {
+            "items": {
+              "minimum": 0,
+              "type": "integer"
+            },
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "finding_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "review_event_ref": {
+            "not": {
+              "pattern": "\\s"
+            },
+            "pattern": "^(local:[A-Za-z0-9][A-Za-z0-9._-]{0,127}|pact:event:sha256:[0-9a-f]{64}#[A-Za-z0-9][A-Za-z0-9._-]{0,127})$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "correction_source",
+          "evidence_indexes",
+          "finding_id",
+          "review_event_ref"
+        ],
+        "type": "object"
+      },
+      "minItems": 0,
+      "type": "array"
+    },
+    "source": {
+      "additionalProperties": false,
+      "properties": {
+        "repository": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "revision": {
+          "not": {
+            "pattern": "\\s"
+          },
+          "pattern": "^([0-9a-f]{40}|[0-9a-f]{64})$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "repository",
+        "revision"
+      ],
+      "type": "object"
+    },
+    "summary": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "verdict": {
+      "enum": [
+        "approved",
+        "changes_required",
+        "inconclusive"
+      ],
+      "type": "string"
+    }
+  },
+  "required": [
+    "evidence_indexes",
+    "findings",
+    "operation_id",
+    "resolves",
+    "source",
+    "verdict"
+  ],
+  "title": "development/v1/dev.review.completed",
+  "type": "object"
+}

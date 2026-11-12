@@ -1,0 +1,28 @@
+commit refs/heads/main
+mark :1
+author Synthetic Fixture <fixture@example.invalid> 1700000000 +0000
+committer Synthetic Fixture <fixture@example.invalid> 1700000000 +0000
+data 18
+Synthetic source 1
+M 100644 inline source.txt
+data 20
+fixture version one
+M 100644 inline proof.txt
+data 77
+Synthetic proof for the development profile contract. No application output.
+
+commit refs/heads/main
+mark :2
+author Synthetic Fixture <fixture@example.invalid> 1700000000 +0000
+committer Synthetic Fixture <fixture@example.invalid> 1700000000 +0000
+data 18
+Synthetic source 2
+from :1
+M 100644 inline source.txt
+data 39
+fixture version two: finding corrected
+M 100644 inline proof.txt
+data 77
+Synthetic proof for the development profile contract. No application output.
+
+done

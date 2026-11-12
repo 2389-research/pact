@@ -1,0 +1,7 @@
+{
+  "acceptance.schema.json": "sha256:55bbd773c1024af61f2520977fb84241fcf09f7cd95ee394ca5ef2bb9016b016",
+  "check.schema.json": "sha256:41465a6acf1efe53e52c43b6939700487d838218407ada3df898c097fa8bcac0",
+  "local-policy.json": "sha256:e9d050d6b7170e608677c0c56b338a888c2ec001499b0119adca52cf0c8fd437",
+  "next-action.schema.json": "sha256:13eb3dac0c907a963457c5ad8e46c4d2e6efb96874681bd85f0bb64bb910ceff",
+  "review.schema.json": "sha256:3a69ab6e333043e7c2dd990e26f21144f8cc4cc3561efadf3a04e352efee59f6"
+}

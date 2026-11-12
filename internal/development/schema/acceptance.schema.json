@@ -1,0 +1,96 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "check_refs": {
+      "items": {
+        "not": {
+          "pattern": "\\s"
+        },
+        "pattern": "^(local:[A-Za-z0-9][A-Za-z0-9._-]{0,127}|pact:event:sha256:[0-9a-f]{64}#[A-Za-z0-9][A-Za-z0-9._-]{0,127})$",
+        "type": "string"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "decision": {
+      "enum": [
+        "accepted",
+        "rejected"
+      ],
+      "type": "string"
+    },
+    "evidence_indexes": {
+      "items": {
+        "minimum": 0,
+        "type": "integer"
+      },
+      "minItems": 0,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "operation_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "policy_ref": {
+      "not": {
+        "pattern": "\\s"
+      },
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "rationale": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "review_refs": {
+      "items": {
+        "not": {
+          "pattern": "\\s"
+        },
+        "pattern": "^(local:[A-Za-z0-9][A-Za-z0-9._-]{0,127}|pact:event:sha256:[0-9a-f]{64}#[A-Za-z0-9][A-Za-z0-9._-]{0,127})$",
+        "type": "string"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "source": {
+      "additionalProperties": false,
+      "properties": {
+        "repository": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "revision": {
+          "not": {
+            "pattern": "\\s"
+          },
+          "pattern": "^([0-9a-f]{40}|[0-9a-f]{64})$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "repository",
+        "revision"
+      ],
+      "type": "object"
+    },
+    "summary": {
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "required": [
+    "check_refs",
+    "decision",
+    "evidence_indexes",
+    "operation_id",
+    "policy_ref",
+    "rationale",
+    "review_refs",
+    "source"
+  ],
+  "title": "development/v1/dev.acceptance.recorded",
+  "type": "object"
+}

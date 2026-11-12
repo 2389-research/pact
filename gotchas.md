@@ -114,3 +114,10 @@
   0.2.1; the 0.2.2 guide also passed, without a demonstrated efficiency gain.
   `log`/`query` omit payloads and evidence; use exact `show` references. Cursors
   continue a fixed snapshot, not changes since a previous session.
+
+- 2026-11-11: Git hooks export repository selectors such as `GIT_DIR`,
+  `GIT_WORK_TREE`, `GIT_COMMON_DIR`, and `GIT_INDEX_FILE`. Setting a subprocess's
+  working directory does not isolate Git: even `git init` can rewrite the common
+  repository's `core.worktree`. Fixture Git processes must strip inherited
+  `GIT_*` variables and select their temporary repository explicitly. Keep the
+  real-repository regression that compares the outer config, refs, and index.

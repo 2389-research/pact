@@ -1,0 +1,69 @@
+{
+  "complete-loop": {
+    "records": [
+      "open-finding",
+      "corrected"
+    ],
+    "bindings": {
+      "corrected.events[1].payload.resolves[0].review_event_ref": "open-finding#review"
+    },
+    "expected": {
+      "supported_acceptance": "supported",
+      "completeness": "complete"
+    }
+  },
+  "concurrent-incompatible": {
+    "records": [
+      "corrected",
+      "rejected"
+    ],
+    "parents": "same_frontier",
+    "expected": {
+      "supported_acceptance": "unsupported",
+      "reason": "concurrent_incompatible_decisions"
+    },
+    "base_records": [
+      "open-finding"
+    ],
+    "bindings": {
+      "corrected.events[1].payload.resolves[0].review_event_ref": "open-finding#review",
+      "rejected.events[1].payload.resolves[0].review_event_ref": "open-finding#review"
+    }
+  },
+  "unresolved-dependency": {
+    "records": [
+      "corrected"
+    ],
+    "additional_caused_by": {
+      "corrected#accept": "pact:event:sha256:2222222222222222222222222222222222222222222222222222222222222222#missing"
+    },
+    "expected": {
+      "supported_acceptance": "unsupported",
+      "completeness": "incomplete"
+    },
+    "base_records": [
+      "open-finding"
+    ],
+    "bindings": {
+      "corrected.events[1].payload.resolves[0].review_event_ref": "open-finding#review"
+    }
+  },
+  "unknown-schema": {
+    "records": [
+      "corrected"
+    ],
+    "schema_overrides": {
+      "corrected#review-fixed": "sha256:3333333333333333333333333333333333333333333333333333333333333333"
+    },
+    "expected": {
+      "supported_acceptance": "unsupported",
+      "schema_validation": "unchecked"
+    },
+    "base_records": [
+      "open-finding"
+    ],
+    "bindings": {
+      "corrected.events[1].payload.resolves[0].review_event_ref": "open-finding#review"
+    }
+  }
+}

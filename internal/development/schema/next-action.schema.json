@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "action": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "actor": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "blocking_event_refs": {
+      "items": {
+        "not": {
+          "pattern": "\\s"
+        },
+        "pattern": "^(local:[A-Za-z0-9][A-Za-z0-9._-]{0,127}|pact:event:sha256:[0-9a-f]{64}#[A-Za-z0-9][A-Za-z0-9._-]{0,127})$",
+        "type": "string"
+      },
+      "minItems": 0,
+      "type": "array"
+    },
+    "blocking_findings": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "finding_id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "review_event_ref": {
+            "not": {
+              "pattern": "\\s"
+            },
+            "pattern": "^(local:[A-Za-z0-9][A-Za-z0-9._-]{0,127}|pact:event:sha256:[0-9a-f]{64}#[A-Za-z0-9][A-Za-z0-9._-]{0,127})$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "finding_id",
+          "review_event_ref"
+        ],
+        "type": "object"
+      },
+      "minItems": 0,
+      "type": "array"
+    },
+    "evidence_indexes": {
+      "items": {
+        "minimum": 0,
+        "type": "integer"
+      },
+      "minItems": 0,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "operation_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "source": {
+      "additionalProperties": false,
+      "properties": {
+        "repository": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "revision": {
+          "not": {
+            "pattern": "\\s"
+          },
+          "pattern": "^([0-9a-f]{40}|[0-9a-f]{64})$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "repository",
+        "revision"
+      ],
+      "type": "object"
+    },
+    "summary": {
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "required": [
+    "action",
+    "actor",
+    "blocking_event_refs",
+    "blocking_findings",
+    "evidence_indexes",
+    "operation_id",
+    "source"
+  ],
+  "title": "development/v1/dev.next_action.recorded",
+  "type": "object"
+}

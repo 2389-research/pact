@@ -1,0 +1,1324 @@
+{
+  "open-finding": {
+    "operation_id": "initial",
+    "namespace": "org/example/development",
+    "subject": "widget/task-1",
+    "source": {
+      "repository": "synthetic/widget",
+      "revision": "62ba249ef5cafdee4860900220f826dfad0ba869"
+    },
+    "events": [
+      {
+        "local_id": "check",
+        "type": "dev.check.executed",
+        "payload": {
+          "name": "unit",
+          "command": [
+            "go",
+            "test",
+            "./..."
+          ],
+          "outcome": "passed",
+          "evidence_indexes": [
+            0
+          ],
+          "exit_code": 0
+        },
+        "evidence": [
+          {
+            "ref": "git:62ba249ef5cafdee4860900220f826dfad0ba869:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "media_type": "text/plain",
+            "role": "primary"
+          }
+        ],
+        "caused_by": [],
+        "supersedes": []
+      },
+      {
+        "local_id": "review",
+        "type": "dev.review.completed",
+        "payload": {
+          "verdict": "changes_required",
+          "findings": [
+            {
+              "id": "finding-1",
+              "severity": "important",
+              "summary": "Synthetic input loses a declared fact.",
+              "evidence_indexes": [
+                0
+              ]
+            }
+          ],
+          "resolves": [],
+          "evidence_indexes": [
+            0
+          ]
+        },
+        "evidence": [
+          {
+            "ref": "git:62ba249ef5cafdee4860900220f826dfad0ba869:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "media_type": "text/plain",
+            "role": "primary"
+          }
+        ],
+        "caused_by": [],
+        "supersedes": []
+      },
+      {
+        "local_id": "next",
+        "type": "dev.next_action.recorded",
+        "payload": {
+          "actor": "fixture-agent",
+          "action": "Correct finding-1 and review the correction.",
+          "blocking_event_refs": [
+            "local:review"
+          ],
+          "blocking_findings": [
+            {
+              "review_event_ref": "local:review",
+              "finding_id": "finding-1"
+            }
+          ],
+          "evidence_indexes": []
+        },
+        "evidence": [
+          {
+            "ref": "git:62ba249ef5cafdee4860900220f826dfad0ba869:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "media_type": "text/plain",
+            "role": "primary"
+          }
+        ],
+        "caused_by": [],
+        "supersedes": []
+      }
+    ]
+  },
+  "corrected": {
+    "operation_id": "corrected",
+    "namespace": "org/example/development",
+    "subject": "widget/task-1",
+    "source": {
+      "repository": "synthetic/widget",
+      "revision": "fd0a35409b7f10ea96d6f2af192632bb79b5d810"
+    },
+    "events": [
+      {
+        "local_id": "check-fixed",
+        "type": "dev.check.executed",
+        "payload": {
+          "name": "unit",
+          "command": [
+            "go",
+            "test",
+            "./..."
+          ],
+          "outcome": "passed",
+          "evidence_indexes": [
+            0
+          ],
+          "exit_code": 0
+        },
+        "evidence": [
+          {
+            "ref": "git:fd0a35409b7f10ea96d6f2af192632bb79b5d810:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "media_type": "text/plain",
+            "role": "primary"
+          }
+        ],
+        "caused_by": [],
+        "supersedes": []
+      },
+      {
+        "local_id": "review-fixed",
+        "type": "dev.review.completed",
+        "payload": {
+          "verdict": "approved",
+          "findings": [],
+          "resolves": [
+            {
+              "review_event_ref": "pact:event:sha256:1111111111111111111111111111111111111111111111111111111111111111#review",
+              "finding_id": "finding-1",
+              "correction_source": {
+                "repository": "synthetic/widget",
+                "revision": "fd0a35409b7f10ea96d6f2af192632bb79b5d810"
+              },
+              "evidence_indexes": [
+                0
+              ]
+            }
+          ],
+          "evidence_indexes": [
+            0
+          ]
+        },
+        "evidence": [
+          {
+            "ref": "git:fd0a35409b7f10ea96d6f2af192632bb79b5d810:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "media_type": "text/plain",
+            "role": "primary"
+          }
+        ],
+        "caused_by": [],
+        "supersedes": []
+      },
+      {
+        "local_id": "accept",
+        "type": "dev.acceptance.recorded",
+        "payload": {
+          "decision": "accepted",
+          "rationale": "The selected check and explicit resolution support the correction.",
+          "policy_ref": "sha256:e9d050d6b7170e608677c0c56b338a888c2ec001499b0119adca52cf0c8fd437",
+          "check_refs": [
+            "local:check-fixed"
+          ],
+          "review_refs": [
+            "local:review-fixed"
+          ],
+          "evidence_indexes": [
+            0
+          ]
+        },
+        "evidence": [
+          {
+            "ref": "git:fd0a35409b7f10ea96d6f2af192632bb79b5d810:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "media_type": "text/plain",
+            "role": "primary"
+          }
+        ],
+        "caused_by": [],
+        "supersedes": []
+      }
+    ]
+  },
+  "partial-outcome": {
+    "operation_id": "partial-outcome",
+    "namespace": "org/example/development",
+    "subject": "widget/task-1",
+    "source": {
+      "repository": "synthetic/widget",
+      "revision": "62ba249ef5cafdee4860900220f826dfad0ba869"
+    },
+    "events": [
+      {
+        "local_id": "check",
+        "type": "dev.check.executed",
+        "payload": {
+          "name": "unit",
+          "command": [
+            "go",
+            "test",
+            "./..."
+          ],
+          "outcome": "partial",
+          "evidence_indexes": [
+            0
+          ],
+          "exit_code": 0
+        },
+        "evidence": [
+          {
+            "ref": "git:62ba249ef5cafdee4860900220f826dfad0ba869:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "media_type": "text/plain",
+            "role": "primary"
+          }
+        ],
+        "caused_by": [],
+        "supersedes": []
+      },
+      {
+        "local_id": "review",
+        "type": "dev.review.completed",
+        "payload": {
+          "verdict": "changes_required",
+          "findings": [
+            {
+              "id": "finding-1",
+              "severity": "important",
+              "summary": "Synthetic input loses a declared fact.",
+              "evidence_indexes": [
+                0
+              ]
+            }
+          ],
+          "resolves": [],
+          "evidence_indexes": [
+            0
+          ]
+        },
+        "evidence": [
+          {
+            "ref": "git:62ba249ef5cafdee4860900220f826dfad0ba869:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "media_type": "text/plain",
+            "role": "primary"
+          }
+        ],
+        "caused_by": [],
+        "supersedes": []
+      },
+      {
+        "local_id": "next",
+        "type": "dev.next_action.recorded",
+        "payload": {
+          "actor": "fixture-agent",
+          "action": "Correct finding-1 and review the correction.",
+          "blocking_event_refs": [
+            "local:review"
+          ],
+          "blocking_findings": [
+            {
+              "review_event_ref": "local:review",
+              "finding_id": "finding-1"
+            }
+          ],
+          "evidence_indexes": []
+        },
+        "evidence": [
+          {
+            "ref": "git:62ba249ef5cafdee4860900220f826dfad0ba869:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "media_type": "text/plain",
+            "role": "primary"
+          }
+        ],
+        "caused_by": [],
+        "supersedes": []
+      }
+    ]
+  },
+  "missing-revision": {
+    "operation_id": "missing-revision",
+    "namespace": "org/example/development",
+    "subject": "widget/task-1",
+    "source": {
+      "repository": "synthetic/widget"
+    },
+    "events": [
+      {
+        "local_id": "check",
+        "type": "dev.check.executed",
+        "payload": {
+          "name": "unit",
+          "command": [
+            "go",
+            "test",
+            "./..."
+          ],
+          "outcome": "passed",
+          "evidence_indexes": [
+            0
+          ],
+          "exit_code": 0
+        },
+        "evidence": [
+          {
+            "ref": "git:62ba249ef5cafdee4860900220f826dfad0ba869:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "media_type": "text/plain",
+            "role": "primary"
+          }
+        ],
+        "caused_by": [],
+        "supersedes": []
+      },
+      {
+        "local_id": "review",
+        "type": "dev.review.completed",
+        "payload": {
+          "verdict": "changes_required",
+          "findings": [
+            {
+              "id": "finding-1",
+              "severity": "important",
+              "summary": "Synthetic input loses a declared fact.",
+              "evidence_indexes": [
+                0
+              ]
+            }
+          ],
+          "resolves": [],
+          "evidence_indexes": [
+            0
+          ]
+        },
+        "evidence": [
+          {
+            "ref": "git:62ba249ef5cafdee4860900220f826dfad0ba869:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "media_type": "text/plain",
+            "role": "primary"
+          }
+        ],
+        "caused_by": [],
+        "supersedes": []
+      },
+      {
+        "local_id": "next",
+        "type": "dev.next_action.recorded",
+        "payload": {
+          "actor": "fixture-agent",
+          "action": "Correct finding-1 and review the correction.",
+          "blocking_event_refs": [
+            "local:review"
+          ],
+          "blocking_findings": [
+            {
+              "review_event_ref": "local:review",
+              "finding_id": "finding-1"
+            }
+          ],
+          "evidence_indexes": []
+        },
+        "evidence": [
+          {
+            "ref": "git:62ba249ef5cafdee4860900220f826dfad0ba869:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "media_type": "text/plain",
+            "role": "primary"
+          }
+        ],
+        "caused_by": [],
+        "supersedes": []
+      }
+    ]
+  },
+  "mismatched-exit": {
+    "operation_id": "mismatched-exit",
+    "namespace": "org/example/development",
+    "subject": "widget/task-1",
+    "source": {
+      "repository": "synthetic/widget",
+      "revision": "62ba249ef5cafdee4860900220f826dfad0ba869"
+    },
+    "events": [
+      {
+        "local_id": "check",
+        "type": "dev.check.executed",
+        "payload": {
+          "name": "unit",
+          "command": [
+            "go",
+            "test",
+            "./..."
+          ],
+          "outcome": "passed",
+          "evidence_indexes": [
+            0
+          ],
+          "exit_code": 1
+        },
+        "evidence": [
+          {
+            "ref": "git:62ba249ef5cafdee4860900220f826dfad0ba869:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "media_type": "text/plain",
+            "role": "primary"
+          }
+        ],
+        "caused_by": [],
+        "supersedes": []
+      },
+      {
+        "local_id": "review",
+        "type": "dev.review.completed",
+        "payload": {
+          "verdict": "changes_required",
+          "findings": [
+            {
+              "id": "finding-1",
+              "severity": "important",
+              "summary": "Synthetic input loses a declared fact.",
+              "evidence_indexes": [
+                0
+              ]
+            }
+          ],
+          "resolves": [],
+          "evidence_indexes": [
+            0
+          ]
+        },
+        "evidence": [
+          {
+            "ref": "git:62ba249ef5cafdee4860900220f826dfad0ba869:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "media_type": "text/plain",
+            "role": "primary"
+          }
+        ],
+        "caused_by": [],
+        "supersedes": []
+      },
+      {
+        "local_id": "next",
+        "type": "dev.next_action.recorded",
+        "payload": {
+          "actor": "fixture-agent",
+          "action": "Correct finding-1 and review the correction.",
+          "blocking_event_refs": [
+            "local:review"
+          ],
+          "blocking_findings": [
+            {
+              "review_event_ref": "local:review",
+              "finding_id": "finding-1"
+            }
+          ],
+          "evidence_indexes": []
+        },
+        "evidence": [
+          {
+            "ref": "git:62ba249ef5cafdee4860900220f826dfad0ba869:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "media_type": "text/plain",
+            "role": "primary"
+          }
+        ],
+        "caused_by": [],
+        "supersedes": []
+      }
+    ]
+  },
+  "bad-event-ref": {
+    "operation_id": "bad-event-ref",
+    "namespace": "org/example/development",
+    "subject": "widget/task-1",
+    "source": {
+      "repository": "synthetic/widget",
+      "revision": "62ba249ef5cafdee4860900220f826dfad0ba869"
+    },
+    "events": [
+      {
+        "local_id": "check",
+        "type": "dev.check.executed",
+        "payload": {
+          "name": "unit",
+          "command": [
+            "go",
+            "test",
+            "./..."
+          ],
+          "outcome": "passed",
+          "evidence_indexes": [
+            0
+          ],
+          "exit_code": 0
+        },
+        "evidence": [
+          {
+            "ref": "git:62ba249ef5cafdee4860900220f826dfad0ba869:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "media_type": "text/plain",
+            "role": "primary"
+          }
+        ],
+        "caused_by": [],
+        "supersedes": []
+      },
+      {
+        "local_id": "review",
+        "type": "dev.review.completed",
+        "payload": {
+          "verdict": "changes_required",
+          "findings": [
+            {
+              "id": "finding-1",
+              "severity": "important",
+              "summary": "Synthetic input loses a declared fact.",
+              "evidence_indexes": [
+                0
+              ]
+            }
+          ],
+          "resolves": [],
+          "evidence_indexes": [
+            0
+          ]
+        },
+        "evidence": [
+          {
+            "ref": "git:62ba249ef5cafdee4860900220f826dfad0ba869:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "media_type": "text/plain",
+            "role": "primary"
+          }
+        ],
+        "caused_by": [],
+        "supersedes": []
+      },
+      {
+        "local_id": "next",
+        "type": "dev.next_action.recorded",
+        "payload": {
+          "actor": "fixture-agent",
+          "action": "Correct finding-1 and review the correction.",
+          "blocking_event_refs": [
+            "event:bad"
+          ],
+          "blocking_findings": [
+            {
+              "review_event_ref": "local:review",
+              "finding_id": "finding-1"
+            }
+          ],
+          "evidence_indexes": []
+        },
+        "evidence": [
+          {
+            "ref": "git:62ba249ef5cafdee4860900220f826dfad0ba869:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "media_type": "text/plain",
+            "role": "primary"
+          }
+        ],
+        "caused_by": [],
+        "supersedes": []
+      }
+    ]
+  },
+  "duplicate-finding": {
+    "operation_id": "duplicate-finding",
+    "namespace": "org/example/development",
+    "subject": "widget/task-1",
+    "source": {
+      "repository": "synthetic/widget",
+      "revision": "62ba249ef5cafdee4860900220f826dfad0ba869"
+    },
+    "events": [
+      {
+        "local_id": "check",
+        "type": "dev.check.executed",
+        "payload": {
+          "name": "unit",
+          "command": [
+            "go",
+            "test",
+            "./..."
+          ],
+          "outcome": "passed",
+          "evidence_indexes": [
+            0
+          ],
+          "exit_code": 0
+        },
+        "evidence": [
+          {
+            "ref": "git:62ba249ef5cafdee4860900220f826dfad0ba869:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "media_type": "text/plain",
+            "role": "primary"
+          }
+        ],
+        "caused_by": [],
+        "supersedes": []
+      },
+      {
+        "local_id": "review",
+        "type": "dev.review.completed",
+        "payload": {
+          "verdict": "changes_required",
+          "findings": [
+            {
+              "id": "finding-1",
+              "severity": "important",
+              "summary": "Synthetic input loses a declared fact.",
+              "evidence_indexes": [
+                0
+              ]
+            },
+            {
+              "id": "finding-1",
+              "severity": "important",
+              "summary": "Different text cannot create a second identity.",
+              "evidence_indexes": [
+                0
+              ]
+            }
+          ],
+          "resolves": [],
+          "evidence_indexes": [
+            0
+          ]
+        },
+        "evidence": [
+          {
+            "ref": "git:62ba249ef5cafdee4860900220f826dfad0ba869:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "media_type": "text/plain",
+            "role": "primary"
+          }
+        ],
+        "caused_by": [],
+        "supersedes": []
+      },
+      {
+        "local_id": "next",
+        "type": "dev.next_action.recorded",
+        "payload": {
+          "actor": "fixture-agent",
+          "action": "Correct finding-1 and review the correction.",
+          "blocking_event_refs": [
+            "local:review"
+          ],
+          "blocking_findings": [
+            {
+              "review_event_ref": "local:review",
+              "finding_id": "finding-1"
+            }
+          ],
+          "evidence_indexes": []
+        },
+        "evidence": [
+          {
+            "ref": "git:62ba249ef5cafdee4860900220f826dfad0ba869:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "media_type": "text/plain",
+            "role": "primary"
+          }
+        ],
+        "caused_by": [],
+        "supersedes": []
+      }
+    ]
+  },
+  "check-failed": {
+    "operation_id": "check-failed",
+    "namespace": "org/example/development",
+    "subject": "widget/task-1",
+    "source": {
+      "repository": "synthetic/widget",
+      "revision": "62ba249ef5cafdee4860900220f826dfad0ba869"
+    },
+    "events": [
+      {
+        "local_id": "check-failed",
+        "type": "dev.check.executed",
+        "payload": {
+          "name": "unit",
+          "command": [
+            "go",
+            "test",
+            "./..."
+          ],
+          "outcome": "failed",
+          "evidence_indexes": [
+            0
+          ],
+          "exit_code": 3
+        },
+        "evidence": [
+          {
+            "ref": "git:62ba249ef5cafdee4860900220f826dfad0ba869:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "media_type": "text/plain",
+            "role": "primary"
+          }
+        ],
+        "caused_by": [],
+        "supersedes": []
+      }
+    ]
+  },
+  "check-interrupted": {
+    "operation_id": "check-interrupted",
+    "namespace": "org/example/development",
+    "subject": "widget/task-1",
+    "source": {
+      "repository": "synthetic/widget",
+      "revision": "62ba249ef5cafdee4860900220f826dfad0ba869"
+    },
+    "events": [
+      {
+        "local_id": "check-interrupted",
+        "type": "dev.check.executed",
+        "payload": {
+          "name": "unit",
+          "command": [
+            "go",
+            "test",
+            "./..."
+          ],
+          "outcome": "interrupted",
+          "evidence_indexes": [
+            0
+          ],
+          "signal": "SIGTERM"
+        },
+        "evidence": [
+          {
+            "ref": "git:62ba249ef5cafdee4860900220f826dfad0ba869:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "media_type": "text/plain",
+            "role": "primary"
+          }
+        ],
+        "caused_by": [],
+        "supersedes": []
+      }
+    ]
+  },
+  "check-not_run": {
+    "operation_id": "check-not_run",
+    "namespace": "org/example/development",
+    "subject": "widget/task-1",
+    "source": {
+      "repository": "synthetic/widget",
+      "revision": "62ba249ef5cafdee4860900220f826dfad0ba869"
+    },
+    "events": [
+      {
+        "local_id": "check-not_run",
+        "type": "dev.check.executed",
+        "payload": {
+          "name": "unit",
+          "command": [
+            "go",
+            "test",
+            "./..."
+          ],
+          "outcome": "not_run",
+          "evidence_indexes": [
+            0
+          ]
+        },
+        "evidence": [
+          {
+            "ref": "git:62ba249ef5cafdee4860900220f826dfad0ba869:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "media_type": "text/plain",
+            "role": "primary"
+          }
+        ],
+        "caused_by": [],
+        "supersedes": []
+      }
+    ]
+  },
+  "check-unknown": {
+    "operation_id": "check-unknown",
+    "namespace": "org/example/development",
+    "subject": "widget/task-1",
+    "source": {
+      "repository": "synthetic/widget",
+      "revision": "62ba249ef5cafdee4860900220f826dfad0ba869"
+    },
+    "events": [
+      {
+        "local_id": "check-unknown",
+        "type": "dev.check.executed",
+        "payload": {
+          "name": "unit",
+          "command": [
+            "go",
+            "test",
+            "./..."
+          ],
+          "outcome": "unknown",
+          "evidence_indexes": [
+            0
+          ]
+        },
+        "evidence": [
+          {
+            "ref": "git:62ba249ef5cafdee4860900220f826dfad0ba869:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "media_type": "text/plain",
+            "role": "primary"
+          }
+        ],
+        "caused_by": [],
+        "supersedes": []
+      }
+    ]
+  },
+  "severity-critical": {
+    "operation_id": "severity-critical",
+    "namespace": "org/example/development",
+    "subject": "widget/task-1",
+    "source": {
+      "repository": "synthetic/widget",
+      "revision": "62ba249ef5cafdee4860900220f826dfad0ba869"
+    },
+    "events": [
+      {
+        "local_id": "check",
+        "type": "dev.check.executed",
+        "payload": {
+          "name": "unit",
+          "command": [
+            "go",
+            "test",
+            "./..."
+          ],
+          "outcome": "passed",
+          "evidence_indexes": [
+            0
+          ],
+          "exit_code": 0
+        },
+        "evidence": [
+          {
+            "ref": "git:62ba249ef5cafdee4860900220f826dfad0ba869:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "media_type": "text/plain",
+            "role": "primary"
+          }
+        ],
+        "caused_by": [],
+        "supersedes": []
+      },
+      {
+        "local_id": "review",
+        "type": "dev.review.completed",
+        "payload": {
+          "verdict": "changes_required",
+          "findings": [
+            {
+              "id": "finding-1",
+              "severity": "critical",
+              "summary": "Synthetic input loses a declared fact.",
+              "evidence_indexes": [
+                0
+              ]
+            }
+          ],
+          "resolves": [],
+          "evidence_indexes": [
+            0
+          ]
+        },
+        "evidence": [
+          {
+            "ref": "git:62ba249ef5cafdee4860900220f826dfad0ba869:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "media_type": "text/plain",
+            "role": "primary"
+          }
+        ],
+        "caused_by": [],
+        "supersedes": []
+      },
+      {
+        "local_id": "next",
+        "type": "dev.next_action.recorded",
+        "payload": {
+          "actor": "fixture-agent",
+          "action": "Correct finding-1 and review the correction.",
+          "blocking_event_refs": [
+            "local:review"
+          ],
+          "blocking_findings": [
+            {
+              "review_event_ref": "local:review",
+              "finding_id": "finding-1"
+            }
+          ],
+          "evidence_indexes": []
+        },
+        "evidence": [
+          {
+            "ref": "git:62ba249ef5cafdee4860900220f826dfad0ba869:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "media_type": "text/plain",
+            "role": "primary"
+          }
+        ],
+        "caused_by": [],
+        "supersedes": []
+      }
+    ]
+  },
+  "severity-minor": {
+    "operation_id": "severity-minor",
+    "namespace": "org/example/development",
+    "subject": "widget/task-1",
+    "source": {
+      "repository": "synthetic/widget",
+      "revision": "62ba249ef5cafdee4860900220f826dfad0ba869"
+    },
+    "events": [
+      {
+        "local_id": "check",
+        "type": "dev.check.executed",
+        "payload": {
+          "name": "unit",
+          "command": [
+            "go",
+            "test",
+            "./..."
+          ],
+          "outcome": "passed",
+          "evidence_indexes": [
+            0
+          ],
+          "exit_code": 0
+        },
+        "evidence": [
+          {
+            "ref": "git:62ba249ef5cafdee4860900220f826dfad0ba869:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "media_type": "text/plain",
+            "role": "primary"
+          }
+        ],
+        "caused_by": [],
+        "supersedes": []
+      },
+      {
+        "local_id": "review",
+        "type": "dev.review.completed",
+        "payload": {
+          "verdict": "changes_required",
+          "findings": [
+            {
+              "id": "finding-1",
+              "severity": "minor",
+              "summary": "Synthetic input loses a declared fact.",
+              "evidence_indexes": [
+                0
+              ]
+            }
+          ],
+          "resolves": [],
+          "evidence_indexes": [
+            0
+          ]
+        },
+        "evidence": [
+          {
+            "ref": "git:62ba249ef5cafdee4860900220f826dfad0ba869:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "media_type": "text/plain",
+            "role": "primary"
+          }
+        ],
+        "caused_by": [],
+        "supersedes": []
+      },
+      {
+        "local_id": "next",
+        "type": "dev.next_action.recorded",
+        "payload": {
+          "actor": "fixture-agent",
+          "action": "Correct finding-1 and review the correction.",
+          "blocking_event_refs": [
+            "local:review"
+          ],
+          "blocking_findings": [
+            {
+              "review_event_ref": "local:review",
+              "finding_id": "finding-1"
+            }
+          ],
+          "evidence_indexes": []
+        },
+        "evidence": [
+          {
+            "ref": "git:62ba249ef5cafdee4860900220f826dfad0ba869:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "media_type": "text/plain",
+            "role": "primary"
+          }
+        ],
+        "caused_by": [],
+        "supersedes": []
+      }
+    ]
+  },
+  "inconclusive": {
+    "operation_id": "inconclusive",
+    "namespace": "org/example/development",
+    "subject": "widget/task-1",
+    "source": {
+      "repository": "synthetic/widget",
+      "revision": "62ba249ef5cafdee4860900220f826dfad0ba869"
+    },
+    "events": [
+      {
+        "local_id": "check",
+        "type": "dev.check.executed",
+        "payload": {
+          "name": "unit",
+          "command": [
+            "go",
+            "test",
+            "./..."
+          ],
+          "outcome": "passed",
+          "evidence_indexes": [
+            0
+          ],
+          "exit_code": 0
+        },
+        "evidence": [
+          {
+            "ref": "git:62ba249ef5cafdee4860900220f826dfad0ba869:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "media_type": "text/plain",
+            "role": "primary"
+          }
+        ],
+        "caused_by": [],
+        "supersedes": []
+      },
+      {
+        "local_id": "review",
+        "type": "dev.review.completed",
+        "payload": {
+          "verdict": "inconclusive",
+          "findings": [],
+          "resolves": [],
+          "evidence_indexes": [
+            0
+          ]
+        },
+        "evidence": [
+          {
+            "ref": "git:62ba249ef5cafdee4860900220f826dfad0ba869:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "media_type": "text/plain",
+            "role": "primary"
+          }
+        ],
+        "caused_by": [],
+        "supersedes": []
+      },
+      {
+        "local_id": "next",
+        "type": "dev.next_action.recorded",
+        "payload": {
+          "actor": "fixture-agent",
+          "action": "Correct finding-1 and review the correction.",
+          "blocking_event_refs": [
+            "local:review"
+          ],
+          "blocking_findings": [
+            {
+              "review_event_ref": "local:review",
+              "finding_id": "finding-1"
+            }
+          ],
+          "evidence_indexes": []
+        },
+        "evidence": [
+          {
+            "ref": "git:62ba249ef5cafdee4860900220f826dfad0ba869:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "media_type": "text/plain",
+            "role": "primary"
+          }
+        ],
+        "caused_by": [],
+        "supersedes": []
+      }
+    ]
+  },
+  "rejected": {
+    "operation_id": "rejected",
+    "namespace": "org/example/development",
+    "subject": "widget/task-1",
+    "source": {
+      "repository": "synthetic/widget",
+      "revision": "fd0a35409b7f10ea96d6f2af192632bb79b5d810"
+    },
+    "events": [
+      {
+        "local_id": "check-fixed",
+        "type": "dev.check.executed",
+        "payload": {
+          "name": "unit",
+          "command": [
+            "go",
+            "test",
+            "./..."
+          ],
+          "outcome": "passed",
+          "evidence_indexes": [
+            0
+          ],
+          "exit_code": 0
+        },
+        "evidence": [
+          {
+            "ref": "git:fd0a35409b7f10ea96d6f2af192632bb79b5d810:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "media_type": "text/plain",
+            "role": "primary"
+          }
+        ],
+        "caused_by": [],
+        "supersedes": []
+      },
+      {
+        "local_id": "review-fixed",
+        "type": "dev.review.completed",
+        "payload": {
+          "verdict": "approved",
+          "findings": [],
+          "resolves": [
+            {
+              "review_event_ref": "pact:event:sha256:1111111111111111111111111111111111111111111111111111111111111111#review",
+              "finding_id": "finding-1",
+              "correction_source": {
+                "repository": "synthetic/widget",
+                "revision": "fd0a35409b7f10ea96d6f2af192632bb79b5d810"
+              },
+              "evidence_indexes": [
+                0
+              ]
+            }
+          ],
+          "evidence_indexes": [
+            0
+          ]
+        },
+        "evidence": [
+          {
+            "ref": "git:fd0a35409b7f10ea96d6f2af192632bb79b5d810:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "media_type": "text/plain",
+            "role": "primary"
+          }
+        ],
+        "caused_by": [],
+        "supersedes": []
+      },
+      {
+        "local_id": "accept",
+        "type": "dev.acceptance.recorded",
+        "payload": {
+          "decision": "rejected",
+          "rationale": "The selected check and explicit resolution support the correction.",
+          "policy_ref": "sha256:e9d050d6b7170e608677c0c56b338a888c2ec001499b0119adca52cf0c8fd437",
+          "check_refs": [
+            "local:check-fixed"
+          ],
+          "review_refs": [
+            "local:review-fixed"
+          ],
+          "evidence_indexes": [
+            0
+          ]
+        },
+        "evidence": [
+          {
+            "ref": "git:fd0a35409b7f10ea96d6f2af192632bb79b5d810:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "media_type": "text/plain",
+            "role": "primary"
+          }
+        ],
+        "caused_by": [],
+        "supersedes": []
+      }
+    ]
+  },
+  "partial-coverage": {
+    "operation_id": "partial-coverage",
+    "namespace": "org/example/development",
+    "subject": "widget/task-1",
+    "source": {
+      "repository": "synthetic/widget",
+      "revision": "62ba249ef5cafdee4860900220f826dfad0ba869"
+    },
+    "events": [
+      {
+        "local_id": "check",
+        "type": "dev.check.executed",
+        "payload": {
+          "name": "unit",
+          "command": [
+            "go",
+            "test",
+            "./..."
+          ],
+          "outcome": "passed",
+          "evidence_indexes": [
+            0
+          ],
+          "exit_code": 0,
+          "coverage": {
+            "completed": 1,
+            "total": 2
+          }
+        },
+        "evidence": [
+          {
+            "ref": "git:62ba249ef5cafdee4860900220f826dfad0ba869:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "media_type": "text/plain",
+            "role": "primary"
+          }
+        ],
+        "caused_by": [],
+        "supersedes": []
+      },
+      {
+        "local_id": "review",
+        "type": "dev.review.completed",
+        "payload": {
+          "verdict": "changes_required",
+          "findings": [
+            {
+              "id": "finding-1",
+              "severity": "important",
+              "summary": "Synthetic input loses a declared fact.",
+              "evidence_indexes": [
+                0
+              ]
+            }
+          ],
+          "resolves": [],
+          "evidence_indexes": [
+            0
+          ]
+        },
+        "evidence": [
+          {
+            "ref": "git:62ba249ef5cafdee4860900220f826dfad0ba869:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "media_type": "text/plain",
+            "role": "primary"
+          }
+        ],
+        "caused_by": [],
+        "supersedes": []
+      },
+      {
+        "local_id": "next",
+        "type": "dev.next_action.recorded",
+        "payload": {
+          "actor": "fixture-agent",
+          "action": "Correct finding-1 and review the correction.",
+          "blocking_event_refs": [
+            "local:review"
+          ],
+          "blocking_findings": [
+            {
+              "review_event_ref": "local:review",
+              "finding_id": "finding-1"
+            }
+          ],
+          "evidence_indexes": []
+        },
+        "evidence": [
+          {
+            "ref": "git:62ba249ef5cafdee4860900220f826dfad0ba869:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "media_type": "text/plain",
+            "role": "primary"
+          }
+        ],
+        "caused_by": [],
+        "supersedes": []
+      }
+    ]
+  }
+}

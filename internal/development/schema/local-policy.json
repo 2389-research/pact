@@ -1,0 +1,22 @@
+{
+  "authority": "locally_configured_root",
+  "completeness": "local_snapshot_only",
+  "minor_findings": "visible",
+  "missing_decision": "not_recorded",
+  "name": "development/v1/local-policy/v1",
+  "profile": "development/v1",
+  "requirements": [
+    "explicit_accepted_decision_for_exact_source",
+    "selected_checks_passed_for_exact_source",
+    "selected_reviews_approved_for_exact_source",
+    "selected_evidence_durable_and_matching",
+    "no_unresolved_critical_or_important_findings_in_selected_history",
+    "no_later_causal_blocker",
+    "no_concurrent_incompatible_claims",
+    "known_schemas_and_valid_payloads",
+    "relevant_references_resolved",
+    "known_authorization"
+  ],
+  "reviewer_independence": "not_established",
+  "unsupported_decision": "preserve_recorded_decision"
+}

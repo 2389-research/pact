@@ -1,0 +1,282 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "outcome": {
+            "const": "passed"
+          }
+        },
+        "required": [
+          "outcome"
+        ]
+      },
+      "then": {
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "signal"
+              ]
+            },
+            {
+              "required": [
+                "interruption"
+              ]
+            }
+          ]
+        },
+        "properties": {
+          "exit_code": {
+            "const": 0
+          }
+        },
+        "required": [
+          "exit_code"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "outcome": {
+            "const": "failed"
+          }
+        },
+        "required": [
+          "outcome"
+        ]
+      },
+      "then": {
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "signal"
+              ]
+            },
+            {
+              "required": [
+                "interruption"
+              ]
+            }
+          ]
+        },
+        "properties": {
+          "exit_code": {
+            "minimum": 1
+          }
+        },
+        "required": [
+          "exit_code"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "outcome": {
+            "const": "interrupted"
+          }
+        },
+        "required": [
+          "outcome"
+        ]
+      },
+      "then": {
+        "anyOf": [
+          {
+            "required": [
+              "signal"
+            ]
+          },
+          {
+            "required": [
+              "interruption"
+            ]
+          },
+          {
+            "properties": {
+              "exit_code": {
+                "not": {
+                  "const": 0
+                }
+              }
+            },
+            "required": [
+              "exit_code"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "outcome": {
+            "const": "not_run"
+          }
+        },
+        "required": [
+          "outcome"
+        ]
+      },
+      "then": {
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "exit_code"
+              ]
+            },
+            {
+              "required": [
+                "signal"
+              ]
+            },
+            {
+              "required": [
+                "interruption"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "outcome": {
+            "const": "unknown"
+          }
+        },
+        "required": [
+          "outcome"
+        ]
+      },
+      "then": {
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "exit_code"
+              ]
+            },
+            {
+              "required": [
+                "signal"
+              ]
+            },
+            {
+              "required": [
+                "interruption"
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "properties": {
+    "command": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "coverage": {
+      "additionalProperties": false,
+      "properties": {
+        "completed": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "total": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "completed",
+        "total"
+      ],
+      "type": "object"
+    },
+    "evidence_indexes": {
+      "items": {
+        "minimum": 0,
+        "type": "integer"
+      },
+      "minItems": 0,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "exit_code": {
+      "type": "integer"
+    },
+    "interruption": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "name": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "operation_id": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "outcome": {
+      "enum": [
+        "passed",
+        "failed",
+        "interrupted",
+        "not_run",
+        "unknown"
+      ],
+      "type": "string"
+    },
+    "signal": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "source": {
+      "additionalProperties": false,
+      "properties": {
+        "repository": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "revision": {
+          "not": {
+            "pattern": "\\s"
+          },
+          "pattern": "^([0-9a-f]{40}|[0-9a-f]{64})$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "repository",
+        "revision"
+      ],
+      "type": "object"
+    },
+    "summary": {
+      "minLength": 1,
+      "type": "string"
+    }
+  },
+  "required": [
+    "command",
+    "evidence_indexes",
+    "name",
+    "operation_id",
+    "outcome",
+    "source"
+  ],
+  "title": "development/v1/dev.check.executed",
+  "type": "object"
+}
