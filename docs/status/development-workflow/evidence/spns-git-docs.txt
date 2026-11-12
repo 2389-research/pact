@@ -1,0 +1,225 @@
+git version 2.54.0 (Apple Git-157)
+154-     --no-replace-objects
+155-	 Do not use replacement refs to replace Git objects. This is
+156:	 equivalent to exporting the GIT_NO_REPLACE_OBJECTS environment
+157-	 variable with any value. See git-replace(1) for more information.
+158-
+159-     --no-lazy-fetch
+160-	 Do not fetch missing objects from the promisor remote on demand.
+161-	 Useful together with git cat-file -e <object> to see if the object is
+162-	 locally available. This is equivalent to setting the
+163:	 GIT_NO_LAZY_FETCH environment variable to 1.
+164-
+165-     --no-optional-locks
+166-	 Do not perform optional operations that require locks. This is
+167-	 equivalent to setting the GIT_OPTIONAL_LOCKS to 0.
+168-
+--
+1215-	 prompt on the terminal (e.g., when asking for HTTP authentication).
+1216-
+1217:     GIT_CONFIG_GLOBAL, GIT_CONFIG_SYSTEM
+1218-	 Take the configuration from the given files instead from global or
+1219:	 system-level configuration files. If GIT_CONFIG_SYSTEM is set, the
+1220-	 system config file defined at build time (usually /etc/gitconfig)
+1221:	 will not be read. Likewise, if GIT_CONFIG_GLOBAL is set, neither
+1222-	 $HOME/.gitconfig nor $XDG_CONFIG_HOME/git/config will be read. Can be
+1223-	 set to /dev/null to skip reading configuration files of the
+1224-	 respective level.
+1225-
+1226-     GIT_CONFIG_NOSYSTEM
+--
+1364-	 false to prevent this redaction.
+1365-
+1366:     GIT_NO_REPLACE_OBJECTS
+1367-	 Setting and exporting this environment variable tells Git to ignore
+1368-	 replacement refs and do not replace Git objects.
+1369-
+1370-     GIT_LITERAL_PATHSPECS
+1371-	 Setting this Boolean environment variable to true will cause Git to
+--
+1389-	 treat all pathspecs as case-insensitive.
+1390-
+1391:     GIT_NO_LAZY_FETCH
+1392-	 Setting this Boolean environment variable to true tells Git not to
+1393-	 lazily fetch missing objects from the promisor remote on demand.
+1394-
+1395-     GIT_REFLOG_ACTION
+1396-	 When a ref is updated, reflog entries are created to keep track of
+9-     git cat-file (--textconv | --filters)
+10-		  [<rev>:<path|tree-ish> | --path=<path|tree-ish> <rev>]
+11:     git cat-file (--batch | --batch-check | --batch-command) [--batch-all-objects]
+12:		  [--buffer] [--follow-symlinks] [--unordered]
+13-		  [--textconv | --filters] [-Z]
+14-
+15-DESCRIPTION
+16-     Output the contents or other properties such as size, type or delta
+--
+74-	 in combination with one of the batched modes. Excluded objects that
+75-	 have been explicitly requested via any of the batch modes that read
+76:	 objects via standard input (--batch, --batch-check) will be reported
+77-	 as "filtered". Excluded objects in --batch-all-objects mode will not
+78-	 be printed at all. The <filter-spec> may be one of the following:
+79-
+80-	 The form --filter=blob:none omits all blobs.
+--
+108-	     replacement identities.
+109-
+110:     --batch-check, --batch-check=<format>
+111-	 Print object information for each object provided on stdin. May not
+112-	 be combined with any other options or arguments except --textconv,
+113-	 --filters or --use-mailmap.
+114-
+--
+143-	 info <object>
+144-	     Print object info for object reference <object>. This corresponds
+145:	     to the output of --batch-check.
+146-
+147-	 flush
+148-	     Used with --buffer to execute all preceding commands that were
+149-	     issued since the beginning or since the last flush was issued.
+--
+156-	 batch operation on all objects in the repository and any alternate
+157-	 object stores (not just reachable objects). Requires --batch or
+158:	 --batch-check be specified. By default, the objects are visited in
+159-	 order sorted by their hashes; see also --unordered below. Objects are
+160-	 presented as-is, without respecting the "replace" mechanism of git-
+161-	 replace(1).
+162-
+--
+165-	 a process can interactively read and write from cat-file. With this
+166-	 option, the output uses normal stdio buffering; this is much more
+167:	 efficient when invoking --batch-check or --batch-command on a large
+168-	 number of objects.
+169-
+170-     --unordered
+171-	 When --batch-all-objects is in use, visit objects in an order which
+--
+177-	 repository.
+178-
+179:     --follow-symlinks
+180:	 With --batch or --batch-check, follow symlinks inside the repository
+181-	 when requesting objects with extended SHA-1 expressions of the form
+182-	 tree-ish:path-in-tree. Instead of providing output about the link
+183-	 itself, provide output about the linked-to object. If a symlink
+184-	 points outside the tree-ish (e.g. a link to /foo or a root-level link
+--
+191-
+192-	 This option cannot (currently) be used unless --batch or
+193:	 --batch-check is used.
+194-
+195-	 For example, consider a git repository containing:
+196-
+197-	     f: a file containing "hello\n"
+--
+205-	     ce013625030ba8dba906f756967f9e9ca394464a blob 6
+206-
+207:	 And echo HEAD:link | git cat-file --batch --follow-symlinks would
+208-	 print the same thing, as would HEAD:dir/link, as they both point at
+209-	 HEAD:f.
+210-
+211:	 Without --follow-symlinks, these would print data about the symlink
+212-	 itself. In the case of HEAD:link, you would see
+213-
+214-	     4d1ae35ba2c8ec712fa2a379db44ad639ca277bd blob 1
+215-
+--
+224-
+225-     -Z
+226:	 Only meaningful with --batch, --batch-check, or --batch-command;
+227-	 input and output is NUL-delimited instead of newline-delimited.
+228-
+229-     -z
+230:	 Only meaningful with --batch, --batch-check, or --batch-command;
+231-	 input is NUL-delimited instead of newline-delimited. This option is
+232-	 deprecated in favor of -Z as the output can otherwise be ambiguous.
+233-
+234-OUTPUT
+--
+245-
+246-BATCH OUTPUT
+247:     If --batch or --batch-check is given, cat-file will read objects from
+248-     stdin, one per line, and print information about them in the same order
+249-     as they have been read. By default, the whole line is considered as an
+250-     object, as if it were fed to git-rev-parse(1).
+251-
+--
+253-     one per line, and print information based on the command given. With
+254-     --batch-command, the info command followed by an object will print
+255:     information about the object the same way --batch-check would, and the
+256-     contents command followed by an object prints contents in the same way
+257-     --batch would.
+258-
+259-     You can specify the information shown for each object by using a custom
+--
+304-	 <contents> LF
+305-
+306:     Whereas --batch-check='%(objectname) %(objecttype)' would produce:
+307-
+308-	 <oid> SP <type> LF
+309-
+310-     If a name is specified on stdin that cannot be resolved to an object in
+311-     the repository, then cat-file will ignore any custom format and print:
+312-
+313:	 <object> SP missing LF
+314-
+315-     If a name is specified on stdin that is filtered out via --filter=, then
+316-     cat-file will ignore any custom format and print:
+317-
+--
+330-	 <oid> SP submodule LF
+331-
+332:     If --follow-symlinks is used, and a symlink in the repository points
+333-     outside the repository, then cat-file will ignore any custom format and
+334-     print:
+335-
+336-	 symlink SP <size> LF
+--
+341-     <symlink> will be ../foo. <size> is the size of the symlink in bytes.
+342-
+343:     If --follow-symlinks is used, the following error messages will be
+344-     displayed:
+345-
+346:	 <object> SP missing LF
+347-
+348-     is printed when the initial symlink requested does not exist.
+349-
+350-	 dangling SP <size> LF
+1364:     --no-ext-diff
+1365-	 Disallow external diff drivers.
+1366-
+1367:     --textconv, --no-textconv
+1368-	 Allow (or disallow) external text conversion filters to be run when
+1369-	 comparing binary files. See gitattributes(5) for details. Because
+1370-	 textconv filters are typically a one-way conversion, the resulting
+1371-	 diff is suitable for human consumption, but cannot be applied. For
+--
+1640:	 Shows the contents of the file Documentation/README as they were
+1641-	 current in the 10th last commit of the branch next.
+1642-
+1643-     git show master:Makefile master:t/Makefile
+1644-	 Concatenates the contents of said Makefiles in the head of the branch
+286:     --show-object-format[=(storage|input|output|compat)]
+287-	 Show the object format (hash algorithm) used for the repository for
+288-	 storage inside the .git directory, input, output, or compatibility.
+289-	 For input, multiple algorithms may be printed, space-separated. If
+290-	 compat is requested and no compatibility algorithm is enabled, prints
+5806-	 not stored.
+5807-
+5808:     protocol.allow
+5809-	 If set, provide a user defined default policy for all protocols which
+5810-	 don’t explicitly have a policy (protocol.<name>.allow). By default,
+5811-	 if unset, known-safe protocols (http, https, git, ssh) have a default
+5812-	 policy of always, known-dangerous protocols (ext) have a default
+5813-	 policy of never, and all other protocols (including file) have a
+5814-	 default policy of user. Supported policies:
+5815-
+5816-	 •   always - protocol is always able to be used.
+5817-
+5818:	 •   never - protocol is never able to be used.
+5819-
+5820-	 •   user - protocol is only able to be used when
+5821-	     GIT_PROTOCOL_FROM_USER is either unset or has a value of 1. This
+5822-	     policy should be used when you want a protocol to be directly
+5823-	     usable by the user but don’t want it used by commands which
+5824-	     execute clone/fetch/push commands without user input, e.g.
+5825-	     recursive submodule initialization.

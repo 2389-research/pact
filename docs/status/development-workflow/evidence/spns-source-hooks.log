@@ -1,0 +1,46 @@
+trim trailing whitespace.................................................Passed
+fix end of files.........................................................Passed
+check yaml...........................................(no files to check)Skipped
+check for added large files..............................................Passed
+check for merge conflicts................................................Passed
+mixed line ending........................................................Passed
+check for case conflicts.................................................Passed
+go fmt...................................................................Passed
+go imports...............................................................Passed
+go-mod-tidy..............................................................Passed
+golangci-lint............................................................Passed
+go-unit-tests............................................................Passed
+go fix -diff.............................................................Passed
+go mod verify........................................(no files to check)Skipped
+go vet...................................................................Passed
+[feat/development-evidence 41c1ae6] feat(evidence): check bounded local and immutable Git proof
+ 30 files changed, 1220 insertions(+)
+ create mode 100644 cmd/pact/evidence_commands.go
+ create mode 100644 cmd/pact/evidence_commands_test.go
+ create mode 100644 docs/status/development-workflow/evidence/spns-check-initial.log
+ create mode 100644 docs/status/development-workflow/evidence/spns-cli-green.log
+ create mode 100644 docs/status/development-workflow/evidence/spns-cli-red-selection.log
+ create mode 100644 docs/status/development-workflow/evidence/spns-cli-red-selection.log.gz
+ create mode 100644 docs/status/development-workflow/evidence/spns-cli-red.log
+ create mode 100644 docs/status/development-workflow/evidence/spns-cli-red.log.gz
+ create mode 100644 docs/status/development-workflow/evidence/spns-freeze-lint.log
+ create mode 100644 docs/status/development-workflow/evidence/spns-freeze-targeted.log
+ create mode 100644 docs/status/development-workflow/evidence/spns-git-boundary-green.log
+ create mode 100644 docs/status/development-workflow/evidence/spns-git-boundary-red.log
+ create mode 100644 docs/status/development-workflow/evidence/spns-lint-corrections.log
+ create mode 100644 docs/status/development-workflow/evidence/spns-lint-initial.log
+ create mode 100644 docs/status/development-workflow/evidence/spns-lint-review.log
+ create mode 100644 docs/status/development-workflow/evidence/spns-review-green.log
+ create mode 100644 docs/status/development-workflow/evidence/spns-review-red-cases.log
+ create mode 100644 docs/status/development-workflow/evidence/spns-review-red.log
+ create mode 100644 docs/status/development-workflow/evidence/spns-source-hook-attempt.log
+ create mode 100644 docs/status/development-workflow/evidence/spns-targeted-initial.log
+ create mode 100644 docs/status/development-workflow/evidence/spns-targeted-review.log
+ create mode 100644 docs/status/development-workflow/evidence/spns-unit-green.log
+ create mode 100644 docs/status/development-workflow/evidence/spns-unit-red.log
+ create mode 100644 internal/evidence/README.md
+ create mode 100644 internal/evidence/git.go
+ create mode 100644 internal/evidence/gotchas.md
+ create mode 100644 internal/evidence/resolve.go
+ create mode 100644 internal/evidence/resolve_test.go
+ create mode 100644 tests/e2e/development_evidence_test.go
