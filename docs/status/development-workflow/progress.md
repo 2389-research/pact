@@ -19,9 +19,12 @@ No main merge, release, or deployment is authorized.
 - pact#x9r1 and pact#pzm4 are closed after independent main-model reviews.
   Combined source 576043e passed canonical, race, and fresh-cache lint.
   Proof/review commit: 6359a1d. Signed checkpoint: PACT81e51450.
-- Current: pact#w5cf evaluates a brief against the existing read commands.
-  Owner: /root/brief; worktree /Users/harper/.codex/worktrees/c0e3/pact.
-  Branch: feat/development-brief; base: 576043e.
+- pact#w5cf is closed with a tested negative publication decision.
+  Both paths used three tool calls; no public brief command was added.
+  Source47fbc2f passed every gate; proofa6d7800 and independent reviewc827972.
+- Current: pact#z895 proves the complete real recording and handoff lifecycle.
+  Owner: /root/lifecycle; worktree /Users/harper/.codex/worktrees/80d3/pact.
+  Branch: feat/development-lifecycle; base: a0d4a75.
 - All other implementation katas remain open; honor native dependency edges.
 - Parent owns PACT appends, tracker updates, Kata closure, and integration.
 - Only the active implementation owner writes production code. Reviews are read-only.
@@ -42,6 +45,10 @@ No main merge, release, or deployment is authorized.
 - Recorder dogfood: PACT2745e499 records checks, reviews, and bounded acceptance.
   Exact retry returned the same identity; all six Git evidence references matched.
   The test driver reported supported at that explicit frontier; global completeness remains unknown.
+- Brief evaluation: PACT4f1c51c5 records checks, explicit corpus resolution, and bounded acceptance.
+  Strict verification passed; all accessed evidence matched and the index is current.
+  The exact-cut projector reports corpus-causality resolved and local support positive.
+  Public brief publication remains rejected; the existing read recipe stays default.
 
 ## Open review findings
 
@@ -49,8 +56,10 @@ No main merge, release, or deployment is authorized.
   independent confirmation in 3ezv-review.md.
 - M2 is resolved at e8a0241 with canceled-context and deadline regressions.
   See x9r1-review.md.
-- Corpus finding corpus-causality remains pending task6 verification and review.
-  Signed finding: PACT13b9ff3e#corpus-review, source576043e.
-  The example acceptance lacks causal observation of its selected proof.
-  Some declarative expected labels also differ from the fixed contract.
-  The task6 owner is correcting the original corpus with a real projection regression.
+- Corpus finding corpus-causality is resolved at source47fbc2f.
+  Original finding: PACT13b9ff3e#corpus-review, source576043e.
+  Resolution: PACT4f1c51c5#review-resolution after independent main-model approval.
+  The canonical corpus now observes selected proof and uses the exact contract labels.
+- No open task-review finding remains.
+- Low retention limitation: an initial replay diagnostic partial stdout was lost.
+  Its error and all decisive RED/GREEN and final paired streams remain retained.
