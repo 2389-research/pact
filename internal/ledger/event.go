@@ -60,6 +60,11 @@ func NormalizeEventBatch(value map[string]any) (EventBatch, error) {
 	return normalizeEventBatchContext(context.Background(), value)
 }
 
+// NormalizeEventBatchContext applies core rules while honoring cancellation.
+func NormalizeEventBatchContext(ctx context.Context, value map[string]any) (EventBatch, error) {
+	return normalizeEventBatchContext(ctx, value)
+}
+
 func normalizeEventBatchContext(ctx context.Context, value map[string]any) (EventBatch, error) {
 	if err := ctx.Err(); err != nil {
 		return EventBatch{}, err

@@ -259,3 +259,21 @@ func equalStrings(left, right []string) bool {
 	}
 	return true
 }
+
+func TestNormalizeEventBatchContextPublic(t *testing.T) {
+	value := map[string]any{"events": []any{eventInput("context-test", []any{}, []any{})}}
+	if _, err := NormalizeEventBatchContext(context.Background(), value); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := NormalizeEventBatchContext(ctx, value); !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancellation = %v", err)
+	}
+	ctx, cancel = context.WithCancel(context.Background())
+	defer cancel()
+	cancelOnSecondLedgerPoll(t, cancel)
+	if _, err := NormalizeEventBatchContext(ctx, value); !errors.Is(err, context.Canceled) {
+		t.Fatalf("mid-flight cancellation = %v", err)
+	}
+}

@@ -25,7 +25,7 @@ Evidence references from the review:
   at line 130 proves the outer config, branch ref, and index remain unchanged.
 - tests/fixtures/development/histories.json:7 binds a correction to its original review.
 
-## M1 — Minor, open
+## M1 — Minor, closed by pact#3ezv
 
 tests/fixtures/development/inputs.json:1076 has an inconclusive review without
 findings, but lines 1098–1105 retain an action to correct finding-1 and a blocking
@@ -34,6 +34,14 @@ case unrelated semantic incompleteness. Remove the dangling finding/action or
 label the incompleteness before downstream reuse. Parent assigns cleanup to
 pact#3ezv, whose semantic corpus checks touch this same input. Keep this finding
 open until that correction and its regression pass.
+
+Resolved by replacing the inconclusive scenario's finding-specific action with
+an action to repeat the inconclusive review, retaining its blocking review event
+and removing the absent finding reference. The focused regression
+`TestInconclusiveFixtureHasNoDanglingFinding` failed before correction and now
+passes alongside runtime corpus validation and the independent schema oracle.
+The case still has an inconclusive verdict and makes no supported-acceptance
+claim. Retained RED/GREEN and final source evidence live in `3ezv-report.md`.
 
 ## Controller resolution of unverified items
 

@@ -1095,16 +1095,11 @@
         "type": "dev.next_action.recorded",
         "payload": {
           "actor": "fixture-agent",
-          "action": "Correct finding-1 and review the correction.",
+          "action": "Repeat the inconclusive review with sufficient evidence.",
           "blocking_event_refs": [
             "local:review"
           ],
-          "blocking_findings": [
-            {
-              "review_event_ref": "local:review",
-              "finding_id": "finding-1"
-            }
-          ],
+          "blocking_findings": [],
           "evidence_indexes": []
         },
         "evidence": [
