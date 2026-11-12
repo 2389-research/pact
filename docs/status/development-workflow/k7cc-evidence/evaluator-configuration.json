@@ -1,0 +1,58 @@
+{
+  "source": "5782f2499825d6090f8838ed755cffb2edbf713e",
+  "base": "851bd51ef1531bae29141b4fad903fd915f35acd",
+  "configured_model": "gpt-6.1-sol",
+  "configured_reasoning": "high",
+  "runtime_deployment_build": "unavailable",
+  "fixture_binary_sha256": "c4b7ad3b05802f3af68794a4412cd592159695216bee6fbac380cab1c648ff24",
+  "fixture_binary_build": "before final documentation freeze; public runtime command owners unchanged",
+  "guides": {
+    "baseline": {
+      "revision": "851bd51ef1531bae29141b4fad903fd915f35acd",
+      "path": "docs/pact-ledger/SKILL.md",
+      "bytes": 35463,
+      "sha256": "e9e41b5422b709a93838fc910581afd504c0542902e29fa7287d126346ddf36f"
+    },
+    "candidate": {
+      "revision": "5782f2499825d6090f8838ed755cffb2edbf713e",
+      "path": "docs/pact-ledger/SKILL.md",
+      "bytes": 42710,
+      "sha256": "143bd672507a8dbb043ad325d24837d38f8431e6c3977cd5b6be8d2bffdb0ff4"
+    }
+  },
+  "budgets": {
+    "guide_inner_tokens": 18000,
+    "guide_outer_tokens": 10000,
+    "guide_outer_explicit": false,
+    "scenario_inner_tokens": 12000,
+    "scenario_outer_tokens": 14000,
+    "answer_maximum_words": 7000
+  },
+  "archival": {
+    "calls_each": 1,
+    "new_fixture_reads": 0,
+    "scope": "save exact completed JSON answer only"
+  },
+  "spawns": [
+    {
+      "agent_name": "/root/adoption/adoption_baseline_reader",
+      "arguments": {
+        "task_name": "adoption_baseline_reader",
+        "fork_turns": "none",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "high",
+        "message": "Doctor Biz requests one clean, read-only development handoff evaluation. You are the BASELINE reader. Configured model gpt-6.1-sol, reasoning high; exact runtime deployment/build metadata unavailable. Source 5782f24 (full source supplied by root later); fixture initial source62ba249ef5cafdee4860900220f826dfad0ba869 and corrected source fd0a35409b7f10ea96d6f2af192632bb79b5d810. Do not inspect repository code, broad status reports, prior trials, oracle/expected files, other reader, or internal projector driver. Do not edit files or mutate stores. The supplied capture harness writes diagnostic files only.\nUse exactly this protocol unless a concrete failure requires more reads. First make ONE functions.exec tool call with exec_command `cat /tmp/pact-k7cc-reader-inputs/baseline.md /Users/harper/.codex/worktrees/78a9/pact/docs/status/development-workflow/k7cc-rubric.md`, max_output_tokens18000; print raw output with text(result.output), not the result object. Read that guide and rubric. Then make THREE SEPARATE functions.exec calls, one per open, complete, conflict. Each calls exec_command `sh /Users/harper/.codex/worktrees/78a9/pact/docs/status/development-workflow/k7cc-evidence/read-adoption-trial.sh /tmp/pact-k7cc-public-fixture SCENARIO /tmp/pact-k7cc-captures/baseline-SCENARIO` with max_output_tokens12000. Set functions.exec pragma max_output_tokens14000 and forward result.output RAW using text(result.output); do not JSON-encode or summarize tool output. Keep all failures and truncation; no trial retries seeking success. The same public-only harness and budgets are supplied to both readers.\nGoal: recover namespace org/example/development subject widget/task-1 at initial source for open, corrected source for complete/conflict. Produce the complete authored rubric answer from observations. Distinguish manually interpreted support from a projector result. Keep exact refs, source, check command/exit, Important finding, resolutions, all decisions/check/review refs, evidence ref/digest/bytes/status/event refs, declared action applicability, heads, local-root/shared-key limits and local/global completeness. Give missing acceptance not_recorded, conflicts unresolved. State any missing facts or unsupported inference. Do not claim raw verifier checked domain schema or reported commands truly ran.\nFinal output: one structured JSON answer covering three scenarios plus actual tool call count, extra/failed calls, CLI call count per scenario from observed harness commands, transport failures/truncation, configured model/reasoning and unavailable runtime version. You may define exact refs once in a dictionary and refer to those dictionary keys elsewhere. Keep response bounded to 7000 words. Do not make an extra tool call just to count or write the answer; root retains your final answer. No other tool calls unless concrete task failure requires them."
+      }
+    },
+    {
+      "agent_name": "/root/adoption/adoption_candidate_reader",
+      "arguments": {
+        "task_name": "adoption_candidate_reader",
+        "fork_turns": "none",
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "high",
+        "message": "Doctor Biz requests one clean, read-only development handoff evaluation. You are the CANDIDATE reader. Configured model gpt-6.1-sol, reasoning high; exact runtime deployment/build metadata unavailable. Source 5782f24 (full source supplied by root later); fixture initial source62ba249ef5cafdee4860900220f826dfad0ba869 and corrected source fd0a35409b7f10ea96d6f2af192632bb79b5d810. Do not inspect repository code, broad status reports, prior trials, oracle/expected files, other reader, or internal projector driver. Do not edit files or mutate stores. The supplied capture harness writes diagnostic files only.\nUse exactly this protocol unless a concrete failure requires more reads. First make ONE functions.exec tool call with exec_command `cat /tmp/pact-k7cc-reader-inputs/candidate.md /Users/harper/.codex/worktrees/78a9/pact/docs/status/development-workflow/k7cc-rubric.md`, max_output_tokens18000; print raw output with text(result.output), not the result object. Read that guide and rubric. Then make THREE SEPARATE functions.exec calls, one per open, complete, conflict. Each calls exec_command `sh /Users/harper/.codex/worktrees/78a9/pact/docs/status/development-workflow/k7cc-evidence/read-adoption-trial.sh /tmp/pact-k7cc-public-fixture SCENARIO /tmp/pact-k7cc-captures/candidate-SCENARIO` with max_output_tokens12000. Set functions.exec pragma max_output_tokens14000 and forward result.output RAW using text(result.output); do not JSON-encode or summarize tool output. Keep all failures and truncation; no trial retries seeking success. The same public-only harness and budgets are supplied to both readers.\nGoal: recover namespace org/example/development subject widget/task-1 at initial source for open, corrected source for complete/conflict. Produce the complete authored rubric answer from observations. Distinguish manually interpreted support from a projector result. Keep exact refs, source, check command/exit, Important finding, resolutions, all decisions/check/review refs, evidence ref/digest/bytes/status/event refs, declared action applicability, heads, local-root/shared-key limits and local/global completeness. Give missing acceptance not_recorded, conflicts unresolved. State any missing facts or unsupported inference. Do not claim raw verifier checked domain schema or reported commands truly ran.\nFinal output: one structured JSON answer covering three scenarios plus actual tool call count, extra/failed calls, CLI call count per scenario from observed harness commands, transport failures/truncation, configured model/reasoning and unavailable runtime version. You may define exact refs once in a dictionary and refer to those dictionary keys elsewhere. Keep response bounded to 7000 words. Do not make an extra tool call just to count or write the answer; root retains your final answer. No other tool calls unless concrete task failure requires them."
+      }
+    }
+  ]
+}

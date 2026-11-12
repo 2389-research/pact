@@ -1,0 +1,620 @@
+{
+  "reader": "candidate",
+  "recipient": "Doctor Biz",
+  "configuration": {
+    "model": "gpt-6.1-sol",
+    "reasoning": "high",
+    "runtime_deployment_or_build": "unavailable",
+    "evaluation_source_supplied_by_parent": "5782f24",
+    "full_evaluation_source_revision": "not supplied"
+  },
+  "scope": {
+    "namespace": "org/example/development",
+    "subject": "widget/task-1",
+    "interpretation": "Manual interpretation of public CLI observations and the supplied guide. No development projector ran.",
+    "repository_inspection": "None",
+    "ledger_mutations": "None",
+    "writes": "The supplied capture harness wrote diagnostic files."
+  },
+  "dictionary": {
+    "initial_source": {
+      "repository": "synthetic/widget",
+      "revision": "62ba249ef5cafdee4860900220f826dfad0ba869"
+    },
+    "corrected_source": {
+      "repository": "synthetic/widget",
+      "revision": "fd0a35409b7f10ea96d6f2af192632bb79b5d810"
+    },
+    "policy": "sha256:e9d050d6b7170e608677c0c56b338a888c2ec001499b0119adca52cf0c8fd437",
+    "schemas": {
+      "check": "sha256:41465a6acf1efe53e52c43b6939700487d838218407ada3df898c097fa8bcac0",
+      "next_action": "sha256:13eb3dac0c907a963457c5ad8e46c4d2e6efb96874681bd85f0bb64bb910ceff",
+      "review": "sha256:3a69ab6e333043e7c2dd990e26f21144f8cc4cc3561efadf3a04e352efee59f6",
+      "acceptance": "sha256:55bbd773c1024af61f2520977fb84241fcf09f7cd95ee394ca5ef2bb9016b016"
+    },
+    "evidence": {
+      "initial": {
+        "ref": "git:62ba249ef5cafdee4860900220f826dfad0ba869:proof.txt",
+        "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+        "actual_digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+        "bytes": 77,
+        "assessment": "matching",
+        "media_type": "text/plain",
+        "role": "primary"
+      },
+      "corrected": {
+        "ref": "git:fd0a35409b7f10ea96d6f2af192632bb79b5d810:proof.txt",
+        "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+        "actual_digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+        "bytes": 77,
+        "assessment": "matching",
+        "media_type": "text/plain",
+        "role": "primary"
+      }
+    },
+    "commits": {
+      "open_initial": "sha256:df3708b1412967f35a2a86fcfe712e72642a20adc16bacb0911f155ed1a9d180",
+      "complete_initial": "sha256:01f97b75654b32bc510120fb90525b6ab6ed2c73fa495edac02ad6e025a9d05c",
+      "complete_corrected": "sha256:2b4b8b110ed6ba5d0d626734ef2fd40deb85ecf173f90d017aa600575b45b4cc",
+      "conflict_initial": "sha256:0e824b40087b1b6913c2d1b7e4b5bec88dcb473d2cbc326bb414d455e8e66d03",
+      "conflict_accepted": "sha256:4672d152615b47f852d6924ec979236ad642b36f3dad6130fc9601e1f76f92e6",
+      "conflict_rejected": "sha256:ee2e40d80f152569b2a58b59a774eff798c414497147c40ecd8e6544a71dba6c"
+    },
+    "events": {
+      "open_check": "pact:event:sha256:df3708b1412967f35a2a86fcfe712e72642a20adc16bacb0911f155ed1a9d180#check",
+      "open_review": "pact:event:sha256:df3708b1412967f35a2a86fcfe712e72642a20adc16bacb0911f155ed1a9d180#review",
+      "open_next": "pact:event:sha256:df3708b1412967f35a2a86fcfe712e72642a20adc16bacb0911f155ed1a9d180#next",
+      "complete_initial_check": "pact:event:sha256:01f97b75654b32bc510120fb90525b6ab6ed2c73fa495edac02ad6e025a9d05c#check",
+      "complete_initial_review": "pact:event:sha256:01f97b75654b32bc510120fb90525b6ab6ed2c73fa495edac02ad6e025a9d05c#review",
+      "complete_next": "pact:event:sha256:01f97b75654b32bc510120fb90525b6ab6ed2c73fa495edac02ad6e025a9d05c#next",
+      "complete_check_fixed": "pact:event:sha256:2b4b8b110ed6ba5d0d626734ef2fd40deb85ecf173f90d017aa600575b45b4cc#check-fixed",
+      "complete_review_fixed": "pact:event:sha256:2b4b8b110ed6ba5d0d626734ef2fd40deb85ecf173f90d017aa600575b45b4cc#review-fixed",
+      "complete_accept": "pact:event:sha256:2b4b8b110ed6ba5d0d626734ef2fd40deb85ecf173f90d017aa600575b45b4cc#accept",
+      "conflict_initial_check": "pact:event:sha256:0e824b40087b1b6913c2d1b7e4b5bec88dcb473d2cbc326bb414d455e8e66d03#check",
+      "conflict_initial_review": "pact:event:sha256:0e824b40087b1b6913c2d1b7e4b5bec88dcb473d2cbc326bb414d455e8e66d03#review",
+      "conflict_next": "pact:event:sha256:0e824b40087b1b6913c2d1b7e4b5bec88dcb473d2cbc326bb414d455e8e66d03#next",
+      "conflict_accepted_check": "pact:event:sha256:4672d152615b47f852d6924ec979236ad642b36f3dad6130fc9601e1f76f92e6#check-fixed",
+      "conflict_accepted_review": "pact:event:sha256:4672d152615b47f852d6924ec979236ad642b36f3dad6130fc9601e1f76f92e6#review-fixed",
+      "conflict_accept": "pact:event:sha256:4672d152615b47f852d6924ec979236ad642b36f3dad6130fc9601e1f76f92e6#accept",
+      "conflict_rejected_check": "pact:event:sha256:ee2e40d80f152569b2a58b59a774eff798c414497147c40ecd8e6544a71dba6c#check-fixed",
+      "conflict_rejected_review": "pact:event:sha256:ee2e40d80f152569b2a58b59a774eff798c414497147c40ecd8e6544a71dba6c#review-fixed",
+      "conflict_reject": "pact:event:sha256:ee2e40d80f152569b2a58b59a774eff798c414497147c40ecd8e6544a71dba6c#accept"
+    },
+    "signers": {
+      "open": "ed25519:sha256:700d56d2f2c849663b22926100e8a9e3e1d6576714085b86926ca120ffb5ca3a",
+      "complete": "ed25519:sha256:b034e9f19f1979f617122676c8ff0036b333ed7dd2d2c92e64cee9fdec655a9d",
+      "conflict": "ed25519:sha256:59113e50bdb95c547b65951e57d6603c6ee6d1b960351474a2389d2b7f468b6a"
+    }
+  },
+  "common_observations": {
+    "reference_convention": "Names in scenario arrays resolve through dictionary.events, dictionary.commits, dictionary.evidence, or dictionary.signers.",
+    "check_contract": {
+      "name": "unit",
+      "command": ["go", "test", "./..."],
+      "recorded_outcome": "passed",
+      "recorded_exit_code": 0,
+      "evidence_indexes": [0],
+      "execution_proven_by_this_read": false
+    },
+    "initial_finding": {
+      "id": "finding-1",
+      "severity": "important",
+      "summary": "Synthetic input loses a declared fact.",
+      "original_review_verdict": "changes_required",
+      "evidence_indexes": [0]
+    },
+    "declared_action": {
+      "action": "Correct finding-1 and review the correction.",
+      "actor": "fixture-agent",
+      "source": "initial_source",
+      "blocking_finding_id": "finding-1",
+      "evidence_indexes": []
+    },
+    "verification": {
+      "strict": true,
+      "ok": true,
+      "integrity": "Every scanned object reported valid.",
+      "authenticity": "Every scanned object reported valid.",
+      "structure": "Every scanned object reported valid.",
+      "dag_and_references": "No reported errors or warnings.",
+      "index": "current",
+      "index_coverage": "complete",
+      "resource_limits": "within_limits",
+      "diagnostics_truncated": false,
+      "checkpoints": 0,
+      "schema_validation": "Domain schema validation was not demonstrated by query, show, evidence check, or raw verify. Schema digests were present.",
+      "authority": "Each commit was authorized because its signer was a locally bootstrapped trusted root.",
+      "authority_chain_depth": 0,
+      "lease_status": "not_applicable",
+      "authority_limit": "Local verifier trust is the reported basis. This does not establish organization-wide authority or an independently governed trust bootstrap.",
+      "reviewer_independence": "Checks, reviews, actions, and decisions within each scenario use one shared signing key. Separate reviewers or independent judgment are not established.",
+      "local_completeness": "locally_closed",
+      "completeness_scope": "local_object_set",
+      "completeness_blockers": [],
+      "global_completeness": "unknown"
+    },
+    "evidence_limit": "Matching immutable Git blob bytes establish current availability and digest agreement. They do not establish that checks or reviews occurred, or prove their conclusions.",
+    "source_limit": "Source revisions are signed reported facts. The reader did not inspect source code.",
+    "query_limit": "All three subject queries returned has_more=false and unresolved=[]. The empty query unresolved list is not a semantic acceptance-conflict resolution.",
+    "ordering_limit": "Query ordering uses known causal batches. Its immutable-reference tie-breaker is not semantic, and observed_at is not used.",
+    "policy_limit": "The guide names the local policy and its requirements. The raw CLI did not execute the internal development projector or produce its acceptance result.",
+    "supersession": "All observed events have empty supersedes arrays."
+  },
+  "scenarios": {
+    "open": {
+      "goal_source": "initial_source",
+      "heads": ["open_initial"],
+      "frontier_type": "Exact observed local namespace heads; no signed checkpoint.",
+      "commits_inspected": ["open_initial"],
+      "commit_parents": {
+        "open_initial": []
+      },
+      "signer": "open",
+      "counts": {
+        "objects": 1,
+        "commits": 1,
+        "events": 3,
+        "authorized_commits": 1
+      },
+      "checks": [
+        {
+          "event": "open_check",
+          "source": "initial_source",
+          "command": ["go", "test", "./..."],
+          "outcome": "passed",
+          "exit_code": 0
+        }
+      ],
+      "reviews": [
+        {
+          "event": "open_review",
+          "source": "initial_source",
+          "verdict": "changes_required",
+          "finding_ids": ["finding-1"],
+          "resolves": []
+        }
+      ],
+      "finding": {
+        "id": "finding-1",
+        "severity": "important",
+        "summary": "Synthetic input loses a declared fact.",
+        "original_review": "open_review",
+        "status": "open",
+        "resolving_reviews": [],
+        "reason": "No explicit resolution is recorded. The passing check does not resolve this finding."
+      },
+      "acceptance": {
+        "status": "not_recorded",
+        "recorded_decisions": [],
+        "manual_support": "Acceptance is not supported: the Important finding remains open and no acceptance decision exists.",
+        "projector_result": "not run"
+      },
+      "checked_evidence": [
+        {
+          "evidence": "initial",
+          "supporting_event": "open_check",
+          "checked_at": "2026-11-12T05:35:59.884125Z"
+        },
+        {
+          "evidence": "initial",
+          "supporting_event": "open_review",
+          "checked_at": "2026-11-12T05:35:59.922705Z"
+        }
+      ],
+      "next_action": {
+        "event": "open_next",
+        "action": "Correct finding-1 and review the correction.",
+        "actor": "fixture-agent",
+        "source": "initial_source",
+        "blocking_events": ["open_review"],
+        "blocking_findings": [
+          {
+            "finding_id": "finding-1",
+            "review_event": "open_review"
+          }
+        ],
+        "applicability": "applicable",
+        "reason": "The named finding remains open.",
+        "evidence_note": "The action contains the initial evidence entry but selects no evidence indexes. No evidence-check output targeted the action."
+      },
+      "handoff": "Correct finding-1, then record an explicit resolving review and a separate acceptance decision.",
+      "pagination": {
+        "returned": 3,
+        "has_more": false,
+        "unread_pages": false
+      },
+      "capture_prefix": "/tmp/pact-k7cc-captures/candidate-open"
+    },
+    "complete": {
+      "goal_source": "corrected_source",
+      "heads": ["complete_corrected"],
+      "frontier_type": "Exact observed local namespace heads; no signed checkpoint.",
+      "commits_inspected": ["complete_initial", "complete_corrected"],
+      "commit_parents": {
+        "complete_initial": [],
+        "complete_corrected": ["complete_initial"]
+      },
+      "signer": "complete",
+      "counts": {
+        "objects": 2,
+        "commits": 2,
+        "events": 6,
+        "authorized_commits": 2
+      },
+      "checks": [
+        {
+          "event": "complete_initial_check",
+          "source": "initial_source",
+          "command": ["go", "test", "./..."],
+          "outcome": "passed",
+          "exit_code": 0,
+          "applicability": "historical initial-source check"
+        },
+        {
+          "event": "complete_check_fixed",
+          "source": "corrected_source",
+          "command": ["go", "test", "./..."],
+          "outcome": "passed",
+          "exit_code": 0,
+          "applicability": "exact corrected-source check selected by acceptance"
+        }
+      ],
+      "reviews": [
+        {
+          "event": "complete_initial_review",
+          "source": "initial_source",
+          "verdict": "changes_required",
+          "finding_ids": ["finding-1"],
+          "resolves": []
+        },
+        {
+          "event": "complete_review_fixed",
+          "source": "corrected_source",
+          "verdict": "approved",
+          "finding_ids": [],
+          "resolves": [
+            {
+              "finding_id": "finding-1",
+              "review_event": "complete_initial_review",
+              "correction_source": "corrected_source",
+              "evidence_indexes": [0]
+            }
+          ]
+        }
+      ],
+      "finding": {
+        "id": "finding-1",
+        "severity": "important",
+        "summary": "Synthetic input loses a declared fact.",
+        "original_review": "complete_initial_review",
+        "status": "explicitly resolved for corrected_source",
+        "resolving_reviews": ["complete_review_fixed"],
+        "reason": "The approved corrected-source review names the original review and finding, the correction source, and evidence index 0. Closure is not inferred from the later passing check."
+      },
+      "acceptance": {
+        "status": "accepted recorded; manually supported locally",
+        "recorded_decisions": [
+          {
+            "event": "complete_accept",
+            "decision": "accepted",
+            "operation_id": "corrected",
+            "source": "corrected_source",
+            "policy": "policy",
+            "check_refs": ["complete_check_fixed"],
+            "review_refs": ["complete_review_fixed"],
+            "caused_by": ["complete_check_fixed", "complete_review_fixed"],
+            "evidence_indexes": [0],
+            "rationale": "The selected check and explicit resolution support the correction."
+          }
+        ],
+        "manual_support": "The observed exact-source passed check, approved review, explicit finding resolution, matching durable Git evidence, local-root authority, and explicit decision support local acceptance under the guide's stated policy.",
+        "projector_result": "not run",
+        "global_completion": "unknown"
+      },
+      "checked_evidence": [
+        {
+          "evidence": "initial",
+          "supporting_event": "complete_initial_check",
+          "checked_at": "2026-11-12T05:36:03.425282Z"
+        },
+        {
+          "evidence": "initial",
+          "supporting_event": "complete_initial_review",
+          "checked_at": "2026-11-12T05:36:03.466125Z"
+        },
+        {
+          "evidence": "corrected",
+          "supporting_event": "complete_accept",
+          "checked_at": "2026-11-12T05:36:03.52722Z"
+        },
+        {
+          "evidence": "corrected",
+          "supporting_event": "complete_check_fixed",
+          "checked_at": "2026-11-12T05:36:03.570237Z"
+        },
+        {
+          "evidence": "corrected",
+          "supporting_event": "complete_review_fixed",
+          "checked_at": "2026-11-12T05:36:03.612619Z"
+        }
+      ],
+      "next_action": {
+        "event": "complete_next",
+        "action": "Correct finding-1 and review the correction.",
+        "actor": "fixture-agent",
+        "source": "initial_source",
+        "blocking_events": ["complete_initial_review"],
+        "blocking_findings": [
+          {
+            "finding_id": "finding-1",
+            "review_event": "complete_initial_review"
+          }
+        ],
+        "applicability": "historical for the corrected-source handoff",
+        "reason": "The later approved review explicitly records the requested resolution. No new next-action event is recorded.",
+        "evidence_note": "No evidence-check output targeted the action."
+      },
+      "handoff": "Local corrected-source acceptance is supported by the observed record. No further applicable action is declared.",
+      "pagination": {
+        "returned": 6,
+        "has_more": false,
+        "unread_pages": false
+      },
+      "capture_prefix": "/tmp/pact-k7cc-captures/candidate-complete"
+    },
+    "conflict": {
+      "goal_source": "corrected_source",
+      "heads": ["conflict_accepted", "conflict_rejected"],
+      "frontier_type": "Both exact observed concurrent local namespace heads; no signed checkpoint.",
+      "commits_inspected": ["conflict_initial", "conflict_accepted", "conflict_rejected"],
+      "commit_parents": {
+        "conflict_initial": [],
+        "conflict_accepted": ["conflict_initial"],
+        "conflict_rejected": ["conflict_initial"]
+      },
+      "signer": "conflict",
+      "counts": {
+        "objects": 3,
+        "commits": 3,
+        "events": 9,
+        "authorized_commits": 3
+      },
+      "checks": [
+        {
+          "event": "conflict_initial_check",
+          "source": "initial_source",
+          "command": ["go", "test", "./..."],
+          "outcome": "passed",
+          "exit_code": 0
+        },
+        {
+          "event": "conflict_accepted_check",
+          "source": "corrected_source",
+          "command": ["go", "test", "./..."],
+          "outcome": "passed",
+          "exit_code": 0
+        },
+        {
+          "event": "conflict_rejected_check",
+          "source": "corrected_source",
+          "command": ["go", "test", "./..."],
+          "outcome": "passed",
+          "exit_code": 0
+        }
+      ],
+      "reviews": [
+        {
+          "event": "conflict_initial_review",
+          "source": "initial_source",
+          "verdict": "changes_required",
+          "finding_ids": ["finding-1"],
+          "resolves": []
+        },
+        {
+          "event": "conflict_accepted_review",
+          "source": "corrected_source",
+          "verdict": "approved",
+          "finding_ids": [],
+          "resolves": [
+            {
+              "finding_id": "finding-1",
+              "review_event": "conflict_initial_review",
+              "correction_source": "corrected_source",
+              "evidence_indexes": [0]
+            }
+          ]
+        },
+        {
+          "event": "conflict_rejected_review",
+          "source": "corrected_source",
+          "verdict": "approved",
+          "finding_ids": [],
+          "resolves": [
+            {
+              "finding_id": "finding-1",
+              "review_event": "conflict_initial_review",
+              "correction_source": "corrected_source",
+              "evidence_indexes": [0]
+            }
+          ]
+        }
+      ],
+      "finding": {
+        "id": "finding-1",
+        "severity": "important",
+        "summary": "Synthetic input loses a declared fact.",
+        "original_review": "conflict_initial_review",
+        "status": "explicit resolution recorded on both corrected-source branches",
+        "resolving_reviews": ["conflict_accepted_review", "conflict_rejected_review"],
+        "reason": "Both approved reviews explicitly name the original finding and correction source. This does not resolve the separate acceptance-decision conflict."
+      },
+      "acceptance": {
+        "status": "unresolved",
+        "winner": null,
+        "recorded_decisions": [
+          {
+            "event": "conflict_accept",
+            "decision": "accepted",
+            "operation_id": "corrected",
+            "source": "corrected_source",
+            "policy": "policy",
+            "check_refs": ["conflict_accepted_check"],
+            "review_refs": ["conflict_accepted_review"],
+            "caused_by": ["conflict_accepted_check", "conflict_accepted_review"],
+            "evidence_indexes": [0],
+            "rationale": "The selected check and explicit resolution support the correction."
+          },
+          {
+            "event": "conflict_reject",
+            "decision": "rejected",
+            "operation_id": "rejected",
+            "source": "corrected_source",
+            "policy": "policy",
+            "check_refs": ["conflict_rejected_check"],
+            "review_refs": ["conflict_rejected_review"],
+            "caused_by": ["conflict_rejected_check", "conflict_rejected_review"],
+            "evidence_indexes": [0],
+            "rationale": "The selected check and explicit resolution support the correction."
+          }
+        ],
+        "manual_support": "Both branches contain the named passing check and explicit approved resolution. Their decisions are incompatible and concurrent. Neither supersedes the other, and no resolving merge or decision is observed.",
+        "selection_rule": "Do not select a winner by timestamp, hash order, query batch, or the rejected decision's rationale text.",
+        "projector_result": "not run",
+        "global_completion": "unknown"
+      },
+      "checked_evidence": [
+        {
+          "evidence": "initial",
+          "supporting_event": "conflict_initial_check",
+          "checked_at": "2026-11-12T05:36:06.884248Z"
+        },
+        {
+          "evidence": "initial",
+          "supporting_event": "conflict_initial_review",
+          "checked_at": "2026-11-12T05:36:06.920771Z"
+        },
+        {
+          "evidence": "corrected",
+          "supporting_event": "conflict_accept",
+          "checked_at": "2026-11-12T05:36:06.984405Z"
+        },
+        {
+          "evidence": "corrected",
+          "supporting_event": "conflict_accepted_check",
+          "checked_at": "2026-11-12T05:36:07.020759Z"
+        },
+        {
+          "evidence": "corrected",
+          "supporting_event": "conflict_accepted_review",
+          "checked_at": "2026-11-12T05:36:07.056957Z"
+        },
+        {
+          "evidence": "corrected",
+          "supporting_event": "conflict_reject",
+          "checked_at": "2026-11-12T05:36:07.120623Z"
+        },
+        {
+          "evidence": "corrected",
+          "supporting_event": "conflict_rejected_check",
+          "checked_at": "2026-11-12T05:36:07.160037Z"
+        },
+        {
+          "evidence": "corrected",
+          "supporting_event": "conflict_rejected_review",
+          "checked_at": "2026-11-12T05:36:07.198779Z"
+        }
+      ],
+      "next_action": {
+        "event": "conflict_next",
+        "action": "Correct finding-1 and review the correction.",
+        "actor": "fixture-agent",
+        "source": "initial_source",
+        "blocking_events": ["conflict_initial_review"],
+        "blocking_findings": [
+          {
+            "finding_id": "finding-1",
+            "review_event": "conflict_initial_review"
+          }
+        ],
+        "applicability": "historical for the corrected-source finding work",
+        "reason": "Both later reviews record the requested resolution. The old action does not declare how to reconcile the concurrent decisions.",
+        "evidence_note": "No evidence-check output targeted the action."
+      },
+      "handoff": "Reconcile the incompatible acceptance decisions with explicit new history. This is the reader's recommendation, not a recorded next action.",
+      "pagination": {
+        "returned": 9,
+        "has_more": false,
+        "unread_pages": false
+      },
+      "capture_prefix": "/tmp/pact-k7cc-captures/candidate-conflict"
+    }
+  },
+  "measurement": {
+    "reader_tool_calls": 4,
+    "functions_exec_calls": 4,
+    "nested_exec_command_calls": 4,
+    "guide_and_rubric_read_calls": 1,
+    "scenario_harness_calls": 3,
+    "extra_calls": 0,
+    "failed_tool_calls_observed": 0,
+    "retries": 0,
+    "cli_calls_by_observed_output": {
+      "open": {
+        "query": 1,
+        "verify": 1,
+        "show": 1,
+        "evidence_check": 2,
+        "total": 5
+      },
+      "complete": {
+        "query": 1,
+        "verify": 1,
+        "show": 2,
+        "evidence_check": 5,
+        "total": 9
+      },
+      "conflict": {
+        "query": 1,
+        "verify": 1,
+        "show": 3,
+        "evidence_check": 8,
+        "total": 13
+      },
+      "total": 27
+    },
+    "cli_count_limit": "Counts cover the public CLI results observed in raw harness output. Exact executable paths, command argument transcripts, individual CLI exit codes, and any unprinted helper commands were not exposed in those responses.",
+    "reported_check_exit_codes": "Every dev.check.executed payload reports exit_code=0. These are signed check assertions, separate from this reader's CLI invocation exit codes.",
+    "harness_exit_codes": "Not exposed because the required forwarding protocol printed result.output only.",
+    "command_failures": "No failure result or error diagnostic was visible in the three scenario responses. Exact per-command exit metadata remains unavailable here.",
+    "transport_failures": [],
+    "truncation": [
+      {
+        "call": 1,
+        "input": "candidate guide plus rubric",
+        "observed_warning": "Warning: truncated output (original token count: 11637)",
+        "effect": "A middle portion of the guide was omitted. The rubric and scenario outputs were visible.",
+        "retry": false
+      }
+    ],
+    "scenario_response_truncation_observed": false,
+    "stdout_bytes": "Unavailable from the forwarded responses; not measured by an extra read.",
+    "stderr_bytes": "Unavailable from the forwarded responses; not measured by an extra read.",
+    "overhead": {
+      "guide_read": "One cat process.",
+      "scenario_helpers": "Three supplied shell harness invocations.",
+      "helper_internal_process_counts": "Not exposed.",
+      "additional_measurement_calls": 0
+    }
+  },
+  "remaining_uncertainties": [
+    "The full evaluation source revision and runtime deployment/build metadata were not supplied.",
+    "The guide read was truncated; the omission is retained as a trial limitation.",
+    "Raw verification did not demonstrate domain schema validation or a development projector result.",
+    "Matching proof bytes and signed assertions do not prove the reported command or reviews occurred.",
+    "The reader did not inspect evidence content or source code, so it did not independently assess the alleged defect or correction.",
+    "The initial and corrected evidence blobs have identical digest and byte count. This does not independently prove a source correction.",
+    "Local closure and fully read local query pages do not establish global completeness.",
+    "No independently signed reviewer identity or official checkpoint was demonstrated.",
+    "Exact CLI command transcripts, exit metadata, and output byte measurements require the retained harness diagnostics; they were not present in the forwarded responses."
+  ]
+}

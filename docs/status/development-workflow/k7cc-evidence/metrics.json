@@ -1,0 +1,50 @@
+[
+  {
+    "reader": "baseline",
+    "scenario": "open",
+    "cli_calls": 5,
+    "stdout_bytes": 8734,
+    "stderr_bytes": 0,
+    "failures": 0
+  },
+  {
+    "reader": "baseline",
+    "scenario": "complete",
+    "cli_calls": 9,
+    "stdout_bytes": 16864,
+    "stderr_bytes": 0,
+    "failures": 0
+  },
+  {
+    "reader": "baseline",
+    "scenario": "conflict",
+    "cli_calls": 13,
+    "stdout_bytes": 24956,
+    "stderr_bytes": 0,
+    "failures": 0
+  },
+  {
+    "reader": "candidate",
+    "scenario": "open",
+    "cli_calls": 5,
+    "stdout_bytes": 8734,
+    "stderr_bytes": 0,
+    "failures": 0
+  },
+  {
+    "reader": "candidate",
+    "scenario": "complete",
+    "cli_calls": 9,
+    "stdout_bytes": 16863,
+    "stderr_bytes": 0,
+    "failures": 0
+  },
+  {
+    "reader": "candidate",
+    "scenario": "conflict",
+    "cli_calls": 13,
+    "stdout_bytes": 24957,
+    "stderr_bytes": 0,
+    "failures": 0
+  }
+]

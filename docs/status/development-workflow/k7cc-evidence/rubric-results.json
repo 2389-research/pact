@@ -1,0 +1,49 @@
+{
+  "assessment": "One constrained paired observation; no general adoption or efficiency claim.",
+  "assessor": "task-eight implementation owner; parent owns independent review",
+  "source": "5782f2499825d6090f8838ed755cffb2edbf713e",
+  "rubric_source": "docs/status/development-workflow/k7cc-rubric.md at the source commit",
+  "basis": "Both retained final answers were compared with their exact raw public CLI captures and the public fixture contract.",
+  "requirements": [
+    {"criterion":"exact source goals, namespace, subject, and local heads", "baseline":"pass", "candidate":"pass"},
+    {"criterion":"exact check refs, command, passed outcome, and reported exit zero", "baseline":"pass", "candidate":"pass"},
+    {"criterion":"Important finding ID, summary, original review, and open status despite green check", "baseline":"pass", "candidate":"pass"},
+    {"criterion":"missing acceptance stays not_recorded", "baseline":"pass", "candidate":"pass"},
+    {"criterion":"explicit correction source and exact resolving review refs", "baseline":"pass", "candidate":"pass"},
+    {"criterion":"separate accepted decision and exact selected check/review refs", "baseline":"pass", "candidate":"pass"},
+    {"criterion":"both concurrent decisions and heads remain unresolved with no winner", "baseline":"pass", "candidate":"pass"},
+    {"criterion":"two, five, and eight matching immutable evidence assessments with exact refs, digest, 77 bytes, and supporting event refs", "baseline":"pass", "candidate":"pass"},
+    {"criterion":"declared action remains applicable when open and historical after explicit resolution", "baseline":"pass", "candidate":"pass"},
+    {"criterion":"local-root trust, shared-key independence limits, local closure, and global unknown", "baseline":"pass", "candidate":"pass"},
+    {"criterion":"no claim of public projector execution, external domain schema validation, or proven check/review execution", "baseline":"pass", "candidate":"pass"},
+    {"criterion":"complete guide input reaches reader", "baseline":"pass", "candidate":"fail: first context-read outer budget truncated the longer guide"}
+  ],
+  "manual_support_detail": {
+    "baseline":"The complete answer says recorded_accepted and explains supported local facts in prose. It withholds an unexecuted projector status.",
+    "candidate":"The complete answer says accepted recorded; manually supported locally under the guide's named policy.",
+    "interpretation":"Both retain the required positive support facts while distinguishing manual interpretation from a projector result. Neither demonstrates external domain schema execution."
+  },
+  "missed_blockers": {"baseline":0,"candidate":0},
+  "missing_required_handoff_facts": {"baseline":0,"candidate":0},
+  "unsupported_claims": {"baseline":0,"candidate":0},
+  "cli_failures": {"baseline":0,"candidate":0},
+  "scenario_transport_failures": {"baseline":0,"candidate":0},
+  "guide_transport_truncations": {"baseline":0,"candidate":1},
+  "reader_tool_calls": {"baseline":4,"candidate":4},
+  "scenario_tool_calls": {"baseline":3,"candidate":3},
+  "post_trial_archival_tool_calls": {"baseline":1,"candidate":1},
+  "top_level_public_cli_processes": {"baseline":27,"candidate":27},
+  "cli_stdout_bytes_including_newlines": {"baseline":50554,"candidate":50554},
+  "cli_stderr_bytes": {"baseline":0,"candidate":0},
+  "guide_and_rubric_input_bytes": {"baseline":39298,"candidate":46545},
+  "command_omissions": [
+    "Neither reader used log because the subject was supplied and query returned every subject event.",
+    "Neither reader needed index recovery because each prepared store had a current index.",
+    "Neither reader used record during its read-only trial; real recording and retry were verified separately.",
+    "No public brief or domain-projector command exists. Neither reader used the internal driver.",
+    "The helper did not forward command argv, individual exit codes, or byte metrics; the owner measured those retained captures afterward.",
+    "The full evaluation source commit was not supplied to readers; they received 5782f24 plus both full fixture-source goals. The report records the full evaluation source."
+  ],
+  "repeat_trials":0,
+  "decision":"Keep supported public reads and publish accurate recording documentation. No demonstrated read-effort gain; retain the guide-input truncation regression and prior brief publication rejection."
+}
