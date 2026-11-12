@@ -8,7 +8,9 @@ Plan: ../../plans/development-workflow/implementation-plan.md.
 Branch: feat/development-workflow; managed worktree /Users/harper/.codex/worktrees/3f32/pact.
 Starting revision: 0871778f5f41cf4e695072de872da4f3f94cf087.
 Canonical ledger: /Users/harper/Public/src/2389/pact/.pact, namespace org/2389/pact.
-No main merge, release, or deployment is authorized.
+Doctor Biz authorized the task-branch push and release tag on 2026-11-12.
+Release target: v1.1.0; see release-v1.1.0.md.
+No main merge or service deployment is part of this release operation.
 
 ## Current work
 
