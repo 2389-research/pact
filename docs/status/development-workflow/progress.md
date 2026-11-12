@@ -12,7 +12,8 @@ Compactions in this execution: 0. No main merge, release, or deployment is autho
 
 ## Current work
 
-- pact#khqq claimed. A fresh implementer will produce the profile contract and corpus.
+- pact#khqq implementation and independent review passed; PACT publication and
+  Kata closure are the active parent steps. Source 89e8321, evidence e39f152.
 - All other implementation katas remain open; honor native dependency edges.
 - Parent owns PACT appends, tracker updates, Kata closure, and integration.
 - Only the active implementation owner writes production code. Reviews are read-only.
@@ -20,8 +21,10 @@ Compactions in this execution: 0. No main merge, release, or deployment is autho
 ## Verified checkpoints
 
 - Planning: 63e876b documents, 0871778 publication; PACT 8ffe712f, 17 evidence files.
-- No implementation checkpoint is accepted yet.
+- pact#khqq: source 89e8321, final canonical/race/lint exit0; independent review
+  approved without Critical/Important findings. Local contract scope only.
 
 ## Open review findings
 
-None recorded yet. Passing tests never erase a finding; record explicit closure.
+- M1 (Minor): inconclusive corpus case retains a dangling finding/action.
+  See khqq-review.md; pact#3ezv owns its bounded correction and regression.
