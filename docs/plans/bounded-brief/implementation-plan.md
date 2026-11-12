@@ -64,8 +64,8 @@ Run the new gate against the actual public brief command, not the test driver.
 
 ## Execution
 
-1. [Task1: bounded public command and same-fixture measurement](tasks/01-command.md).
-2. [Task2: short single-source guide and fresh-context exercise](tasks/02-guide.md).
+1. [x] [Task1: bounded public command and same-fixture measurement](tasks/01-command.md).
+2. [ ] [Task2: short single-source guide and fresh-context exercise](tasks/02-guide.md).
 
 Task2 depends on task1's approved implementation.
 The controller owns Kata, PACT, progress, integration, and final publication records.
