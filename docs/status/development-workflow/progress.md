@@ -8,7 +8,7 @@ Plan: ../../plans/development-workflow/implementation-plan.md.
 Branch: feat/development-workflow; managed worktree /Users/harper/.codex/worktrees/3f32/pact.
 Starting revision: 0871778f5f41cf4e695072de872da4f3f94cf087.
 Canonical ledger: /Users/harper/Public/src/2389/pact/.pact, namespace org/2389/pact.
-Compactions in this execution: 0. No main merge, release, or deployment is authorized.
+No main merge, release, or deployment is authorized.
 
 ## Current work
 
@@ -16,8 +16,12 @@ Compactions in this execution: 0. No main merge, release, or deployment is autho
   independent review 7e5fa67 and PACT checkpoint bea2a5e6.
 - pact#3ezv and pact#spns are closed after independent approval and combined-source
   canonical/race/fresh-cache lint at 2d688b5. Proof/report commit 94b47bd.
-- Next: pact#x9r1 recorder in this worktree; pact#pzm4 projection in the separate
-  /Users/harper/.codex/worktrees/a7b6/pact, branch feat/development-projection.
+- pact#x9r1 and pact#pzm4 are closed after independent main-model reviews.
+  Combined source 576043e passed canonical, race, and fresh-cache lint.
+  Proof/review commit: 6359a1d. Signed checkpoint: PACT81e51450.
+- Current: pact#w5cf evaluates a brief against the existing read commands.
+  Owner: /root/brief; worktree /Users/harper/.codex/worktrees/c0e3/pact.
+  Branch: feat/development-brief; base: 576043e.
 - All other implementation katas remain open; honor native dependency edges.
 - Parent owns PACT appends, tracker updates, Kata closure, and integration.
 - Only the active implementation owner writes production code. Reviews are read-only.
@@ -32,8 +36,13 @@ Compactions in this execution: 0. No main merge, release, or deployment is autho
 - pact#3ezv: source736a1be; PACT21145a26, including explicit M1 resolution.
 - pact#spns: source41c1ae6; PACT470027ff. Combined prerequisites: PACT06052d5e.
   All three appended objects verify, locally trusted root authorized; index current.
+- Recorder/projection: PACT81e51450 retains reviews, checks, M2 resolution, and bounded acceptance.
+  Strict verification passed; local-root authorization and current index were read back.
+  Both Kata closures and completion event metadata were freshly read back.
 
 ## Open review findings
 
 - M1 is resolved at 736a1be with TestInconclusiveFixtureHasNoDanglingFinding and
-  independent confirmation in 3ezv-review.md. No open task-review finding remains.
+  independent confirmation in 3ezv-review.md.
+- M2 is resolved at e8a0241 with canceled-context and deadline regressions.
+  See x9r1-review.md. No open task-review finding remains.
