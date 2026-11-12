@@ -12,8 +12,10 @@ Compactions in this execution: 0. No main merge, release, or deployment is autho
 
 ## Current work
 
-- pact#khqq implementation and independent review passed; PACT publication and
-  Kata closure are the active parent steps. Source 89e8321, evidence e39f152.
+- pact#khqq is closed with verified source 89e8321, evidence e39f152,
+  independent review 7e5fa67 and PACT checkpoint bea2a5e6.
+- Next: pact#3ezv validation in this worktree; pact#spns evidence in the separate
+  /Users/harper/.codex/worktrees/fcd0/pact, branch feat/development-evidence.
 - All other implementation katas remain open; honor native dependency edges.
 - Parent owns PACT appends, tracker updates, Kata closure, and integration.
 - Only the active implementation owner writes production code. Reviews are read-only.
@@ -23,6 +25,8 @@ Compactions in this execution: 0. No main merge, release, or deployment is autho
 - Planning: 63e876b documents, 0871778 publication; PACT 8ffe712f, 17 evidence files.
 - pact#khqq: source 89e8321, final canonical/race/lint exit0; independent review
   approved without Critical/Important findings. Local contract scope only.
+- PACT bea2a5e6 retains the failed hook/config-isolation observation, final checks,
+  independent review and bounded acceptance; index current and local root authorized.
 
 ## Open review findings
 
