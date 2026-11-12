@@ -1,0 +1,7 @@
+--- FAIL: TestCLIDevelopmentEvidence (0.53s)
+    development_evidence_test.go:43: /var/folders/rc/cyjg3p3x0cb4w4xlb8yqm_1h0000gn/T/TestCLIDevelopmentEvidence3756322204/001/pact evidence check --repo /var/folders/rc/cyjg3p3x0cb4w4xlb8yqm_1h0000gn/T/TestCLIDevelopmentEvidence3756322204/001/repo --event-ref pact:event:sha256:1edb05b210303919e7ae48568b664627acf84e14b6db30fc479dea75e5ffe680#proof --json: exit status 2
+        stdout:
+        stderr: {"error":"unknown command: evidence","exit_code":2,"ok":false}
+FAIL
+FAIL	pact/tests/e2e	0.648s
+FAIL

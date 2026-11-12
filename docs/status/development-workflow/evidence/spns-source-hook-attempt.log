@@ -1,0 +1,21 @@
+trim trailing whitespace.................................................Failed
+- hook id: trailing-whitespace
+- exit code: 1
+- files were modified by this hook
+
+  Fixing docs/status/development-workflow/evidence/spns-cli-red.log
+  Fixing docs/status/development-workflow/evidence/spns-cli-red-selection.log
+fix end of files.........................................................Passed
+check yaml...........................................(no files to check)Skipped
+check for added large files..............................................Passed
+check for merge conflicts................................................Passed
+mixed line ending........................................................Passed
+check for case conflicts.................................................Passed
+go fmt...................................................................Passed
+go imports...............................................................Passed
+go-mod-tidy..............................................................Passed
+golangci-lint............................................................Passed
+go-unit-tests............................................................Passed
+go fix -diff.............................................................Passed
+go mod verify........................................(no files to check)Skipped
+go vet...................................................................Passed

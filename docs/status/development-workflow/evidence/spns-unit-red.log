@@ -1,0 +1,37 @@
+--- FAIL: TestResolveWorkingAndHistoricalBytes (0.11s)
+    --- FAIL: TestResolveWorkingAndHistoricalBytes/proof.txt (0.00s)
+        resolve_test.go:30: assessment={Ref: Digest: ActualDigest: Status: Bytes:0} error=<nil>
+    --- FAIL: TestResolveWorkingAndHistoricalBytes/git:8946df52fc9792a57a27621b24cf71e3c3d9febc:proof.txt (0.00s)
+        resolve_test.go:30: assessment={Ref: Digest: ActualDigest: Status: Bytes:0} error=<nil>
+    --- FAIL: TestResolveWorkingAndHistoricalBytes/git:8946df52fc9792a57a27621b24cf71e3c3d9febc:missing.txt (0.00s)
+        resolve_test.go:30: assessment={Ref: Digest: ActualDigest: Status: Bytes:0} error=<nil>
+    --- FAIL: TestResolveWorkingAndHistoricalBytes/git:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:proof.txt (0.00s)
+        resolve_test.go:30: assessment={Ref: Digest: ActualDigest: Status: Bytes:0} error=<nil>
+    --- FAIL: TestResolveWorkingAndHistoricalBytes/missing.txt (0.00s)
+        resolve_test.go:30: assessment={Ref: Digest: ActualDigest: Status: Bytes:0} error=<nil>
+--- FAIL: TestResolveRejectsUnsafeLocators (0.11s)
+    resolve_test.go:43: "/etc/passwd" => {Ref: Digest: ActualDigest: Status: Bytes:0}, <nil>
+    resolve_test.go:43: "../secret" => {Ref: Digest: ActualDigest: Status: Bytes:0}, <nil>
+    resolve_test.go:43: "dir/../proof.txt" => {Ref: Digest: ActualDigest: Status: Bytes:0}, <nil>
+    resolve_test.go:43: "https://user:synthetic-password@example.test/proof" => {Ref: Digest: ActualDigest: Status: Bytes:0}, <nil>
+    resolve_test.go:43: "file:proof.txt" => {Ref: Digest: ActualDigest: Status: Bytes:0}, <nil>
+    resolve_test.go:43: "C:\\secret" => {Ref: Digest: ActualDigest: Status: Bytes:0}, <nil>
+    resolve_test.go:43: "dir\\secret" => {Ref: Digest: ActualDigest: Status: Bytes:0}, <nil>
+    resolve_test.go:43: "git:--output=secret:proof.txt" => {Ref: Digest: ActualDigest: Status: Bytes:0}, <nil>
+    resolve_test.go:43: "git:HEAD:proof.txt" => {Ref: Digest: ActualDigest: Status: Bytes:0}, <nil>
+    resolve_test.go:43: "git:8946df52fc9792a57a27621b24cf71e3c3d9febc:../secret" => {Ref: Digest: ActualDigest: Status: Bytes:0}, <nil>
+    resolve_test.go:43: "git:8946df52fc9792a57a27621b24cf71e3c3d9febc:/secret" => {Ref: Digest: ActualDigest: Status: Bytes:0}, <nil>
+    resolve_test.go:43: "git:8946df52fc9792a57a27621b24cf71e3c3d9febc:proof.txt\nHEAD" => {Ref: Digest: ActualDigest: Status: Bytes:0}, <nil>
+    resolve_test.go:43: "." => {Ref: Digest: ActualDigest: Status: Bytes:0}, <nil>
+    resolve_test.go:43: "" => {Ref: Digest: ActualDigest: Status: Bytes:0}, <nil>
+    resolve_test.go:48: escape => {Ref: Digest: ActualDigest: Status: Bytes:0}, <nil>
+    resolve_test.go:48: .git => {Ref: Digest: ActualDigest: Status: Bytes:0}, <nil>
+--- FAIL: TestResolveBoundsAndUnchecked (0.00s)
+    resolve_test.go:56: overflow: {Ref: Digest: ActualDigest: Status: Bytes:0} <nil>
+--- FAIL: TestResolveGitIgnoresInheritedSelectorsAndReplacement (0.24s)
+    resolve_test.go:83: Git environment or replace escaped scope: {Ref: Digest: ActualDigest: Status: Bytes:0} <nil>
+--- FAIL: TestResolveGitLiteralPathsAndLimits (0.12s)
+    resolve_test.go:90: literal path "-option": {Ref: Digest: ActualDigest: Status: Bytes:0} <nil>
+FAIL
+FAIL	pact/internal/evidence	0.680s
+FAIL

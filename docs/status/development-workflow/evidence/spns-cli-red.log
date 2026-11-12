@@ -1,0 +1,11 @@
+--- FAIL: TestEvidenceCheckSelectsEventWithoutMutation (0.10s)
+    evidence_commands_test.go:50: current index: exit 2: {"error":"unknown command: evidence","exit_code":2,"ok":false}
+FAIL
+FAIL	pact/cmd/pact	0.226s
+--- FAIL: TestCLIDevelopmentEvidence (0.59s)
+    development_evidence_test.go:40: /var/folders/rc/cyjg3p3x0cb4w4xlb8yqm_1h0000gn/T/TestCLIDevelopmentEvidence3207030074/001/pact commit --repo /var/folders/rc/cyjg3p3x0cb4w4xlb8yqm_1h0000gn/T/TestCLIDevelopmentEvidence3207030074/001/repo --key-file /var/folders/rc/cyjg3p3x0cb4w4xlb8yqm_1h0000gn/T/TestCLIDevelopmentEvidence3207030074/001/fixture.key --events /var/folders/rc/cyjg3p3x0cb4w4xlb8yqm_1h0000gn/T/TestCLIDevelopmentEvidence3207030074/002/events.json --json: exit status 7
+        stdout:
+        stderr: {"error":"ledger secret safety refusal: refusing to sign immutable secret-like material: $.events[0].evidence[4].ref: credential-bearing URL userinfo","exit_code":7,"ok":false}
+FAIL
+FAIL	pact/tests/e2e	0.714s
+FAIL

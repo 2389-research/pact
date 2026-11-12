@@ -1,0 +1,5 @@
+internal/evidence/git.go:26:3: error is not nil (line 25) but it returns nil (nilerr)
+		return "unavailable", nil
+		^
+1 issues:
+* nilerr: 1

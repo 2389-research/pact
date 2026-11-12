@@ -1,0 +1,5 @@
+--- FAIL: TestResolveFailureDoesNotReflectCredentialLocator (0.00s)
+    resolve_test.go:267: limit refusal reflected locator: {Ref:https://user:synthetic-password@example.test/proof Digest: ActualDigest: Status:unchecked Bytes:0} evidence byte limit exceeded
+FAIL
+FAIL	pact/internal/evidence	0.080s
+FAIL

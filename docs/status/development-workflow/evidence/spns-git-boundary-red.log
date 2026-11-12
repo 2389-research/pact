@@ -1,0 +1,5 @@
+--- FAIL: TestResolveGitRequiresFullRepositoryObjectID (0.11s)
+    resolve_test.go:205: abbreviated SHA256 accepted: {Ref:git:8c47cb3c2a5e49cc7f63a9d62ae859b325933840:proof Digest: ActualDigest:sha256:c1cda26362828b69266512052b97cb3729e3b052e4ade47c0a1e3383defe73c7 Status:unchecked Bytes:5} <nil>
+FAIL
+FAIL	pact/internal/evidence	0.368s
+FAIL

@@ -1,0 +1,32 @@
+internal/evidence/resolve.go:152:18: Error return value of `root.Close` is not checked (errcheck)
+	defer root.Close()
+	                ^
+tests/e2e/development_evidence_test.go:50:16: Error return value of `encoding/json.Marshal` is not checked: unsafe type `any` found (errchkjson)
+	encoded, _ := json.Marshal(result)
+	              ^
+internal/evidence/git.go:62:13: G204: Subprocess launched with a potential tainted input or cmd arguments (gosec)
+	command := exec.CommandContext(childCtx, "git", append([]string{"--no-pager", "--no-replace-objects", "-C", repo, "-c", "protocol.allow=never"}, args...)...)
+	           ^
+internal/evidence/git.go:26:3: error is not nil (line 25) but it returns nil (nilerr)
+		return "unavailable", nil
+		^
+tests/e2e/development_evidence_test.go:36:2: Consider preallocating entries with capacity 6 (prealloc)
+	entries := []map[string]any{}
+	^
+internal/evidence/git.go:54:14: ST1005: error strings should not be capitalized (staticcheck)
+		return "", errors.New("Git evidence size changed during read")
+		           ^
+internal/evidence/resolve.go:140:6: QF1001: could apply De Morgan's law (staticcheck)
+		if !(c >= '0' && c <= '9' || c >= 'a' && c <= 'f') {
+		   ^
+internal/evidence/resolve_test.go:172:47: runFixtureGit - stdin always receives nil (unparam)
+func runFixtureGit(t *testing.T, repo string, stdin []byte, args ...string) []byte {
+                                              ^
+8 issues:
+* errcheck: 1
+* errchkjson: 1
+* gosec: 1
+* nilerr: 1
+* prealloc: 1
+* staticcheck: 2
+* unparam: 1
