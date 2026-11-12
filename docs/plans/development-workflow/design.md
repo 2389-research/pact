@@ -7,6 +7,8 @@ Date: 2026-11-11.
 Status: Implemented and verified; all eight katas and their epic are closed.
 The measured gate rejected public brief publication.
 See [completion](../../status/development-workflow/completion.md) for the exact execution cut and limits.
+A separate [bounded-brief follow-up](../bounded-brief/implementation-plan.md) was approved on 2026-11-12.
+It revises the promotion metric and defines the public adapter; this original completion cut remains historical.
 Baseline: fd1f227794d6bf9956bd8eea0798254e0134918f.
 Evidence: [consumer audit](consumer-audit.md).
 Execution: [implementation plan](implementation-plan.md).

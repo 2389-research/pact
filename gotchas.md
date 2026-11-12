@@ -9,7 +9,10 @@
   lives in docs/plans/development-workflow/implementation-plan.md and epic
   pact#ns4y. Kata holds execution state; PACT holds signed provenance. Existing
   log/query/show already passed a fresh-context baseline, so a new brief must
-  earn publication through the plan's measured comparison gate.
+  earn publication through a measured comparison gate. Doctor Biz approved the
+  2026-11-12 bounded-brief follow-up in docs/plans/bounded-brief/implementation-plan.md.
+  Its gate keeps correctness mandatory and measures CLI work and bytes separately
+  from outer shell calls. Preserve the original rejection as its historical cut.
 
 - 2026-11-06: When Doctor Biz requests the review-squad workflow, discover and
   invoke that specific workflow or state that it is unavailable. Ad hoc parallel
