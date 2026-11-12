@@ -11,6 +11,7 @@ Base: the controller's committed planning cut on feat/bounded-brief.
 - Create cmd/pact/brief_command.go and cmd/pact/brief_render.go.
 - Create cmd/pact/brief_command_test.go.
 - Modify cmd/pact/command_catalog.go and the document-output adapter only as needed.
+- Modify the Project request-error type and its tests for explicit owner classification.
 - Create tests/e2e/bounded_brief_test.go; reuse the existing public corpus/read helpers.
 - Add the recurring scenario to scenarios.jsonl.
 - Write docs/status/bounded-brief/command-report.md and retained evidence.
@@ -21,6 +22,8 @@ Use one state representation and serialize each chosen output exactly once.
 The existing document result can carry pre-encoded bounded output; preserve shared writer behavior.
 Inspect index.Manager.Status and owner errors before choosing the readiness guard.
 Do not nest owner locks or introduce a second snapshot/policy implementation.
+The controller approved ProjectRequestError for the existing identity, duplicate-frontier, and namespace request failures.
+Preserve their messages and semantics; classify unexpected read failures separately.
 
 ## Test-first steps
 
