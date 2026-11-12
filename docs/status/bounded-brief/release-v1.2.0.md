@@ -52,3 +52,11 @@ The native brief recovered the real command checkpoint in 8,603 bytes with local
 A 1,024-byte budget returned exit 2, empty stdout, and the expected bounded diagnostic.
 The other three binaries were downloaded and checksum-verified but were not executed locally.
 Main CI run43258783707 also passed tests, race detection, coverage, build, lint, and reference conformance.
+
+PACT records publication in b5471462#release-published under the separate pact/releases/v1.2.0 subject.
+Fresh readback passed integrity, authenticity, and local-root authorization.
+Strict verification passed with a current index and no warnings or errors.
+All three immutable Git evidence entries matched their recorded digests.
+The public checksum URL was downloaded explicitly; the fixed evidence resolver checks the retained Git bytes.
+Release kata pact#839x is closed, with its completion PACT event freshly read back.
+Publication receipts follow the immutable release tag; they do not change the tagged product bytes.

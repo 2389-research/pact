@@ -1,0 +1,45 @@
+{
+  "release_url": "https://github.com/2389-research/pact/releases/tag/v1.2.0",
+  "release_id": 443215832,
+  "tag": "v1.2.0",
+  "tagged_source": "c5fc50e3c3f80ad8721b55c2fb971907af97ef80",
+  "annotated_tag_object": "6815185090fc2c4de137b30c461c38a3cc983688",
+  "publication_proof_commit": "2a8b86ef05392df0a4ce519d4574fad35bb0be6f",
+  "pact_object": "sha256:b5471462ecbfe6f635969df0f0ddb1c93266a5ec5ff8ce644a499418f51e915f",
+  "pact_event": "pact:event:sha256:b5471462ecbfe6f635969df0f0ddb1c93266a5ec5ff8ce644a499418f51e915f#release-published",
+  "strict_verification": {
+    "ok": true,
+    "index_status": "current",
+    "errors": null,
+    "warnings": null
+  },
+  "evidence": [
+    {
+      "ref": "git:2a8b86ef05392df0a4ce519d4574fad35bb0be6f:docs/status/bounded-brief/release-evidence/checksums.txt",
+      "digest": "sha256:6f8c3221b3e064f75e130a5658edf2a769c10a9b525b73d535e4f870f003cdb1",
+      "actual_digest": "sha256:6f8c3221b3e064f75e130a5658edf2a769c10a9b525b73d535e4f870f003cdb1",
+      "status": "matching",
+      "bytes": 388
+    },
+    {
+      "ref": "git:2a8b86ef05392df0a4ce519d4574fad35bb0be6f:docs/status/bounded-brief/release-evidence/publication.json",
+      "digest": "sha256:2f28bda8f09fba1873a74fc27fc615d08e06bfe86b7671969e6c592b2ae2c66c",
+      "actual_digest": "sha256:2f28bda8f09fba1873a74fc27fc615d08e06bfe86b7671969e6c592b2ae2c66c",
+      "status": "matching",
+      "bytes": 5568
+    },
+    {
+      "ref": "git:2a8b86ef05392df0a4ce519d4574fad35bb0be6f:docs/status/bounded-brief/release-v1.2.0.md",
+      "digest": "sha256:bdd80dc800bc419a684d1d4c568b96e5ccbb7be2e07362d427aebe9dd2ded60d",
+      "actual_digest": "sha256:bdd80dc800bc419a684d1d4c568b96e5ccbb7be2e07362d427aebe9dd2ded60d",
+      "status": "matching",
+      "bytes": 3694
+    }
+  ],
+  "kata": {
+    "id": "839x",
+    "status": "closed",
+    "completion": "pact:event:sha256:b5471462ecbfe6f635969df0f0ddb1c93266a5ec5ff8ce644a499418f51e915f#release-published"
+  },
+  "scope": "Release and main CI at the tagged source passed. Native Darwin arm64 binary was executed. Other platform binaries were checksum-verified only. Local-root assertion; no global completeness or organizational approval claim."
+}

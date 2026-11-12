@@ -54,5 +54,8 @@ Release443215832 and workflow43258865379 were freshly verified; release and main
 All four archive checksums and five GitHub asset digests matched downloaded bytes.
 The native macOS arm64 binary passed help, exact guide parity, real brief, and overflow checks.
 See release-v1.2.0.md and release-evidence/publication.json for publication facts and limits.
+Release PACT object:b5471462ecbfe6f635969df0f0ddb1c93266a5ec5ff8ce644a499418f51e915f.
+Its fresh readback, strict verification, current index, and three matching Git evidence entries passed.
+Release kata839x is closed with the publication event linked and freshly read back.
 The task worktree and existing tags remain preserved.
 Keep private keys outside Git and never initialize another project ledger in this worktree.
