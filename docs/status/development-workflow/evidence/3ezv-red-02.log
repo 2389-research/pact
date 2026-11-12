@@ -1,0 +1,103 @@
+--- FAIL: TestValidateCorpusBeforeAdmission (0.07s)
+    --- FAIL: TestValidateCorpusBeforeAdmission/severity-minor (0.00s)
+        validate_test.go:52: event batch must contain at least one event
+    --- FAIL: TestValidateCorpusBeforeAdmission/inconclusive (0.00s)
+        validate_test.go:52: event batch must contain at least one event
+    --- FAIL: TestValidateCorpusBeforeAdmission/open-finding (0.00s)
+        validate_test.go:52: event batch must contain at least one event
+    --- FAIL: TestValidateCorpusBeforeAdmission/partial-outcome (0.00s)
+        validate_test.go:46: validation error = <nil>, valid = false
+    --- FAIL: TestValidateCorpusBeforeAdmission/duplicate-finding (0.00s)
+        validate_test.go:46: validation error = <nil>, valid = false
+    --- FAIL: TestValidateCorpusBeforeAdmission/severity-critical (0.00s)
+        validate_test.go:52: event batch must contain at least one event
+    --- FAIL: TestValidateCorpusBeforeAdmission/corrected (0.00s)
+        validate_test.go:52: event batch must contain at least one event
+    --- FAIL: TestValidateCorpusBeforeAdmission/mismatched-exit (0.00s)
+        validate_test.go:46: validation error = <nil>, valid = false
+    --- FAIL: TestValidateCorpusBeforeAdmission/check-interrupted (0.00s)
+        validate_test.go:52: event batch must contain at least one event
+    --- FAIL: TestValidateCorpusBeforeAdmission/missing-revision (0.00s)
+        validate_test.go:46: validation error = <nil>, valid = false
+    --- FAIL: TestValidateCorpusBeforeAdmission/bad-event-ref (0.00s)
+        validate_test.go:46: validation error = <nil>, valid = false
+    --- FAIL: TestValidateCorpusBeforeAdmission/check-failed (0.00s)
+        validate_test.go:52: event batch must contain at least one event
+    --- FAIL: TestValidateCorpusBeforeAdmission/check-unknown (0.00s)
+        validate_test.go:52: event batch must contain at least one event
+    --- FAIL: TestValidateCorpusBeforeAdmission/rejected (0.00s)
+        validate_test.go:52: event batch must contain at least one event
+    --- FAIL: TestValidateCorpusBeforeAdmission/check-not_run (0.00s)
+        validate_test.go:52: event batch must contain at least one event
+    --- FAIL: TestValidateCorpusBeforeAdmission/partial-coverage (0.00s)
+        validate_test.go:52: event batch must contain at least one event
+--- FAIL: TestValidateRejectsDomainContradictions (0.01s)
+    --- FAIL: TestValidateRejectsDomainContradictions/passed-no-exit (0.00s)
+        validate_test.go:113: invalid input accepted
+    --- FAIL: TestValidateRejectsDomainContradictions/coverage-over-total (0.00s)
+        validate_test.go:113: invalid input accepted
+    --- FAIL: TestValidateRejectsDomainContradictions/coverage-negative (0.00s)
+        validate_test.go:113: invalid input accepted
+    --- FAIL: TestValidateRejectsDomainContradictions/index-out-of-bounds (0.00s)
+        validate_test.go:113: invalid input accepted
+    --- FAIL: TestValidateRejectsDomainContradictions/unknown-type (0.00s)
+        validate_test.go:113: invalid input accepted
+    --- FAIL: TestValidateRejectsDomainContradictions/empty-subject (0.00s)
+        validate_test.go:113: invalid input accepted
+    --- FAIL: TestValidateRejectsDomainContradictions/unknown-field (0.00s)
+        validate_test.go:113: invalid input accepted
+    --- FAIL: TestValidateRejectsDomainContradictions/bad-command (0.00s)
+        validate_test.go:113: invalid input accepted
+    --- FAIL: TestValidateRejectsDomainContradictions/failed-negative-exit (0.00s)
+        validate_test.go:113: invalid input accepted
+    --- FAIL: TestValidateRejectsDomainContradictions/index-duplicate (0.00s)
+        validate_test.go:113: invalid input accepted
+    --- FAIL: TestValidateRejectsDomainContradictions/severity (0.00s)
+        validate_test.go:113: invalid input accepted
+    --- FAIL: TestValidateRejectsDomainContradictions/upper-source (0.00s)
+        validate_test.go:113: invalid input accepted
+    --- FAIL: TestValidateRejectsDomainContradictions/operation-override (0.00s)
+        validate_test.go:113: invalid input accepted
+    --- FAIL: TestValidateRejectsDomainContradictions/passed-signal (0.00s)
+        validate_test.go:113: invalid input accepted
+    --- FAIL: TestValidateRejectsDomainContradictions/empty-operation (0.00s)
+        validate_test.go:113: invalid input accepted
+    --- FAIL: TestValidateRejectsDomainContradictions/short-source (0.00s)
+        validate_test.go:113: invalid input accepted
+    --- FAIL: TestValidateRejectsDomainContradictions/source-override (0.00s)
+        validate_test.go:113: invalid input accepted
+    --- FAIL: TestValidateRejectsDomainContradictions/missing-name (0.00s)
+        validate_test.go:113: invalid input accepted
+    --- FAIL: TestValidateRejectsDomainContradictions/fractional-exit (0.00s)
+        validate_test.go:113: invalid input accepted
+    --- FAIL: TestValidateRejectsDomainContradictions/not-run-with-signal (0.00s)
+        validate_test.go:113: invalid input accepted
+    --- FAIL: TestValidateRejectsDomainContradictions/bad-namespace (0.00s)
+        validate_test.go:113: invalid input accepted
+    --- FAIL: TestValidateRejectsDomainContradictions/finding-index (0.00s)
+        validate_test.go:113: invalid input accepted
+    --- FAIL: TestValidateRejectsDomainContradictions/blank-finding-id (0.00s)
+        validate_test.go:113: invalid input accepted
+    --- FAIL: TestValidateRejectsDomainContradictions/secret (0.00s)
+        validate_test.go:113: invalid input accepted
+    --- FAIL: TestValidateRejectsDomainContradictions/envelope-ref (0.00s)
+        validate_test.go:113: invalid input accepted
+    --- FAIL: TestValidateRejectsDomainContradictions/empty-events (0.00s)
+        validate_test.go:113: invalid input accepted
+    --- FAIL: TestValidateRejectsDomainContradictions/interrupted-without-observation (0.00s)
+        validate_test.go:113: invalid input accepted
+    --- FAIL: TestValidateRejectsDomainContradictions/unknown-with-exit (0.00s)
+        validate_test.go:113: invalid input accepted
+    --- FAIL: TestValidateRejectsDomainContradictions/empty-findings (0.00s)
+        validate_test.go:113: invalid input accepted
+--- FAIL: TestValidatePayloadPinsSchemaIdentity (0.00s)
+    validate_test.go:126: unsupported schema accepted
+--- FAIL: TestDecodeInputRejectsNonObjectAndExtraFields (0.00s)
+    validate_test.go:138: unbounded/unstructured diagnostic: json: cannot unmarshal array into Go value of type development.RecordInput
+--- FAIL: TestValidationCancellation (0.00s)
+    validate_test.go:149: cancellation: <nil>
+--- FAIL: TestInconclusiveFixtureHasNoDanglingFinding (0.00s)
+    validate_test.go:157: inconclusive action refers to absent finding-1
+FAIL
+FAIL	pact/internal/development	0.247s
+FAIL

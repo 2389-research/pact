@@ -1,0 +1,18 @@
+source_commit=736a1be846e79e689a2ca53845cab01c366849a6
+source_tree=19ff12d852b79d9e37b79748fd4800c80da99a8b
+command=env -u GOROOT mise exec -- go test -race ./...
+ok  	pact/cmd/pact	14.118s
+?   	pact/docs/pact-ledger	[no test files]
+ok  	pact/internal/canonical	(cached)
+ok  	pact/internal/conformance	(cached)
+ok  	pact/internal/development	3.450s
+?   	pact/internal/development/cmd/profilegen	[no test files]
+ok  	pact/internal/identity	(cached)
+ok  	pact/internal/index	36.797s
+ok  	pact/internal/ledger	22.602s
+ok  	pact/internal/setup	9.527s
+ok  	pact/internal/status	1.968s
+ok  	pact/internal/store	(cached)
+ok  	pact/tests/e2e	33.334s
+
+exit_code=0

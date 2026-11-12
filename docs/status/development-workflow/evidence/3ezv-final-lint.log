@@ -1,0 +1,6 @@
+source_commit=736a1be846e79e689a2ca53845cab01c366849a6
+source_tree=19ff12d852b79d9e37b79748fd4800c80da99a8b
+command=env -u GOROOT GOLANGCI_LINT_CACHE=$PWD/.scratch/3ezv-final-lint mise exec -- golangci-lint run
+0 issues.
+
+exit_code=0

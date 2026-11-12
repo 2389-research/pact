@@ -1,0 +1,149 @@
+--- /Users/harper/.codex/worktrees/3f32/pact/internal/development/validate_test.go (old)
++++ /Users/harper/.codex/worktrees/3f32/pact/internal/development/validate_test.go (new)
+@@ -8,7 +8,8 @@
+ 	"encoding/json"
+ 	"errors"
+ 	"io/fs"
+-	"os"
++	"maps"
++	"os"
+ 	"path/filepath"
+ 	"reflect"
+ 	"strings"
+@@ -268,73 +269,69 @@
+ 				}
+ 				t.Run(eventType+"/missing-"+field, func(t *testing.T) {
+ 					payload := make(map[string]any)
+-					for key, value := range original {
++					maps.Copy(payload, original)
+-						payload[key] = value
+-					}
+-					delete(payload, field)
+-					if err := ValidatePayload(context.Background(), eventType, digest, payload, 1); err == nil {
+-						t.Fatal("missing required field accepted")
+-					}
+-				})
+-			}
+-		}
+-	}
+-	cases := map[string]func(*RecordInput){
+-		"review-verdict": func(v *RecordInput) { v.Events[1].Payload["verdict"] = "partial" },
+-		"finding-extra":  func(v *RecordInput) { v.Events[1].Payload["findings"].([]any)[0].(map[string]any)["extra"] = true },
+-		"finding-ref-extra": func(v *RecordInput) {
+-			v.Events[2].Payload["blocking_findings"].([]any)[0].(map[string]any)["extra"] = true
+-		},
+-		"finding-ref-malformed": func(v *RecordInput) {
+-			v.Events[2].Payload["blocking_findings"].([]any)[0].(map[string]any)["review_event_ref"] = "local:bad\n"
+-		},
+-		"evidence-envelope-extra": func(v *RecordInput) { v.Events[0].Evidence[0]["extra"] = true },
+-		"duplicate-local-id":      func(v *RecordInput) { v.Events[1].LocalID = v.Events[0].LocalID },
+-		"null-causes":             func(v *RecordInput) { v.Events[0].CausedBy = nil },
+-	}
+-	for name, mutate := range cases {
+-		t.Run(name, func(t *testing.T) {
+-			input := validationCorpus(t)["open-finding"]
+-			mutate(&input)
+-			if _, err := ValidateInput(context.Background(), input); err == nil {
+-				t.Fatal("invalid nested contract accepted")
+-			}
+-		})
+-	}
+-	for _, mutate := range []func(*RecordInput){
+-		func(v *RecordInput) {
+-			v.Events[1].Payload["resolves"].([]any)[0].(map[string]any)["evidence_indexes"] = []any{}
+-		},
+-		func(v *RecordInput) {
+-			v.Events[1].Payload["resolves"].([]any)[0].(map[string]any)["correction_source"].(map[string]any)["revision"] = "short"
+-		},
+-		func(v *RecordInput) { v.Events[2].Payload["check_refs"] = []any{} },
+-		func(v *RecordInput) { v.Events[2].Payload["review_refs"] = []any{"bad"} },
+-		func(v *RecordInput) { v.Events[2].Payload["policy_ref"] = "external-policy" },
+-		func(v *RecordInput) { v.Events[2].Payload["decision"] = "maybe" },
+-	} {
+-		input := validationCorpus(t)["corrected"]
+-		mutate(&input)
+-		if _, err := ValidateInput(context.Background(), input); err == nil {
+-			t.Fatal("invalid resolution/acceptance accepted")
+-		}
+-	}
+-}
+-
+-func TestValidateCheckObservationFormsAndNormalization(t *testing.T) {
+-	for _, observation := range []map[string]any{
+-		{"outcome": "interrupted", "exit_code": -1},
+-		{"outcome": "interrupted", "exit_code": 0, "signal": "SIGTERM"},
+-		{"outcome": "interrupted", "interruption": "process terminated"},
+-		{"outcome": "unknown"}, {"outcome": "not_run"},
+-	} {
+-		input := validationCorpus(t)["open-finding"]
+-		input.Source.Revision = strings.Repeat("a", 64)
+-		payload := input.Events[0].Payload
+-		delete(payload, "exit_code")
+-		for key, value := range observation {
+-			payload[key] = value
+-		}
++					delete(payload, field)
++					if err := ValidatePayload(context.Background(), eventType, digest, payload, 1); err == nil {
++						t.Fatal("missing required field accepted")
++					}
++				})
++			}
++		}
++	}
++	cases := map[string]func(*RecordInput){
++		"review-verdict": func(v *RecordInput) { v.Events[1].Payload["verdict"] = "partial" },
++		"finding-extra":  func(v *RecordInput) { v.Events[1].Payload["findings"].([]any)[0].(map[string]any)["extra"] = true },
++		"finding-ref-extra": func(v *RecordInput) {
++			v.Events[2].Payload["blocking_findings"].([]any)[0].(map[string]any)["extra"] = true
++		},
++		"finding-ref-malformed": func(v *RecordInput) {
++			v.Events[2].Payload["blocking_findings"].([]any)[0].(map[string]any)["review_event_ref"] = "local:bad\n"
++		},
++		"evidence-envelope-extra": func(v *RecordInput) { v.Events[0].Evidence[0]["extra"] = true },
++		"duplicate-local-id":      func(v *RecordInput) { v.Events[1].LocalID = v.Events[0].LocalID },
++		"null-causes":             func(v *RecordInput) { v.Events[0].CausedBy = nil },
++	}
++	for name, mutate := range cases {
++		t.Run(name, func(t *testing.T) {
++			input := validationCorpus(t)["open-finding"]
++			mutate(&input)
++			if _, err := ValidateInput(context.Background(), input); err == nil {
++				t.Fatal("invalid nested contract accepted")
++			}
++		})
++	}
++	for _, mutate := range []func(*RecordInput){
++		func(v *RecordInput) {
++			v.Events[1].Payload["resolves"].([]any)[0].(map[string]any)["evidence_indexes"] = []any{}
++		},
++		func(v *RecordInput) {
++			v.Events[1].Payload["resolves"].([]any)[0].(map[string]any)["correction_source"].(map[string]any)["revision"] = "short"
++		},
++		func(v *RecordInput) { v.Events[2].Payload["check_refs"] = []any{} },
++		func(v *RecordInput) { v.Events[2].Payload["review_refs"] = []any{"bad"} },
++		func(v *RecordInput) { v.Events[2].Payload["policy_ref"] = "external-policy" },
++		func(v *RecordInput) { v.Events[2].Payload["decision"] = "maybe" },
++	} {
++		input := validationCorpus(t)["corrected"]
++		mutate(&input)
++		if _, err := ValidateInput(context.Background(), input); err == nil {
++			t.Fatal("invalid resolution/acceptance accepted")
++		}
++	}
++}
++
++func TestValidateCheckObservationFormsAndNormalization(t *testing.T) {
++	for _, observation := range []map[string]any{
++		{"outcome": "interrupted", "exit_code": -1},
++		{"outcome": "interrupted", "exit_code": 0, "signal": "SIGTERM"},
++		{"outcome": "interrupted", "interruption": "process terminated"},
++		{"outcome": "unknown"}, {"outcome": "not_run"},
++	} {
++		input := validationCorpus(t)["open-finding"]
++		input.Source.Revision = strings.Repeat("a", 64)
++		payload := input.Events[0].Payload
++		delete(payload, "exit_code")
++		maps.Copy(payload, observation)
+ 		payload["summary"] = "cafe\u0301"
+ 		batch, err := ValidateInput(context.Background(), input)
+ 		if err != nil {

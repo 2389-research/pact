@@ -1,0 +1,8 @@
+--- FAIL: TestValidateRejectsDomainContradictions (0.02s)
+    --- FAIL: TestValidateRejectsDomainContradictions/invalid-utf8 (0.00s)
+        validate_test.go:165: invalid input accepted
+    --- FAIL: TestValidateRejectsDomainContradictions/floating-whole-number (0.00s)
+        validate_test.go:165: invalid input accepted
+FAIL
+FAIL	pact/internal/development	0.119s
+FAIL

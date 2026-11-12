@@ -1,0 +1,5 @@
+--- FAIL: TestDecodeArrayExplainsRecordObject (0.00s)
+    validate_test.go:228: missing object-shape guidance for operation_id: $: shape: expected one object with the required fields
+FAIL
+FAIL	pact/internal/development	0.099s
+FAIL

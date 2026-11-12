@@ -1,0 +1,27 @@
+internal/development/validate.go:118:106: Function `Digest` should pass the context parameter (contextcheck)
+		event["kind"], event["schema_ref"], event["subject"], event["tags"] = definition.Kind, canonical.Digest(artifacts[definition.Artifact]), object["subject"], []any{}
+		                                                                                                       ^
+internal/development/validate.go:120:42: Function `NormalizeEventBatch` should pass the context parameter (contextcheck)
+	batch, err := ledger.NormalizeEventBatch(map[string]any{"namespace": object["namespace"], "events": events})
+	                                        ^
+internal/development/validate.go:141:34: Function `Digest` should pass the context parameter (contextcheck)
+	if schemaRef != canonical.Digest(ProfileArtifacts()[definition.Artifact]) {
+	                                ^
+internal/development/validate_test.go:199:12: Error return value of `encoding/json.Marshal` is not checked: unsafe type `any` found (errchkjson)
+	raw, _ := json.Marshal(input)
+	          ^
+internal/development/validate.go:200:1: cyclomatic complexity 22 of func `validateCheck` is high (> 20) (gocyclo)
+func validateCheck(payload map[string]any, path string) error {
+^
+tests/e2e/development_validation_test.go:105:1: `if err != nil` has complex nested blocks (complexity: 6) (nestif)
+	if err != nil {
+^
+internal/development/validate.go:30:43: validationCause - path always receives "$" (unparam)
+func validationCause(ctx context.Context, path, category, message string, cause error) error {
+                                          ^
+7 issues:
+* contextcheck: 3
+* errchkjson: 1
+* gocyclo: 1
+* nestif: 1
+* unparam: 1

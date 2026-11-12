@@ -1,0 +1,3 @@
+ok  	pact/internal/development	0.306s
+ok  	pact/internal/ledger	0.087s [no tests to run]
+ok  	pact/tests/e2e	0.952s

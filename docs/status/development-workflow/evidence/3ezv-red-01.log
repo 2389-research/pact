@@ -1,0 +1,14 @@
+# pact/internal/development [pact/internal/development.test]
+internal/development/validate_test.go:44:32: cannot use initialized.Store.Root (value of type func() string) as string value in argument to protectedFiles
+internal/development/validate_test.go:45:18: undefined: ValidateInput
+internal/development/validate_test.go:47:52: cannot use initialized.Store.Root (value of type func() string) as string value in argument to protectedFiles
+internal/development/validate_test.go:74:18: undefined: ValidationError
+internal/development/validate_test.go:112:13: undefined: ValidateInput
+internal/development/validate_test.go:126:13: undefined: ValidatePayload
+internal/development/validate_test.go:128:12: undefined: ValidatePayload
+internal/development/validate_test.go:129:12: undefined: ValidatePayload
+internal/development/validate_test.go:137:13: undefined: DecodeInput
+internal/development/validate_test.go:141:18: undefined: DecodeInput
+internal/development/validate_test.go:141:18: too many errors
+FAIL	pact/internal/development [build failed]
+FAIL

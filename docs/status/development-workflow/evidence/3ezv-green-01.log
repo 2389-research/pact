@@ -1,0 +1,31 @@
+--- FAIL: TestValidateCorpusBeforeAdmission (0.07s)
+    --- FAIL: TestValidateCorpusBeforeAdmission/check-failed (0.00s)
+        validate_test.go:55: validation error = $: json: expected canonical JSON values and whole safe integers, valid = true
+    --- FAIL: TestValidateCorpusBeforeAdmission/check-unknown (0.00s)
+        validate_test.go:55: validation error = $: json: expected canonical JSON values and whole safe integers, valid = true
+    --- FAIL: TestValidateCorpusBeforeAdmission/severity-critical (0.00s)
+        validate_test.go:55: validation error = $: json: expected canonical JSON values and whole safe integers, valid = true
+    --- FAIL: TestValidateCorpusBeforeAdmission/partial-coverage (0.00s)
+        validate_test.go:55: validation error = $: json: expected canonical JSON values and whole safe integers, valid = true
+    --- FAIL: TestValidateCorpusBeforeAdmission/check-not_run (0.00s)
+        validate_test.go:55: validation error = $: json: expected canonical JSON values and whole safe integers, valid = true
+    --- FAIL: TestValidateCorpusBeforeAdmission/open-finding (0.00s)
+        validate_test.go:55: validation error = $: json: expected canonical JSON values and whole safe integers, valid = true
+    --- FAIL: TestValidateCorpusBeforeAdmission/check-interrupted (0.00s)
+        validate_test.go:55: validation error = $: json: expected canonical JSON values and whole safe integers, valid = true
+    --- FAIL: TestValidateCorpusBeforeAdmission/severity-minor (0.00s)
+        validate_test.go:55: validation error = $: json: expected canonical JSON values and whole safe integers, valid = true
+    --- FAIL: TestValidateCorpusBeforeAdmission/corrected (0.00s)
+        validate_test.go:55: validation error = $: json: expected canonical JSON values and whole safe integers, valid = true
+    --- FAIL: TestValidateCorpusBeforeAdmission/inconclusive (0.00s)
+        validate_test.go:55: validation error = $: json: expected canonical JSON values and whole safe integers, valid = true
+    --- FAIL: TestValidateCorpusBeforeAdmission/rejected (0.00s)
+        validate_test.go:55: validation error = $: json: expected canonical JSON values and whole safe integers, valid = true
+--- FAIL: TestValidateRejectsDomainContradictions (0.01s)
+    --- FAIL: TestValidateRejectsDomainContradictions/secret (0.00s)
+        validate_test.go:170: core secret error lost: $: json: expected canonical JSON values and whole safe integers
+--- FAIL: TestDecodeInputRejectsNonObjectAndExtraFields (0.00s)
+    validate_test.go:216: $: json: expected canonical JSON values and whole safe integers
+FAIL
+FAIL	pact/internal/development	0.198s
+FAIL
