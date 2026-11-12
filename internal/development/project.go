@@ -42,7 +42,7 @@ func Project(ctx context.Context, st *store.Store, request ProjectRequest) (Work
 		return WorkState{}, fmt.Errorf("context and store are required")
 	}
 	if request.Namespace == "" || request.Subject == "" || !regexp.MustCompile(RevisionPattern).MatchString(request.SourceRevision) {
-		return WorkState{}, fmt.Errorf("namespace, subject, and full source revision are required")
+		return WorkState{}, &ProjectRequestError{Message: "namespace, subject, and full source revision are required"}
 	}
 	p := &projection{ctx: ctx, state: emptyWorkState(request), selected: map[string]bool{}, events: map[string]*projectedEvent{}, proof: map[string]map[int]bool{}}
 	err := st.WithReadLock(func() error { return p.capture(st, request) })
@@ -93,14 +93,14 @@ func (p *projection) capture(st *store.Store, request ProjectRequest) error {
 	sort.Strings(p.state.Frontier)
 	for i, id := range p.state.Frontier {
 		if i > 0 && id == p.state.Frontier[i-1] {
-			return fmt.Errorf("duplicate frontier commit")
+			return &ProjectRequestError{Message: "duplicate frontier commit"}
 		}
 		commit, ok := scan.Commits[id]
 		if !ok {
 			return fmt.Errorf("%w: frontier commit unavailable", ledger.ErrMissingDependency)
 		}
 		if commit.Namespace != request.Namespace {
-			return fmt.Errorf("frontier namespace does not match request")
+			return &ProjectRequestError{Message: "frontier namespace does not match request"}
 		}
 	}
 	if err = p.selectCommits(p.state.Frontier); err != nil {

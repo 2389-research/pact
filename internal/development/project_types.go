@@ -4,6 +4,11 @@ package development
 
 import "pact/internal/evidence"
 
+// ProjectRequestError identifies an invalid projection request, separate from read failures.
+type ProjectRequestError struct{ Message string }
+
+func (err *ProjectRequestError) Error() string { return err.Message }
+
 type ProjectRequest struct {
 	Namespace      string   `json:"namespace"`
 	Subject        string   `json:"subject"`

@@ -99,7 +99,7 @@ func runWithConfig(args []string, config runConfig) int { //nolint:funlen // The
 	}
 	if output.document != "" {
 		if _, err := io.Copy(config.Stdout, strings.NewReader(output.document)); err != nil {
-			return writeFailure(config.Stderr, display.asJSON, "quickstart output failed")
+			return writeFailure(config.Stderr, display.asJSON, strings.Join(spec.path, " ")+" output failed")
 		}
 		return 0
 	}

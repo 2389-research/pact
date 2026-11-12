@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -297,16 +298,23 @@ func TestProjectionRequestAndDependencyRefusals(t *testing.T) {
 	cancel()
 	if _, err := Project(ctx, f.st, request); err == nil {
 		t.Fatal("cancellation accepted")
+	} else if !errors.Is(err, context.Canceled) {
+		t.Fatalf("cancellation classified as request failure: %v", err)
 	}
 	bad := request
 	bad.SourceRevision = "HEAD"
-	if _, err := Project(context.Background(), f.st, bad); err == nil {
-		t.Fatal("mutable source accepted")
+	if _, err := Project(context.Background(), f.st, bad); !isProjectRequestError(err) {
+		t.Fatalf("mutable source lacks request classification: %v", err)
 	}
 	bad = request
 	bad.Frontier = []string{next.ObjectID, next.ObjectID}
-	if _, err := Project(context.Background(), f.st, bad); err == nil {
-		t.Fatal("duplicate frontier accepted")
+	if _, err := Project(context.Background(), f.st, bad); !isProjectRequestError(err) {
+		t.Fatalf("duplicate frontier lacks request classification: %v", err)
+	}
+	bad = request
+	bad.Namespace = "org/test/other"
+	if _, err := Project(context.Background(), f.st, bad); !isProjectRequestError(err) {
+		t.Fatalf("namespace mismatch lacks request classification: %v", err)
 	}
 	bad = request
 	bad.Frontier = []string{}
@@ -328,6 +336,11 @@ func TestProjectionRequestAndDependencyRefusals(t *testing.T) {
 	if _, err = Project(context.Background(), f.st, request); err == nil {
 		t.Fatal("missing parent accepted")
 	}
+}
+
+func isProjectRequestError(err error) bool {
+	_, ok := errors.AsType[*ProjectRequestError](err)
+	return ok
 }
 
 func TestProjectionSelectedProofScopeAndEmptyEvidence(t *testing.T) {
