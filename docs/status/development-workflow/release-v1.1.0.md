@@ -3,6 +3,9 @@
 
 # Release v1.1.0
 
+Status: tag published; release run failed before asset publication.
+See release-v1.1.1.md for the prerequisite fix and successful replacement release.
+
 Doctor Biz authorized commit, push, and a release tag on 2026-11-12.
 Publish the reviewed feat/development-workflow branch to origin.
 Create annotated tag v1.1.0 on its committed release note.
