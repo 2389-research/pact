@@ -1,0 +1,80 @@
+{
+  "source_commit": "b1e00dd1c9b2280c18af0ce50a65191dc24480d0",
+  "proof_commit": "0213898c31b906f0c506fd29c018fd8be73fdc91",
+  "canonical_store": "/Users/harper/Public/src/2389/pact/.pact",
+  "namespace": "org/2389/pact",
+  "subject": "pact/development-workflow/k7cc",
+  "object_id": "sha256:ecdf5d3a4a700ad67965f29d72dc123e131130e703d64fd72e3ca3427014bd60",
+  "event_refs": [
+    "pact:event:sha256:ecdf5d3a4a700ad67965f29d72dc123e131130e703d64fd72e3ca3427014bd60#acceptance",
+    "pact:event:sha256:ecdf5d3a4a700ad67965f29d72dc123e131130e703d64fd72e3ca3427014bd60#check",
+    "pact:event:sha256:ecdf5d3a4a700ad67965f29d72dc123e131130e703d64fd72e3ca3427014bd60#focused",
+    "pact:event:sha256:ecdf5d3a4a700ad67965f29d72dc123e131130e703d64fd72e3ca3427014bd60#guide-review",
+    "pact:event:sha256:ecdf5d3a4a700ad67965f29d72dc123e131130e703d64fd72e3ca3427014bd60#integration-review",
+    "pact:event:sha256:ecdf5d3a4a700ad67965f29d72dc123e131130e703d64fd72e3ca3427014bd60#lint",
+    "pact:event:sha256:ecdf5d3a4a700ad67965f29d72dc123e131130e703d64fd72e3ca3427014bd60#race"
+  ],
+  "admission": "created",
+  "schema_validation": "valid",
+  "integrity": "valid",
+  "authenticity": "valid",
+  "authorization": "authorized",
+  "index_state": "current",
+  "evidence_state": "matching",
+  "selected_evidence_entries": 10,
+  "selected_evidence_statuses": [
+    "matching"
+  ],
+  "strict_verify": {
+    "ok": true,
+    "index_status": "current",
+    "errors": null,
+    "warnings": null
+  },
+  "fresh_projected_acceptance": {
+    "status": "supported",
+    "decision_refs": [
+      "pact:event:sha256:ecdf5d3a4a700ad67965f29d72dc123e131130e703d64fd72e3ca3427014bd60#acceptance"
+    ],
+    "reasons": []
+  },
+  "guide_budget_finding": {
+    "review_event_ref": "pact:event:sha256:34d62c13f58627bb583bed811abe0ddc4ed48253a1f89de270a4871e690779ad#review",
+    "finding_id": "guide-input-budget",
+    "source": {
+      "repository": "2389-research/pact",
+      "revision": "5782f2499825d6090f8838ed755cffb2edbf713e"
+    },
+    "severity": "minor",
+    "summary": "The candidate guide grew7247 bytes and was truncated once by the trial's outer context budget. Both scenario answers were correct; complete candidate-guide delivery and efficiency improvement were not established.",
+    "status": "resolved",
+    "resolved_by": [
+      "pact:event:sha256:ecdf5d3a4a700ad67965f29d72dc123e131130e703d64fd72e3ca3427014bd60#guide-review"
+    ]
+  },
+  "historical_finding_status": "open",
+  "kata": {
+    "epic": "aenx",
+    "status": "closed",
+    "completion": "pact:event:sha256:ecdf5d3a4a700ad67965f29d72dc123e131130e703d64fd72e3ca3427014bd60#acceptance",
+    "children": [
+      {
+        "kata": "r0dq",
+        "status": "closed",
+        "completion": "pact:event:sha256:ecdf5d3a4a700ad67965f29d72dc123e131130e703d64fd72e3ca3427014bd60#acceptance"
+      },
+      {
+        "kata": "sn7z",
+        "status": "closed",
+        "completion": "pact:event:sha256:505efb6e704f431c7b5963cefb2e86df564fe96ff6b1c0b5300647c801cd7d32#acceptance"
+      }
+    ]
+  },
+  "limits": [
+    "Local-root interpretation; shared signer does not establish reviewer independence.",
+    "Global completeness remains unknown.",
+    "One synthetic pair; no general efficiency or original-payload equivalence claim.",
+    "Complete guide delivery rests on reader attestations and retained budgets; raw transport envelopes unavailable.",
+    "No new release, tag, merge, or public push."
+  ]
+}

@@ -24,7 +24,7 @@ All source/artifact hashes and four frozen-source gate exits passed controller i
 The actual public command passes the revised native gate for every fixture scenario.
 Outer calls remain separately reported; no general efficiency claim is made.
 
-The guide implementation and task review are complete; kata r0dq awaits the signed completion checkpoint.
+The guide implementation, task review, and final integration review are complete.
 Source:b1e00dd1c9b2280c18af0ce50a65191dc24480d0; proof:9a691a1548d915dcd50212bd8dc0aa855e8f948b.
 The sole guide and raw quickstart contain12,284 bytes, below the12,288-byte limit.
 Real authored record/brief examples and all four frozen-source gates passed.
@@ -34,9 +34,19 @@ Raw tool-response envelopes were not retained; this is not an independent transp
 The candidate preserved required selected-source state facts and explicitly left original payloads unread.
 One pair measured CLI counts5/9/13 versus1/1/1 and stdout8742/16874/24968 versus3103/5173/7791 bytes.
 Retrieval/accounting calls tie at five each; additional artifact-delivery calls remain separately recorded.
-The controller owns final integration review, PACT, Kata, and this progress file.
+Both independent task reviews and the final integration review approved without findings.
+See final-review.md for the combined boundaries and retained evidence limits.
+Guide and combined acceptance:sha256:ecdf5d3a4a700ad67965f29d72dc123e131130e703d64fd72e3ca3427014bd60#acceptance.
+Subject:pact/development-workflow/k7cc; tested source:b1e00dd1c9b2280c18af0ce50a65191dc24480d0.
+Durable check/review proof:0213898c31b906f0c506fd29c018fd8be73fdc91.
+Schema validation, integrity, authenticity, local-root authorization, and accessed evidence passed separately.
+Fresh strict verification passed with a current index and no warnings or errors.
+Native brief reports locally supported acceptance and guide-input-budget resolved by the new review.
+The original explicit historical cut still reports that finding open.
+Fresh Kata reads show sn7z, r0dq, and parent aenx closed with their completion PACT refs.
 The old negative comparison remains valid under its original shell-call gate.
 The approved new gate measures correctness, top-level CLI invocations, and returned bytes separately from outer calls.
 
-Next: finish final integration review, append exact-source PACT proof, and close the guide kata and epic.
+Current state: the approved follow-up is complete on feat/bounded-brief.
+The controller preserved the task worktree and left main and the published v1.1.1 release unchanged.
 Keep private keys outside Git and never initialize another project ledger in this worktree.
