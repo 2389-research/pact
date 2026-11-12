@@ -50,3 +50,11 @@ CLI also transports the invalid `partial` payload through raw `commit` and stric
 verification unchanged: healthy ledger verification does not claim domain
 validity. Evidence checks here compare exact synthetic Git blob bytes; they do
 not implement the planned resolver or assess external evidence.
+
+The correction and rejection acceptance events declare local causal links to
+both selected proof events. Payload references alone do not establish observation.
+The compiled read evaluation verifies the public corpus through the real projector.
+Absent acceptance produces `not_recorded`; incompatible concurrent decisions
+produce `unresolved`. Complete local closure is `locally_closed`, never a claim
+of global completeness. The original profile-task report remains historical proof
+of its narrower schema and transport checks.

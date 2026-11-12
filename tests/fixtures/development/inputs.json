@@ -191,7 +191,10 @@
             "role": "primary"
           }
         ],
-        "caused_by": [],
+        "caused_by": [
+          "local:check-fixed",
+          "local:review-fixed"
+        ],
         "supersedes": []
       }
     ]
@@ -1210,7 +1213,10 @@
             "role": "primary"
           }
         ],
-        "caused_by": [],
+        "caused_by": [
+          "local:check-fixed",
+          "local:review-fixed"
+        ],
         "supersedes": []
       }
     ]

@@ -25,12 +25,16 @@ repos:
         pass_filenames: false
       - id: golangci-lint
         args: ['--timeout=10m', '--fix']
-      - id: go-unit-tests
-        args: ['-race', '-count=1', './...']  # -count=1 disables test caching
-        pass_filenames: false
-
   - repo: local
     hooks:
+      - id: go-unit-tests
+        name: go-unit-tests
+        entry: go test
+        language: system
+        args: ['-race', '-count=1', './...']
+        files: \.go$
+        pass_filenames: false
+
       - id: go-fix
         name: go fix -diff
         entry: go fix

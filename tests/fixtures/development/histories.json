@@ -9,7 +9,7 @@
     },
     "expected": {
       "supported_acceptance": "supported",
-      "completeness": "complete"
+      "completeness": "locally_closed"
     }
   },
   "concurrent-incompatible": {
@@ -19,7 +19,7 @@
     ],
     "parents": "same_frontier",
     "expected": {
-      "supported_acceptance": "unsupported",
+      "supported_acceptance": "unresolved",
       "reason": "concurrent_incompatible_decisions"
     },
     "base_records": [

@@ -3,7 +3,7 @@
     "schema_valid": true,
     "domain_valid": true,
     "recorded_decision": "not_recorded",
-    "supported_acceptance": "unsupported",
+    "supported_acceptance": "not_recorded",
     "open_findings": [
       "finding-1"
     ]
