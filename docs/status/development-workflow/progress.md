@@ -39,10 +39,18 @@ No main merge, release, or deployment is authorized.
 - Recorder/projection: PACT81e51450 retains reviews, checks, M2 resolution, and bounded acceptance.
   Strict verification passed; local-root authorization and current index were read back.
   Both Kata closures and completion event metadata were freshly read back.
+- Recorder dogfood: PACT2745e499 records checks, reviews, and bounded acceptance.
+  Exact retry returned the same identity; all six Git evidence references matched.
+  The test driver reported supported at that explicit frontier; global completeness remains unknown.
 
 ## Open review findings
 
 - M1 is resolved at 736a1be with TestInconclusiveFixtureHasNoDanglingFinding and
   independent confirmation in 3ezv-review.md.
 - M2 is resolved at e8a0241 with canceled-context and deadline regressions.
-  See x9r1-review.md. No open task-review finding remains.
+  See x9r1-review.md.
+- Corpus finding corpus-causality remains pending task6 verification and review.
+  Signed finding: PACT13b9ff3e#corpus-review, source576043e.
+  The example acceptance lacks causal observation of its selected proof.
+  Some declarative expected labels also differ from the fixed contract.
+  The task6 owner is correcting the original corpus with a real projection regression.
