@@ -1,0 +1,5 @@
+--- FAIL: TestProjectionDefaultFrontierDoesNotHideInvalidObjects (0.25s)
+    project_test.go:567: default frontier silently omitted invalid canonical object
+FAIL
+FAIL	pact/internal/development	0.341s
+FAIL

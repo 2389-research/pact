@@ -109,3 +109,69 @@ bytes, prove source existence, resolve payload references, establish correction
 or policy validity, or determine acceptance. Those require evidence/history
 context in later tasks. A syntactically valid local payload ref may still name
 missing history. Command argument strings remain reported data and never run.
+
+## Local projection
+
+`Project(ctx, store, ProjectRequest)` returns `WorkState` for an explicit
+namespace, subject and full source revision. A nil frontier captures the namespace
+heads once; an explicit empty frontier selects no history. Frontier entries are
+unique commit IDs in that namespace. Deriving current heads refuses any invalid
+canonical object because its work scope cannot be safely recovered. An explicit
+valid cut can still exclude unrelated malformed objects. The result sorts identities for stable
+serialization, never to select a semantic winner.
+
+The projector holds one store read lock around a bounded `ledger.Scan` and
+bounded canonical payload reads. It verifies selected bytes against scanned IDs,
+then projects the closure of parents and `caused_by` dependencies, retaining every
+event in each selected commit. Missing or invalid causal dependencies refuse the
+projection. The bounded inventory still covers the local store: exceeding core
+scan limits can refuse an old cut, but newer events never enter that cut's state.
+Evidence reads happen after snapshot capture through one `evidence.ResolveAll`
+budget. No index, trust, canonical object, or evidence file is written.
+
+Checks and valid recorded decisions are scoped to the requested revision.
+Findings and declared next actions include the selected work's whole reachable
+history; next actions are never inferred. Invalid or unknown relevant events are
+identified in `completeness.issues` and cannot support acceptance. Findings keep
+their original review/finding IDs. Only an approved, authorized review that
+observes the original finding, names its own exact source as the correction, and
+selects durable matching proof resolves it. A decision must observe a valid
+resolution before that resolution can support the decision.
+
+Causally maximal exact-revision decisions determine current support. All recorded
+decisions remain visible. Concurrent accepted/rejected maxima yield `unresolved`;
+causal replacement is determined from parent and cause links, never `supersedes`,
+timestamps, event-array order, or hash order. Missing decisions produce
+`not_recorded`; rejected decisions remain recorded with `unsupported` support.
+An accepted decision requires nonempty durable matching evidence selections for
+itself and each selected passed check and approved review, exact source label and
+revision matches, the same namespace/subject, known local root authorization, and
+causal observation. No open Critical/Important finding or relevant unchecked,
+invalid, unresolved, unknown-authority, or unmatched selected evidence can coexist
+with `supported`. Minor findings stay visible. Unselected checks do not override
+the decision's declared proof selection.
+
+`profile_digest` hashes the canonical object mapping every `ProfileArtifacts()`
+filename (including policy) to its exact byte digest. `policy_digest` names the
+unchanged `local-policy.json` bytes. `projector_identity.version` is
+`development/projector/v1`; its digest hashes the canonical filename-to-byte-digest
+map for the embedded `project.go`, `project_types.go`, and `policy.go` source files.
+This identifies this projection algorithm, separately from the inspected work's
+source. It is not a full binary or dependency build attestation. The core ledger,
+validator, resolver, toolchain, and evidence availability remain part of the
+execution environment. Embedded identity is mandatory; no unknown-identity
+fallback can produce support.
+
+Output collections are arrays, and full signed payloads accompany valid claims.
+Evidence assessments contain locators and digests, never proof contents. There is
+no wall-clock field in the deterministic result: observation time, if recorded by
+a caller, is separate metadata. Caller-supplied source identity and hashed proof
+do not establish that a process ran or that a repository label is owned. Local
+root authorization does not establish reviewer independence, organizational
+approval, global completeness, or official checkpoint acceptance.
+
+The projection applies the core bounded inventory and evidence budgets and adds
+a one-million-step causal traversal budget (`projection_causal_work`). A limit or
+cancellation returns an error without a partial positive result. Output byte
+budgets belong to the later brief adapter. The compiled test driver under
+`testdata/projectdriver` is a test executable, not a public CLI command.

@@ -1,0 +1,35 @@
+--- FAIL: TestProjectionAcceptanceRubric (0.89s)
+    --- FAIL: TestProjectionAcceptanceRubric/missing_decision (0.14s)
+        project_test.go:74: status= want=not_recorded reasons=[]
+    --- FAIL: TestProjectionAcceptanceRubric/supported (0.15s)
+        project_test.go:74: status= want=supported reasons=[]
+    --- FAIL: TestProjectionAcceptanceRubric/green_does_not_close_important (0.15s)
+        project_test.go:74: status= want=unsupported reasons=[]
+    --- FAIL: TestProjectionAcceptanceRubric/critical_blocks (0.15s)
+        project_test.go:74: status= want=unsupported reasons=[]
+    --- FAIL: TestProjectionAcceptanceRubric/minor_remains_visible (0.15s)
+        project_test.go:74: status= want=supported reasons=[]
+    --- FAIL: TestProjectionAcceptanceRubric/explicit_correction_resolves (0.15s)
+        project_test.go:74: status= want=supported reasons=[]
+--- FAIL: TestProjectionFrozenCutAndLaterBlocker (0.15s)
+    project_test.go:83: later blocker accepted: {Namespace: Subject: SourceRevision: Frontier:[] ProfileDigest: PolicyDigest: ProjectorIdentity:{Version: Digest:} Checks:[] Findings:[] RecordedDecisions:[] SupportedAcceptance:{Status: DecisionRefs:[] Reasons:[]} DeclaredNextActions:[] EvidenceAssessments:[] Completeness:{Scope: Status: GlobalCompleteness: Authority: ReviewerIndependence: Issues:[]}}
+--- FAIL: TestProjectionConcurrentDecisions (0.15s)
+    project_test.go:89: concurrent decisions={Namespace: Subject: SourceRevision: Frontier:[] ProfileDigest: PolicyDigest: ProjectorIdentity:{Version: Digest:} Checks:[] Findings:[] RecordedDecisions:[] SupportedAcceptance:{Status: DecisionRefs:[] Reasons:[]} DeclaredNextActions:[] EvidenceAssessments:[] Completeness:{Scope: Status: GlobalCompleteness: Authority: ReviewerIndependence: Issues:[]}}
+--- FAIL: TestProjectionProofMustBeObservedAndSameSource (1.07s)
+    --- FAIL: TestProjectionProofMustBeObservedAndSameSource/unobserved (0.15s)
+        project_test.go:105: unsupported proof accepted: {"namespace":"","subject":"","source_revision":"","frontier":null,"profile_digest":"","policy_digest":"","projector_identity":{"version":"","digest":""},"checks":null,"findings":null,"recorded_decisions":null,"supported_acceptance":{"status":"","decision_refs":null,"reasons":null},"declared_next_actions":null,"evidence_assessments":null,"completeness":{"scope":"","status":"","global_completeness":"","authority":"","reviewer_independence":"","issues":null}}
+    --- FAIL: TestProjectionProofMustBeObservedAndSameSource/wrong-source (0.15s)
+        project_test.go:105: unsupported proof accepted: {"namespace":"","subject":"","source_revision":"","frontier":null,"profile_digest":"","policy_digest":"","projector_identity":{"version":"","digest":""},"checks":null,"findings":null,"recorded_decisions":null,"supported_acceptance":{"status":"","decision_refs":null,"reasons":null},"declared_next_actions":null,"evidence_assessments":null,"completeness":{"scope":"","status":"","global_completeness":"","authority":"","reviewer_independence":"","issues":null}}
+    --- FAIL: TestProjectionProofMustBeObservedAndSameSource/mutable (0.15s)
+        project_test.go:105: unsupported proof accepted: {"namespace":"","subject":"","source_revision":"","frontier":null,"profile_digest":"","policy_digest":"","projector_identity":{"version":"","digest":""},"checks":null,"findings":null,"recorded_decisions":null,"supported_acceptance":{"status":"","decision_refs":null,"reasons":null},"declared_next_actions":null,"evidence_assessments":null,"completeness":{"scope":"","status":"","global_completeness":"","authority":"","reviewer_independence":"","issues":null}}
+    --- FAIL: TestProjectionProofMustBeObservedAndSameSource/unknown-schema (0.16s)
+        project_test.go:105: unsupported proof accepted: {"namespace":"","subject":"","source_revision":"","frontier":null,"profile_digest":"","policy_digest":"","projector_identity":{"version":"","digest":""},"checks":null,"findings":null,"recorded_decisions":null,"supported_acceptance":{"status":"","decision_refs":null,"reasons":null},"declared_next_actions":null,"evidence_assessments":null,"completeness":{"scope":"","status":"","global_completeness":"","authority":"","reviewer_independence":"","issues":null}}
+    --- FAIL: TestProjectionProofMustBeObservedAndSameSource/invalid-payload (0.16s)
+        project_test.go:105: unsupported proof accepted: {"namespace":"","subject":"","source_revision":"","frontier":null,"profile_digest":"","policy_digest":"","projector_identity":{"version":"","digest":""},"checks":null,"findings":null,"recorded_decisions":null,"supported_acceptance":{"status":"","decision_refs":null,"reasons":null},"declared_next_actions":null,"evidence_assessments":null,"completeness":{"scope":"","status":"","global_completeness":"","authority":"","reviewer_independence":"","issues":null}}
+    --- FAIL: TestProjectionProofMustBeObservedAndSameSource/missing-ref (0.15s)
+        project_test.go:105: unsupported proof accepted: {"namespace":"","subject":"","source_revision":"","frontier":null,"profile_digest":"","policy_digest":"","projector_identity":{"version":"","digest":""},"checks":null,"findings":null,"recorded_decisions":null,"supported_acceptance":{"status":"","decision_refs":null,"reasons":null},"declared_next_actions":null,"evidence_assessments":null,"completeness":{"scope":"","status":"","global_completeness":"","authority":"","reviewer_independence":"","issues":null}}
+    --- FAIL: TestProjectionProofMustBeObservedAndSameSource/unknown-authority (0.16s)
+        project_test.go:105: unsupported proof accepted: {"namespace":"","subject":"","source_revision":"","frontier":null,"profile_digest":"","policy_digest":"","projector_identity":{"version":"","digest":""},"checks":null,"findings":null,"recorded_decisions":null,"supported_acceptance":{"status":"","decision_refs":null,"reasons":null},"declared_next_actions":null,"evidence_assessments":null,"completeness":{"scope":"","status":"","global_completeness":"","authority":"","reviewer_independence":"","issues":null}}
+FAIL
+FAIL	pact/internal/development	3.152s
+FAIL

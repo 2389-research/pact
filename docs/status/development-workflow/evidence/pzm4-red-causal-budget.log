@@ -1,0 +1,5 @@
+--- FAIL: TestProjectionCausalBudgetStopsFurtherWork (0.00s)
+    project_test.go:554: failed traversal kept doing work
+FAIL
+FAIL	pact/internal/development	0.118s
+FAIL

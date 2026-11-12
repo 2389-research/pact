@@ -1,0 +1,8 @@
+--- FAIL: TestProjectionResolutionAndCausalityBoundaries (2.23s)
+    --- FAIL: TestProjectionResolutionAndCausalityBoundaries/observed-local-proof (0.13s)
+        project_test.go:258: event "review" has a self-referencing caused_by entry
+    --- FAIL: TestProjectionResolutionAndCausalityBoundaries/supersedes-alone (0.13s)
+        project_test.go:258: $.events[2].supersedes: invalid event reference
+FAIL
+FAIL	pact/internal/development	7.721s
+FAIL
