@@ -22,9 +22,12 @@ No main merge, release, or deployment is authorized.
 - pact#w5cf is closed with a tested negative publication decision.
   Both paths used three tool calls; no public brief command was added.
   Source47fbc2f passed every gate; proofa6d7800 and independent reviewc827972.
-- Current: pact#z895 proves the complete real recording and handoff lifecycle.
-  Owner: /root/lifecycle; worktree /Users/harper/.codex/worktrees/80d3/pact.
-  Branch: feat/development-lifecycle; base: a0d4a75.
+- pact#z895 is closed after independent main-model approval without findings.
+  Source42ffb83 passed focused, canonical, full uncached race, fresh lint, usage, and hooks.
+  Proofc36c52a; parent review7a71a2e; PACTebdc6dae.
+- Current: pact#k7cc validates fresh-context adoption and updates the original operator guide.
+  Owner: /root/adoption; worktree /Users/harper/.codex/worktrees/78a9/pact.
+  Branch: feat/development-adoption; refresh to this checkpoint before dispatch.
 - All other implementation katas remain open; honor native dependency edges.
 - Parent owns PACT appends, tracker updates, Kata closure, and integration.
 - Only the active implementation owner writes production code. Reviews are read-only.
@@ -49,6 +52,9 @@ No main merge, release, or deployment is authorized.
   Strict verification passed; all accessed evidence matched and the index is current.
   The exact-cut projector reports corpus-causality resolved and local support positive.
   Public brief publication remains rejected; the existing read recipe stays default.
+- Lifecycle: PACTebdc6dae retains checks, independent review, and scoped acceptance.
+  Strict verification and exact readback passed; evidence matched and the index is current.
+  Kata closure and its completion event metadata were freshly read back.
 
 ## Open review findings
 
