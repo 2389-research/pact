@@ -47,6 +47,12 @@ Fresh Kata reads show sn7z, r0dq, and parent aenx closed with their completion P
 The old negative comparison remains valid under its original shell-call gate.
 The approved new gate measures correctness, top-level CLI invocations, and returned bytes separately from outer calls.
 
-Current state: the approved follow-up is complete on feat/bounded-brief.
-The controller preserved the task worktree and left main and the published v1.1.1 release unchanged.
+The implementation checkpoint completed on feat/bounded-brief with main and v1.1.1 unchanged at that point.
+Doctor Biz then authorized merging main, tagging, and publishing the next release.
+Main fast-forwarded and v1.2.0 now points toc5fc50e3c3f80ad8721b55c2fb971907af97ef80.
+Release443215832 and workflow43258865379 were freshly verified; release and main CI passed.
+All four archive checksums and five GitHub asset digests matched downloaded bytes.
+The native macOS arm64 binary passed help, exact guide parity, real brief, and overflow checks.
+See release-v1.2.0.md and release-evidence/publication.json for publication facts and limits.
+The task worktree and existing tags remain preserved.
 Keep private keys outside Git and never initialize another project ledger in this worktree.

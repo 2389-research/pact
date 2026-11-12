@@ -1,0 +1,149 @@
+{
+  "release_id": 443215832,
+  "tag": "v1.2.0",
+  "source_revision": "c5fc50e3c3f80ad8721b55c2fb971907af97ef80",
+  "annotated_tag_object": "6815185090fc2c4de137b30c461c38a3cc983688",
+  "html_url": "https://github.com/2389-research/pact/releases/tag/v1.2.0",
+  "published_at": "2026-11-12T16:29:14Z",
+  "draft": false,
+  "prerelease": false,
+  "target_commitish": "main",
+  "notes": "Adds `pact brief` for exact-source development handoffs and cuts the operator guide from 42,710 to 12,284 bytes.\n\n- Returns complete state, blockers, decisions, evidence results, and the captured frontier.\n- Bounds output at 16 KiB by default. Oversized results fail with empty stdout and explicit recovery guidance.\n- Keeps reads separate from index repair and preserves the existing acceptance policy.\n- Runs the authored record and brief examples against real Git, keys, stores, and SQLite.\n\nCanonical checks, full race tests, fresh lint, and independent task and integration reviews passed. One synthetic reader pair retained required state facts with fewer CLI calls and returned bytes; outer calls tied. Original payload inspection still uses `pact show`. Acceptance remains local, and global completeness remains unknown.\n",
+  "notes_readback_matches": true,
+  "assets": [
+    {
+      "id": 740200078,
+      "name": "checksums.txt",
+      "size": 388,
+      "digest": "sha256:6f8c3221b3e064f75e130a5658edf2a769c10a9b525b73d535e4f870f003cdb1",
+      "browser_download_url": "https://github.com/2389-research/pact/releases/download/v1.2.0/checksums.txt"
+    },
+    {
+      "id": 740199967,
+      "name": "pact_1.2.0_Darwin_arm64.tar.gz",
+      "size": 3677587,
+      "digest": "sha256:fe77ce9d2cd695da77bf851190b9bd77011facb9683226922dc40f992fa4db04",
+      "browser_download_url": "https://github.com/2389-research/pact/releases/download/v1.2.0/pact_1.2.0_Darwin_arm64.tar.gz"
+    },
+    {
+      "id": 740199969,
+      "name": "pact_1.2.0_Darwin_x86_64.tar.gz",
+      "size": 3825640,
+      "digest": "sha256:52a46ddb879ce943ebd2418a317a164f30da9001886dfa34da1e081b882f1d07",
+      "browser_download_url": "https://github.com/2389-research/pact/releases/download/v1.2.0/pact_1.2.0_Darwin_x86_64.tar.gz"
+    },
+    {
+      "id": 740199962,
+      "name": "pact_1.2.0_Linux_arm64.tar.gz",
+      "size": 3574678,
+      "digest": "sha256:6805c0ab4b2f9dc9c739c053907339ff80bd0404149e92fd250519f41a1ac951",
+      "browser_download_url": "https://github.com/2389-research/pact/releases/download/v1.2.0/pact_1.2.0_Linux_arm64.tar.gz"
+    },
+    {
+      "id": 740199972,
+      "name": "pact_1.2.0_Linux_x86_64.tar.gz",
+      "size": 3790593,
+      "digest": "sha256:8b4ce9812949cfce812824d2b44103c244cdc8545f76d03ff556793225282409",
+      "browser_download_url": "https://github.com/2389-research/pact/releases/download/v1.2.0/pact_1.2.0_Linux_x86_64.tar.gz"
+    }
+  ],
+  "workflow": {
+    "databaseId": 43258865379,
+    "url": "https://github.com/2389-research/pact/actions/runs/43258865379",
+    "headSha": "c5fc50e3c3f80ad8721b55c2fb971907af97ef80",
+    "headBranch": "v1.2.0",
+    "status": "completed",
+    "conclusion": "success",
+    "jobs": [
+      {
+        "databaseId": 131324395094,
+        "name": "Release",
+        "status": "completed",
+        "conclusion": "success"
+      }
+    ]
+  },
+  "native_verification": {
+    "api_asset_digests_verified": 5,
+    "archive_checksums_verified": 4,
+    "native_help_exit": 0,
+    "native_quickstart_exit": 0,
+    "native_quickstart_bytes": 12284,
+    "native_quickstart_digest": "sha256:735a53a0932f35ae1ee710686a195903a79fcc2461eefa8bbf2584980df31357",
+    "native_brief": {
+      "exit_code": 0,
+      "stdout_bytes": 8603,
+      "supported_acceptance": "supported",
+      "completeness": {
+        "scope": "selected_local_frontier",
+        "status": "locally_closed",
+        "global_completeness": "unknown",
+        "authority": "locally_configured_root",
+        "reviewer_independence": "not_established",
+        "issues": []
+      }
+    },
+    "native_overflow": {
+      "argv": [
+        "brief",
+        "--repo",
+        "/Users/harper/Public/src/2389/pact",
+        "--profile",
+        "development/v1",
+        "--namespace",
+        "org/2389/pact",
+        "--subject",
+        "pact/brief/command",
+        "--source-revision",
+        "7ad8add4788f8d1f797ac5dd654cef8dc47619cf",
+        "--frontier",
+        "sha256:505efb6e704f431c7b5963cefb2e86df564fe96ff6b1c0b5300647c801cd7d32",
+        "--max-bytes",
+        "1024",
+        "--json"
+      ],
+      "exit_code": 2,
+      "stdout_bytes": 0,
+      "stderr_bytes": 280,
+      "details": {
+        "code": "brief_output_limit",
+        "requested_bytes": 1024,
+        "required_bytes": 8603
+      }
+    },
+    "vcs_revision": "c5fc50e3c3f80ad8721b55c2fb971907af97ef80",
+    "vcs_modified": false
+  },
+  "other_platform_binaries_executed": false,
+  "main_ci": {
+    "databaseId": 43258783707,
+    "status": "completed",
+    "conclusion": "success",
+    "jobs": [
+      {
+        "databaseId": 131324112035,
+        "name": "Build",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "databaseId": 131324112395,
+        "name": "Test",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "databaseId": 131324112457,
+        "name": "Lint",
+        "status": "completed",
+        "conclusion": "success"
+      },
+      {
+        "databaseId": 131324112769,
+        "name": "Reference conformance",
+        "status": "completed",
+        "conclusion": "success"
+      }
+    ]
+  }
+}
