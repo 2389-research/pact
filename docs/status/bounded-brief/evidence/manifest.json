@@ -1,0 +1,163 @@
+{
+  "source_commit": "7ad8add4788f8d1f797ac5dd654cef8dc47619cf",
+  "source_tree": "6af00e92d141b6b81f98dbdfa8c250c436e15896",
+  "base_commit": "8e6851818f892f1e6a3b1a85944786519c41e8eb",
+  "source_unchanged_during_checks": true,
+  "checks": [
+    {
+      "source_commit": "7ad8add4788f8d1f797ac5dd654cef8dc47619cf",
+      "name": "focused",
+      "started": "2026-11-12T15:32:50Z",
+      "ended": "2026-11-12T15:33:24Z",
+      "cwd": "/Users/harper/.codex/worktrees/add2/pact",
+      "argv": [
+        "env",
+        "-u",
+        "GOROOT",
+        "PACT_BOUNDED_BRIEF_DIR=/tmp/pact-bounded-brief-command-native-7ad8add4788f8d1f797ac5dd654cef8dc47619cf",
+        "mise",
+        "exec",
+        "--",
+        "go",
+        "test",
+        "./cmd/pact",
+        "./internal/development",
+        "./tests/e2e",
+        "-count=1",
+        "-v"
+      ],
+      "exit_code": 0,
+      "log": "7ad8add4788f8d1f797ac5dd654cef8dc47619cf-focused.log.gz"
+    },
+    {
+      "source_commit": "7ad8add4788f8d1f797ac5dd654cef8dc47619cf",
+      "name": "check",
+      "started": "2026-11-12T15:33:24Z",
+      "ended": "2026-11-12T15:34:08Z",
+      "cwd": "/Users/harper/.codex/worktrees/add2/pact",
+      "argv": [
+        "env",
+        "-u",
+        "GOROOT",
+        "mise",
+        "exec",
+        "--",
+        "scripts/check"
+      ],
+      "exit_code": 0,
+      "log": "7ad8add4788f8d1f797ac5dd654cef8dc47619cf-check.log.gz"
+    },
+    {
+      "source_commit": "7ad8add4788f8d1f797ac5dd654cef8dc47619cf",
+      "name": "race",
+      "started": "2026-11-12T15:34:08Z",
+      "ended": "2026-11-12T15:35:08Z",
+      "cwd": "/Users/harper/.codex/worktrees/add2/pact",
+      "argv": [
+        "env",
+        "-u",
+        "GOROOT",
+        "mise",
+        "exec",
+        "--",
+        "go",
+        "test",
+        "-race",
+        "-count=1",
+        "./..."
+      ],
+      "exit_code": 0,
+      "log": "7ad8add4788f8d1f797ac5dd654cef8dc47619cf-race.log.gz"
+    },
+    {
+      "source_commit": "7ad8add4788f8d1f797ac5dd654cef8dc47619cf",
+      "name": "lint",
+      "started": "2026-11-12T15:35:08Z",
+      "ended": "2026-11-12T15:35:11Z",
+      "cwd": "/Users/harper/.codex/worktrees/add2/pact",
+      "argv": [
+        "env",
+        "-u",
+        "GOROOT",
+        "GOLANGCI_LINT_CACHE=/tmp/pact-bounded-brief-command-final-lint.XbrlBa",
+        "mise",
+        "exec",
+        "--",
+        "golangci-lint",
+        "run"
+      ],
+      "exit_code": 0,
+      "log": "7ad8add4788f8d1f797ac5dd654cef8dc47619cf-lint.log.gz"
+    }
+  ],
+  "native_scenarios": [
+    "open",
+    "complete",
+    "conflict"
+  ],
+  "native_metrics": [
+    {
+      "baseline_argv_bytes": 887,
+      "baseline_cli_calls": 5,
+      "baseline_failures": 0,
+      "baseline_stdout_bytes": 8932,
+      "brief_argv_bytes": 249,
+      "brief_cli_calls": 1,
+      "brief_failures": 0,
+      "brief_stdout_bytes": 3103,
+      "excluded_work": "fixture creation, build, owner parity assertion and guard tests; internal subprocesses are uninstrumented",
+      "missed_or_changed_required_facts": 0,
+      "outer_shell_calls_per_path": 1,
+      "outer_shell_scope": "both paths execute inside this one go test invocation",
+      "truncation": false,
+      "unsupported_acceptance": 0
+    },
+    {
+      "baseline_argv_bytes": 1758,
+      "baseline_cli_calls": 9,
+      "baseline_failures": 0,
+      "baseline_stdout_bytes": 17111,
+      "brief_argv_bytes": 253,
+      "brief_cli_calls": 1,
+      "brief_failures": 0,
+      "brief_stdout_bytes": 5173,
+      "excluded_work": "fixture creation, build, owner parity assertion and guard tests; internal subprocesses are uninstrumented",
+      "missed_or_changed_required_facts": 0,
+      "outer_shell_calls_per_path": 1,
+      "outer_shell_scope": "both paths execute inside this one go test invocation",
+      "truncation": false,
+      "unsupported_acceptance": 0
+    },
+    {
+      "baseline_argv_bytes": 2609,
+      "baseline_cli_calls": 13,
+      "baseline_failures": 0,
+      "baseline_stdout_bytes": 25256,
+      "brief_argv_bytes": 253,
+      "brief_cli_calls": 1,
+      "brief_failures": 0,
+      "brief_stdout_bytes": 7791,
+      "excluded_work": "fixture creation, build, owner parity assertion and guard tests; internal subprocesses are uninstrumented",
+      "missed_or_changed_required_facts": 0,
+      "outer_shell_calls_per_path": 1,
+      "outer_shell_scope": "both paths execute inside this one go test invocation",
+      "truncation": false,
+      "unsupported_acceptance": 0
+    }
+  ],
+  "archive": "7ad8add-native-captures.tar.gz",
+  "source_file_hashes": "source-files.sha256",
+  "binary_hash": "native-binary.sha256",
+  "private_keys_exported": false,
+  "independent_review": "controller-owned, pending",
+  "limitations": [
+    "Index readiness and Project capture are separate observations; reported frontier identifies the captured cut.",
+    "Metrics cover actual public CLI invocations and stdout bytes, not time, total subprocesses, or tokens.",
+    "Both paths share one enclosing shell call; that count ties."
+  ],
+  "iteration_events": "iteration-events.jsonl",
+  "normal_hook_logs": [
+    "source-commit-hooks.log.gz",
+    "source-commit-hooks-02.log.gz"
+  ]
+}

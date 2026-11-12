@@ -1,0 +1,50 @@
+[
+  {
+    "baseline_argv_bytes": 887,
+    "baseline_cli_calls": 5,
+    "baseline_failures": 0,
+    "baseline_stdout_bytes": 8932,
+    "brief_argv_bytes": 249,
+    "brief_cli_calls": 1,
+    "brief_failures": 0,
+    "brief_stdout_bytes": 3103,
+    "excluded_work": "fixture creation, build, owner parity assertion and guard tests; internal subprocesses are uninstrumented",
+    "missed_or_changed_required_facts": 0,
+    "outer_shell_calls_per_path": 1,
+    "outer_shell_scope": "both paths execute inside this one go test invocation",
+    "truncation": false,
+    "unsupported_acceptance": 0
+  },
+  {
+    "baseline_argv_bytes": 1758,
+    "baseline_cli_calls": 9,
+    "baseline_failures": 0,
+    "baseline_stdout_bytes": 17111,
+    "brief_argv_bytes": 253,
+    "brief_cli_calls": 1,
+    "brief_failures": 0,
+    "brief_stdout_bytes": 5173,
+    "excluded_work": "fixture creation, build, owner parity assertion and guard tests; internal subprocesses are uninstrumented",
+    "missed_or_changed_required_facts": 0,
+    "outer_shell_calls_per_path": 1,
+    "outer_shell_scope": "both paths execute inside this one go test invocation",
+    "truncation": false,
+    "unsupported_acceptance": 0
+  },
+  {
+    "baseline_argv_bytes": 2609,
+    "baseline_cli_calls": 13,
+    "baseline_failures": 0,
+    "baseline_stdout_bytes": 25256,
+    "brief_argv_bytes": 253,
+    "brief_cli_calls": 1,
+    "brief_failures": 0,
+    "brief_stdout_bytes": 7791,
+    "excluded_work": "fixture creation, build, owner parity assertion and guard tests; internal subprocesses are uninstrumented",
+    "missed_or_changed_required_facts": 0,
+    "outer_shell_calls_per_path": 1,
+    "outer_shell_scope": "both paths execute inside this one go test invocation",
+    "truncation": false,
+    "unsupported_acceptance": 0
+  }
+]
