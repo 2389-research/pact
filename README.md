@@ -94,6 +94,37 @@ Write the standalone agent skill without initializing a repository:
 pact quickstart > SKILL.md
 ```
 
+## Development recording and handoffs
+
+`pact record --profile development/v1` validates fixed development payloads before
+signing, checks selected evidence, admits one atomic operation, and refreshes the index.
+Use the [canonical guide](docs/pact-ledger/SKILL.md#record-development-facts) for the
+complete input object, executable example, exact Git proof, and recovery recipe.
+The embedded `pact quickstart` output is that same guide.
+
+```sh
+pact record --repo /path/to/project --profile development/v1 \
+  --input /path/to/record.json --key-file /path/outside/project/operator.key.json --json
+pact query --repo /path/to/project --namespace org/example/development --subject widget/task-1 --json
+pact show --repo /path/to/project EXACT_OBJECT_OR_EVENT_REF --json
+pact evidence check --repo /path/to/project --event-ref EXACT_EVENT_REF --json
+pact verify --repo /path/to/project --strict --json
+```
+
+Follow every query cursor and inspect payloads with `show` before interpreting acceptance.
+Keep a green check separate from an open Important finding and explicit acceptance.
+Keep concurrent conflicting decisions visible.
+Retry uncertain writes with the same input, operation ID, namespace, and signer.
+Read admission and index readiness separately; an index failure does not undo admission.
+Raw `commit` and `checkpoint` writes still require an explicit `index rebuild`.
+
+There is no public `pact brief` command; the development projector remains internal.
+The [adoption evaluation](docs/status/development-workflow-evaluation.md) reports the
+supported public read recipe and its measured limits.
+Schema checks, signatures, local-root authority, evidence availability, and supported
+acceptance remain separate layers. A shared key does not establish independent review.
+Local closure does not establish global completeness or organizational approval.
+
 ## Build and run an operator lifecycle
 
 The commands below run from this repository and need `mise`, `go`, and `jq`.
@@ -185,7 +216,7 @@ a full strict store verification before it persists checkpoint bytes.
 ## Index and query operations
 
 The shipped command inventory is `quickstart`, `setup`, `init`, `keygen`,
-`trust-add`, `hash`, `commit`, `status`, `heads`, `show`, `verify`,
+`trust-add`, `hash`, `record`, `commit`, `status`, `heads`, `show`, `evidence check`, `verify`,
 `checkpoint`, `index status`, `index rebuild`, `log`, and `query`.
 
 The live SQLite file is `.pact/index/pact-v1.sqlite3`. It is derived,
@@ -204,7 +235,9 @@ operator action. `index rebuild` recreates a missing `.pact/index` directory and
 repairs an absent live file or unusable regular database. Existing directory and
 live-file paths must be real, with no SQLite sidecars. Remove or repair unsafe
 paths and SQLite sidecars before rebuilding. A successful
-canonical write makes an existing index stale; this is expected. Rebuild scans
+raw canonical write makes an existing index stale; this is expected.
+The validated `record` workflow also refreshes the derived index and reports failures separately.
+Rebuild scans
 and verifies canonical bytes, creates and validates a same-directory temporary
 SQLite file, then replaces the live file. Log and query refuse every state
 except `current`. `show` and canonical verification do not need a usable index.
@@ -301,8 +334,9 @@ scans all bounded canonical bytes and holds the exclusive store lock through
 publication, pausing writers during rebuild. This fixed-snapshot tradeoff is
 intentional for the local Phase 2 scope.
 
-Phase 3 payload and schema meaning, network sync, policy
-execution, and delegated authority remain out of scope. PACT also has no
+Arbitrary external payload schemas, network sync, public policy
+execution, and delegated authority remain out of scope. The fixed development
+recorder validates its bundled schemas. PACT also has no
 trusted timestamps, hardware key service, or global completeness claim.
 
 ## Repository gate

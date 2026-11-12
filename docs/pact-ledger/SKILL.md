@@ -10,8 +10,11 @@ description: >-
   PACT is domain-neutral: audit, verification, research, deployment, operations,
   and other skills may use it without PACT knowing their ontology.
 metadata:
-  version: "0.2.2"
+  version: "0.2.3"
 ---
+
+<!-- ABOUTME: Guides operators through supported PACT recording and local handoff commands. -->
+<!-- ABOUTME: Separates signed history, checked proof, local authority, and interpreted acceptance. -->
 
 # PACT Ledger
 
@@ -68,8 +71,11 @@ rebuilt.
 ### Current implementation boundary
 
 The `pact` CLI implements canonical objects, Ed25519 signing, atomic append, DAG
-validation, root trust, signed checkpoints, indexing, and querying. It does
-**not** execute arbitrary external payload schemas or projection policies,
+validation, root trust, signed checkpoints, indexing, and querying.
+`pact record --profile development/v1` validates the bundled development schemas
+before signing and checks selected evidence bytes. `pact evidence check` checks
+one existing event's evidence without writing history or rebuilding the index.
+The CLI does **not** execute arbitrary external payload schemas or projection policies,
 provide trusted time, evaluate advanced delegation policy, synchronize
 replicas, or act as a hardened multi-tenant key service.
 
@@ -209,12 +215,16 @@ The examples below assume that ledger is in the current directory.
    pact query --repo . --subject subsystem/authentication --limit 20 --json
    ```
 
-   `log` and `query` return event metadata, not payloads or evidence. Read each
-   relevant assertion, decision, or check with its returned event reference:
+   `log` and `query` return event metadata, not payloads or evidence.
+   Show each unique containing object once to read its atomic event batch.
+   Use an exact event ref when only that event is needed:
 
    ```bash
    pact show --repo . 'pact:event:sha256:<commit-digest>#<local-id>' --json
    ```
+
+   Resolve `local:EVENT_ID` payload references within their containing commit.
+   Their exact reference is `pact:event:COMMIT_ID#EVENT_ID`.
 
 3. Follow corrections in both directions: inspect the selected event's
    `caused_by` and `supersedes` targets with `show`; find later references with
@@ -225,6 +235,14 @@ The examples below assume that ledger is in the current directory.
    with the recorded digest. Report matching, changed, or unavailable evidence
    separately from ledger verification. Open the referenced proof before broad
    project reports or old conversations.
+
+   ```sh
+   pact evidence check --repo . --event-ref 'pact:event:sha256:<commit-digest>#<local-id>' --json
+   ```
+
+   This checks every evidence entry on the selected event.
+   Inspect each assessment; successful command execution alone does not mean matching bytes.
+   The result is a local observation, separate from the signed assertion.
 5. Leave a short handoff: subject and next action; blocking findings with exact
    event refs; source revision and verification scope; evidence availability;
    heads inspected and any unread pages or unresolved claims. Distinguish a
@@ -238,6 +256,137 @@ A cursor continues one snapshot; it is **not** a “changes since” token. If
 the source changes and the cursor is rejected, restart the query and compare
 event refs with the previous handoff. Recheck heads before acting if writers
 may have appended during the read.
+
+## Record development facts
+
+Use `pact record` for the fixed `development/v1` profile.
+Use raw `pact commit` for other domains or deliberately unchecked history.
+There is no public `pact brief` command or brief output-budget flag.
+The development projection library and its test driver remain internal.
+Read supported public history with `query`, `show`, `evidence check`, and `verify`.
+
+The recorder accepts one JSON object, never a bare events array.
+Its fields are `operation_id`, `namespace`, `subject`, `source`, and `events`.
+`source` contains a repository identity and full Git revision.
+Each event contains `local_id`, `type`, `payload`, `evidence`, `caused_by`, and `supersedes`.
+The recorder supplies kind, subject, schema digest, and profile-owned payload fields.
+Do not supply `operation_id` or `source` again inside the payload.
+
+Supported types are `dev.check.executed`, `dev.review.completed`,
+`dev.acceptance.recorded`, and `dev.next_action.recorded`.
+Payload shapes are closed; unknown fields and unsupported outcomes fail before signing.
+Check outcomes are `passed`, `failed`, `interrupted`, `not_run`, or `unknown`.
+`partial` is invalid.
+Use `coverage` for incomplete check coverage and record its actual outcome.
+Review verdicts are `approved`, `changes_required`, or `inconclusive`.
+Acceptance decisions are `accepted` or `rejected`.
+
+The example below checks that a committed `proof.txt` blob exists.
+It records that actual command result with the exact blob as evidence.
+Bind `pact` to the compiled binary and `repo` to the initialized Git/PACT root.
+Bind `key_file` to its existing external signer and `work_dir` to temporary output storage.
+The ledger namespace must be `org/example/development` for this example.
+Keep generated inputs outside immutable history and inspect them for secrets before signing.
+Use a fresh operation ID for a different result or another example run.
+The example requires `git` and `jq`.
+
+<!-- development-record-example -->
+
+```sh
+revision="$(git -C "$repo" rev-parse HEAD)"
+git -C "$repo" cat-file -e "$revision:proof.txt"
+git -C "$repo" show "$revision:proof.txt" > "$work_dir/proof.txt"
+digest="$("$pact" hash "$work_dir/proof.txt" --json | jq -r .digest)"
+
+jq -n --arg revision "$revision" --arg digest "$digest" '{
+  operation_id: "proof-blob-check-1",
+  namespace: "org/example/development",
+  subject: "widget/task-1",
+  source: {repository: "synthetic/widget", revision: $revision},
+  events: [{
+    local_id: "check", type: "dev.check.executed",
+    payload: {
+      name: "proof blob exists",
+      command: ["git", "cat-file", "-e", ($revision + ":proof.txt")],
+      outcome: "passed", exit_code: 0, evidence_indexes: [0]
+    },
+    evidence: [{ref: ("git:" + $revision + ":proof.txt"), digest: $digest,
+      media_type: "text/plain", role: "primary"}],
+    caused_by: [], supersedes: []
+  }]
+}' > "$work_dir/record.json"
+
+"$pact" record --repo "$repo" --profile development/v1 \
+  --input "$work_dir/record.json" --key-file "$key_file" --json \
+  > "$work_dir/record-result.json"
+cat "$work_dir/record-result.json"
+
+"$pact" record --repo "$repo" --profile development/v1 \
+  --input "$work_dir/record.json" --key-file "$key_file" --json \
+  > "$work_dir/retry-result.json"
+cat "$work_dir/retry-result.json"
+
+event_ref="$(jq -r '.event_refs[0]' "$work_dir/record-result.json")"
+"$pact" show --repo "$repo" "$event_ref" --json
+"$pact" evidence check --repo "$repo" --event-ref "$event_ref" --json
+"$pact" query --repo "$repo" --namespace org/example/development \
+  --subject widget/task-1 --limit 100 --json
+"$pact" verify --repo "$repo" --strict --json
+```
+
+`git:FULL_COMMIT:repository/relative/path` selects immutable Git blob bytes.
+Use a full commit ID, never a branch name or abbreviated revision.
+The resolver reads from the selected `--repo` Git repository.
+An unprefixed repository-relative path selects mutable working-tree bytes instead.
+The fixed resolver supports these paths and Git refs; other URI schemes are unsupported.
+Matching mutable bytes do not provide durable source proof.
+Retain each required Git object and path; a digest cannot restore missing bytes.
+`source.revision` remains a reported fact; the recorder does not run the reported command.
+
+### Retry and index recovery
+
+Retry with the same input, `operation_id`, namespace, and signing key.
+Operation identity is scoped by namespace and signer within the selected store.
+An exact normalized retry returns `admission=existing` with the original object and event refs.
+Changed facts under that identity return a conflict; inspect every conflicting object.
+Use a new operation ID when recording different facts.
+Changing the signer does not reconcile the original operation.
+
+Read admission separately from index readiness, including JSON error details.
+An admitted record can return an error because its derived index refresh failed.
+Keep its object ID and event refs; run `pact index rebuild --repo . --json`
+or retry the exact record input.
+After an uncertain response, reconcile with that same input before creating another operation.
+An existing retry retains original admission even if evidence later changes or becomes unavailable.
+Inspect the retry's current evidence assessments separately.
+Raw `commit` and `checkpoint` writes require an explicit index rebuild before indexed reads.
+Neither `show` nor `verify` needs an index.
+
+### Interpret a development handoff
+
+A passing check does not close an Important finding or create acceptance.
+Keep absent acceptance as `not_recorded`.
+A resolving review names the original `review_event_ref`, finding ID,
+correction source, and selected evidence indexes in `resolves`.
+Acceptance separately names exact `check_refs`, `review_refs`, and the policy digest.
+Same-batch refs use `local:ID`; add their explicit `caused_by` links.
+External refs use the full event ref and must be observed through causal history.
+Later checks alone never resolve a finding.
+Retain conflicting concurrent acceptance and rejection as `unresolved`.
+Do not choose by wall clock, hash order, or query batch number.
+
+The bundled local policy requires exact-source passing checks, approved reviews,
+explicit finding resolution, durable matching evidence, and known local authority.
+Its digest is `sha256:e9d050d6b7170e608677c0c56b338a888c2ec001499b0119adca52cf0c8fd437`.
+`supported` describes that local interpretation, not organizational approval.
+The raw public reads do not execute this projector; explain any manual interpretation.
+Keep schema validation, integrity, authenticity, authorization, evidence availability,
+recorded decisions, and supported acceptance as separate results.
+Raw ledger verification does not validate arbitrary domain payload schemas.
+A shared key does not prove reviewer independence.
+The locally configured trust root cannot prove its own bootstrap authority.
+Local closure never proves global completeness.
+Signatures and matching evidence do not prove the reported check or review occurred.
 
 ## Startup procedure
 
@@ -471,18 +620,6 @@ pact commit \
 Do not update a head pointer before the object has been durably written and
 verified. Local refs are conveniences; if a ref update fails, the object still
 exists and heads can be recomputed.
-
-### Build and review convention
-
-For development history, keep the slice or subsystem subject stable across a
-finding, its correction, and its acceptance. Put the exact tested/reviewed Git
-revision, result, and remaining work in the payload; attach retained reports or
-logs as evidence. Give findings stable IDs in the project's payload schema.
-Link a correction to the finding event with `caused_by`, and name which finding
-IDs it addresses. Link acceptance to the corrected source's review and checks.
-Keep failed results as history; use `supersedes` only for a claim being replaced,
-not merely because a later test passed. These are project conventions, not
-built-in event types or an automatic approval policy in Pact.
 
 ## Correct, invalidate, or add later knowledge
 

@@ -25,7 +25,7 @@ func TestQuickstartEmitsCanonicalGoSkill(t *testing.T) {
 		t.Fatalf("quickstart bytes differ from canonical SKILL.md")
 	}
 	output := stdout.String()
-	for _, required := range []string{"name: pact-ledger", "pact setup", "pact verify", "pact commit", "pact query"} {
+	for _, required := range []string{"name: pact-ledger", "pact setup", "pact verify", "pact commit", "pact query", "pact record", "pact evidence check", "development/v1", "not_recorded", "shared key"} {
 		if !strings.Contains(output, required) {
 			t.Fatalf("quickstart lacks %q", required)
 		}
