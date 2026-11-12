@@ -26,6 +26,9 @@ Source identity and retained evidence do not prove execution.
 This driver remains test tooling; it is not a published brief command.
 
 Retained input and outputs live in evidence/dogfood-*.json.
+Generic artifact event PACT387f13e1#dogfood-projection-artifact records the retained state digest.
+Its manifest pins the original frontier, profile, policy, and projector identity.
+This generic artifact event is outside development/v1; interpret the artifact at its captured cut.
 They contain public source facts and evidence references, never private key bytes.
 No test, command, evidence file, trust entry, or prior canonical object was rewritten.
 The acceptance excludes brief publication, aggregate lifecycle, adoption, and release.
