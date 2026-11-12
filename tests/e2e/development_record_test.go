@@ -185,6 +185,23 @@ func TestCLIRecordLostResponseAfterPublication(t *testing.T) {
 		t.Fatal(err)
 	}
 	args := []string{"record", "--repo", repo, "--profile", "development/v1", "--input", path, "--key-file", key, "--json"}
+	recoverRecordLostResponse(t, binary, repo, args, len(events))
+}
+
+func recoverRecordLostResponse(t *testing.T, binary, repo string, args []string, eventCount int) map[string]any {
+	t.Helper()
+	st, err := store.Open(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := st.ObjectFiles()
+	if err != nil {
+		t.Fatal(err)
+	}
+	existing := make(map[string]bool, len(before))
+	for _, file := range before {
+		existing[file.ID] = true
+	}
 	command := exec.Command(binary, args...)
 	output, err := command.StdoutPipe()
 	if err != nil {
@@ -196,30 +213,42 @@ func TestCLIRecordLostResponseAfterPublication(t *testing.T) {
 	if err := command.Start(); err != nil {
 		t.Fatal(err)
 	}
-	defer func() { _ = command.Process.Kill() }()
+	t.Cleanup(func() {
+		_ = command.Process.Kill()
+		_ = command.Wait()
+	})
 	// The real CLI writes more than pipe capacity; withholding reads loses its response.
-	st, err := store.Open(repo)
-	if err != nil {
-		t.Fatal(err)
-	}
 	var admitted string
+	var admittedRefs []any
 	deadline := time.Now().Add(20 * time.Second)
 	for time.Now().Before(deadline) {
 		files, err := st.ObjectFiles()
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(files) == 1 {
-			shown, err := ledger.Show(st, files[0].ID)
+		for _, file := range files {
+			if existing[file.ID] {
+				continue
+			}
+			shown, err := ledger.Show(st, file.ID)
 			if err == nil && shown.Integrity == "valid" && shown.Authenticity == "valid" {
-				admitted = files[0].ID
+				admitted = file.ID
+				for _, raw := range shown.Object["body"].(map[string]any)["events"].([]any) {
+					event := raw.(map[string]any)
+					admittedRefs = append(admittedRefs, ledger.EventRef(admitted, event["local_id"].(string)))
+				}
 				break
 			}
+		}
+		if admitted != "" {
+			break
 		}
 		time.Sleep(5 * time.Millisecond)
 	}
 	if admitted == "" {
-		t.Fatal("no verified canonical publication")
+		_ = command.Process.Kill()
+		_ = command.Wait()
+		t.Fatalf("no verified canonical publication: %s", diagnostic.Bytes())
 	}
 	if err := command.Process.Kill(); err != nil {
 		t.Fatal(err)
@@ -227,16 +256,23 @@ func TestCLIRecordLostResponseAfterPublication(t *testing.T) {
 	if err := command.Wait(); err == nil {
 		t.Fatal("owned process was not terminated")
 	}
-	os.RemoveAll(filepath.Join(repo, ".pact", "index"))
-	os.RemoveAll(filepath.Join(repo, ".pact", "tmp"))
+	for _, name := range []string{"index", "tmp"} {
+		if err := os.RemoveAll(filepath.Join(repo, ".pact", name)); err != nil {
+			t.Fatal(err)
+		}
+	}
 	recovered := runJSON(t, binary, args...)
-	if recovered["admission"] != "existing" || recovered["object_id"] != admitted || len(recovered["event_refs"].([]any)) != 1024 {
+	if recovered["admission"] != "existing" || recovered["object_id"] != admitted || recovered["index_state"] != "current" || len(admittedRefs) != eventCount || !reflect.DeepEqual(recovered["event_refs"], admittedRefs) {
 		t.Fatalf("recovered = %#v", recovered)
 	}
-	files, _ := st.ObjectFiles()
-	if len(files) != 1 {
+	files, err := st.ObjectFiles()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(files) != len(before)+1 {
 		t.Fatalf("canonical count %d", len(files))
 	}
+	return recovered
 }
 
 func TestCLIRecordGitEvidenceSurvivesSourceAdvance(t *testing.T) {
