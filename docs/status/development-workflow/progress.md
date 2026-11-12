@@ -14,9 +14,10 @@ Compactions in this execution: 0. No main merge, release, or deployment is autho
 
 - pact#khqq is closed with verified source 89e8321, evidence e39f152,
   independent review 7e5fa67 and PACT checkpoint bea2a5e6.
-- Validation source 736a1be/proof c0e3624 and evidence source41c1ae6/proof748b117
-  passed their frozen-source gates and independent reviews. Evidence is integrated
-  into this branch. Parent now runs combined-source verification before publication.
+- pact#3ezv and pact#spns are closed after independent approval and combined-source
+  canonical/race/fresh-cache lint at 2d688b5. Proof/report commit 94b47bd.
+- Next: pact#x9r1 recorder in this worktree; pact#pzm4 projection in the separate
+  /Users/harper/.codex/worktrees/a7b6/pact, branch feat/development-projection.
 - All other implementation katas remain open; honor native dependency edges.
 - Parent owns PACT appends, tracker updates, Kata closure, and integration.
 - Only the active implementation owner writes production code. Reviews are read-only.
@@ -28,6 +29,9 @@ Compactions in this execution: 0. No main merge, release, or deployment is autho
   approved without Critical/Important findings. Local contract scope only.
 - PACT bea2a5e6 retains the failed hook/config-isolation observation, final checks,
   independent review and bounded acceptance; index current and local root authorized.
+- pact#3ezv: source736a1be; PACT21145a26, including explicit M1 resolution.
+- pact#spns: source41c1ae6; PACT470027ff. Combined prerequisites: PACT06052d5e.
+  All three appended objects verify, locally trusted root authorized; index current.
 
 ## Open review findings
 
