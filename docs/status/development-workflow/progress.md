@@ -25,10 +25,10 @@ No main merge, release, or deployment is authorized.
 - pact#z895 is closed after independent main-model approval without findings.
   Source42ffb83 passed focused, canonical, full uncached race, fresh lint, usage, and hooks.
   Proofc36c52a; parent review7a71a2e; PACTebdc6dae.
-- Current: pact#k7cc validates fresh-context adoption and updates the original operator guide.
-  Owner: /root/adoption; worktree /Users/harper/.codex/worktrees/78a9/pact.
-  Branch: feat/development-adoption; refresh to this checkpoint before dispatch.
-- All other implementation katas remain open; honor native dependency edges.
+- pact#k7cc implementation and independent task review are complete at source5782f24.
+  Proof2f2ad80; task review20193ff; final integration review approved without blocking findings.
+  Final PACT publication and task/epic closure remain with the coordinator.
+- The first seven implementation katas are closed; only k7cc and its epic await closure.
 - Parent owns PACT appends, tracker updates, Kata closure, and integration.
 - Only the active implementation owner writes production code. Reviews are read-only.
 
@@ -55,6 +55,10 @@ No main merge, release, or deployment is authorized.
 - Lifecycle: PACTebdc6dae retains checks, independent review, and scoped acceptance.
   Strict verification and exact readback passed; evidence matched and the index is current.
   Kata closure and its completion event metadata were freshly read back.
+- Individual command corrections: PACTda7e00ef, df6b0fe9, and9fc0524a.
+  They replace aggregate argv metadata while preserving component outcomes and original history.
+  All corrected objects passed fresh readback and strict verification.
+  See provenance-correction.md; no test was rerun for these metadata corrections.
 
 ## Open review findings
 
@@ -66,6 +70,9 @@ No main merge, release, or deployment is authorized.
   Original finding: PACT13b9ff3e#corpus-review, source576043e.
   Resolution: PACT4f1c51c5#review-resolution after independent main-model approval.
   The canonical corpus now observes selected proof and uses the exact contract labels.
-- No open task-review finding remains.
+- No Critical or Important task-review finding remains.
+- Minor guide-input-budget remains a known trial limitation.
+  Both handoff answers were correct, but the longer candidate guide was truncated during context loading.
+  No efficiency improvement or complete candidate-guide delivery is claimed.
 - Low retention limitation: an initial replay diagnostic partial stdout was lost.
   Its error and all decisive RED/GREEN and final paired streams remain retained.

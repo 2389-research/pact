@@ -16,7 +16,7 @@ It confirmed Go, embedded-guide, hook, fixture, and check-script bytes equal tes
 It inspected source-tagged reports without rerunning successful suites.
 
 Minor progress wording still said all other katas remained open.
-The final completion cut must replace that stale statement.
+The controller replaced it with exact completed and pending task status before publication.
 Minor guide-input-budget remains disclosed in k7cc-review.md.
 Correct scenario answers do not establish complete delivery of the longer guide.
 Future comparisons must set both input budgets explicitly.
