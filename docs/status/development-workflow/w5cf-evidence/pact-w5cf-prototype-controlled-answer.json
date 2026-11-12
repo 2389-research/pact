@@ -1,0 +1,271 @@
+{
+  "recipient": "Doctor Biz",
+  "measurement": {
+    "functions_exec_calls": 1,
+    "nested_exec_command_calls": 1,
+    "prototype_cli_processes": 3,
+    "stores": 3,
+    "stdout_bytes": 16007,
+    "stderr_bytes": 0,
+    "exit_code": 0,
+    "failures": [],
+    "model_family_exposed": "GPT-6",
+    "exact_model_version": "unknown"
+  },
+  "reference_notation": {
+    "rule": "Expand X#event as pact:event:<commits[X]>#event. Expand frontier aliases directly through commits.",
+    "commits": {
+      "O": "sha256:fa4533a332c343918dc8eed3995559b8d0653a7695af9682cc4e3e80650526d0",
+      "CI": "sha256:70010e294b7e5d621fdbbd7abbdcccb346821774049f149c47c5f1ceeacf4f4e",
+      "C": "sha256:489f22261d053110c8f58d51f0cb2804a110cf9c6aca27980ad3476a9e16c8db",
+      "XI": "sha256:9b3f923be02331733239e1d7358ca26615e71195e48ba04d692479f233f19c27",
+      "XA": "sha256:96c331aa5a2497b4fd2668c0293a890378538b0b999fa80a56b88d2ddfae118c",
+      "XR": "sha256:c72e442c88d68a9e86a48a925a23bc05bbbd88d4092d96716379e77027795942"
+    },
+    "revisions": {
+      "initial": "62ba249ef5cafdee4860900220f826dfad0ba869",
+      "corrected": "fd0a35409b7f10ea96d6f2af192632bb79b5d810"
+    }
+  },
+  "common_to_each_store": {
+    "repository": "synthetic/widget",
+    "namespace": "org/example/development",
+    "subject": "widget/task-1",
+    "policy_digest": "sha256:e9d050d6b7170e608677c0c56b338a888c2ec001499b0119adca52cf0c8fd437",
+    "profile_digest": "sha256:b89dd93eb851ca4db63e9e29fbd1d060310f2268c8d37ed00c46004f2eafeab9",
+    "executed_projector_identity": {
+      "version": "development/projector/v1",
+      "digest": "sha256:2bbf4768d020ecc4d3009aa89f297b519577d67d25f312cd0f9651b2bf8e4d2e"
+    },
+    "completeness": {
+      "status": "locally_closed",
+      "scope": "selected_local_frontier",
+      "issues": [],
+      "authority": "locally_configured_root",
+      "global_completeness": "unknown",
+      "reviewer_independence": "not_established"
+    },
+    "evidence_defaults": {
+      "index": 0,
+      "expected_digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+      "actual_digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+      "bytes": 77,
+      "status": "matching",
+      "durable": true,
+      "immutability": "Git revision-pinned proof.txt references"
+    },
+    "limits": [
+      "Recorded check and review claims do not prove actual process execution.",
+      "One configured local root establishes neither reviewer independence nor global completeness.",
+      "Parent edges supply causal observation; batch array order does not.",
+      "Payload local references resolve only within their own commit.",
+      "Raw parent edges and review payloads were not emitted; causal resolution and acceptance are projector-derived results."
+    ]
+  },
+  "stores": [
+    {
+      "store": "open",
+      "source_revision": "62ba249ef5cafdee4860900220f826dfad0ba869",
+      "frontier": ["O"],
+      "current_checks": [
+        {
+          "event_ref": "O#check",
+          "name": "unit",
+          "command": ["go", "test", "./..."],
+          "outcome": "passed",
+          "exit_code": 0,
+          "source_revision": "62ba249ef5cafdee4860900220f826dfad0ba869"
+        }
+      ],
+      "findings": [
+        {
+          "review_event_ref": "O#review",
+          "finding_id": "finding-1",
+          "severity": "important",
+          "status": "open",
+          "resolved_by": [],
+          "summary": "Synthetic input loses a declared fact."
+        }
+      ],
+      "decisions": [],
+      "acceptance": {
+        "status": "not_recorded",
+        "decision_refs": [],
+        "projector_reasons": [],
+        "explanation": "No explicit acceptance decision exists. The Important finding also remains open."
+      },
+      "checked_evidence": {
+        "assessment_count": 2,
+        "unique_reference_count": 1,
+        "groups": [
+          {
+            "ref": "git:62ba249ef5cafdee4860900220f826dfad0ba869:proof.txt",
+            "event_refs": ["O#check", "O#review"]
+          }
+        ]
+      },
+      "actor_declared_next_action": {
+        "event_ref": "O#next",
+        "actor": "fixture-agent",
+        "action": "Correct finding-1 and review the correction.",
+        "temporal_status": "current source",
+        "blocking_review_ref": "O#review",
+        "blocking_finding_id": "finding-1"
+      }
+    },
+    {
+      "store": "complete",
+      "source_revision": "fd0a35409b7f10ea96d6f2af192632bb79b5d810",
+      "frontier": ["C"],
+      "current_checks": [
+        {
+          "event_ref": "C#check-fixed",
+          "name": "unit",
+          "command": ["go", "test", "./..."],
+          "outcome": "passed",
+          "exit_code": 0,
+          "source_revision": "fd0a35409b7f10ea96d6f2af192632bb79b5d810"
+        }
+      ],
+      "findings": [
+        {
+          "review_event_ref": "CI#review",
+          "finding_id": "finding-1",
+          "severity": "important",
+          "status": "resolved",
+          "resolved_by": ["C#review-fixed"],
+          "summary": "Synthetic input loses a declared fact."
+        }
+      ],
+      "decisions": [
+        {
+          "event_ref": "C#accept",
+          "decision": "accepted",
+          "policy_ref": "sha256:e9d050d6b7170e608677c0c56b338a888c2ec001499b0119adca52cf0c8fd437",
+          "selected_check_refs": ["C#check-fixed"],
+          "selected_review_refs": ["C#review-fixed"],
+          "source_revision": "fd0a35409b7f10ea96d6f2af192632bb79b5d810"
+        }
+      ],
+      "acceptance": {
+        "status": "supported",
+        "decision_refs": ["C#accept"],
+        "projector_reasons": [],
+        "explanation": "The projector supports explicit acceptance under the fixed policy: selected same-source passed check and approved review, matching immutable proof, observed resolution, and no open Important or Critical finding."
+      },
+      "checked_evidence": {
+        "assessment_count": 5,
+        "unique_reference_count": 2,
+        "groups": [
+          {
+            "ref": "git:fd0a35409b7f10ea96d6f2af192632bb79b5d810:proof.txt",
+            "event_refs": ["C#accept", "C#check-fixed", "C#review-fixed"]
+          },
+          {
+            "ref": "git:62ba249ef5cafdee4860900220f826dfad0ba869:proof.txt",
+            "event_refs": ["CI#check", "CI#review"]
+          }
+        ]
+      },
+      "actor_declared_next_action": {
+        "event_ref": "CI#next",
+        "actor": "fixture-agent",
+        "action": "Correct finding-1 and review the correction.",
+        "source_revision": "62ba249ef5cafdee4860900220f826dfad0ba869",
+        "temporal_status": "historical; referenced finding is now resolved",
+        "blocking_review_ref": "CI#review",
+        "blocking_finding_id": "finding-1",
+        "current_source_action": "not recorded"
+      }
+    },
+    {
+      "store": "conflict",
+      "source_revision": "fd0a35409b7f10ea96d6f2af192632bb79b5d810",
+      "frontier": ["XA", "XR"],
+      "current_checks": [
+        {
+          "event_ref": "XA#check-fixed",
+          "name": "unit",
+          "command": ["go", "test", "./..."],
+          "outcome": "passed",
+          "exit_code": 0,
+          "source_revision": "fd0a35409b7f10ea96d6f2af192632bb79b5d810"
+        },
+        {
+          "event_ref": "XR#check-fixed",
+          "name": "unit",
+          "command": ["go", "test", "./..."],
+          "outcome": "passed",
+          "exit_code": 0,
+          "source_revision": "fd0a35409b7f10ea96d6f2af192632bb79b5d810"
+        }
+      ],
+      "findings": [
+        {
+          "review_event_ref": "XI#review",
+          "finding_id": "finding-1",
+          "severity": "important",
+          "status": "resolved",
+          "resolved_by": ["XA#review-fixed", "XR#review-fixed"],
+          "summary": "Synthetic input loses a declared fact."
+        }
+      ],
+      "decisions": [
+        {
+          "event_ref": "XA#accept",
+          "decision": "accepted",
+          "policy_ref": "sha256:e9d050d6b7170e608677c0c56b338a888c2ec001499b0119adca52cf0c8fd437",
+          "selected_check_refs": ["XA#check-fixed"],
+          "selected_review_refs": ["XA#review-fixed"],
+          "source_revision": "fd0a35409b7f10ea96d6f2af192632bb79b5d810"
+        },
+        {
+          "event_ref": "XR#accept",
+          "decision": "rejected",
+          "policy_ref": "sha256:e9d050d6b7170e608677c0c56b338a888c2ec001499b0119adca52cf0c8fd437",
+          "selected_check_refs": ["XR#check-fixed"],
+          "selected_review_refs": ["XR#review-fixed"],
+          "source_revision": "fd0a35409b7f10ea96d6f2af192632bb79b5d810"
+        }
+      ],
+      "acceptance": {
+        "status": "unresolved",
+        "decision_refs": ["XA#accept", "XR#accept"],
+        "projector_reasons": ["concurrent_incompatible_decisions"],
+        "explanation": "Concurrent acceptance and rejection have no winner. Passing checks and resolved findings do not resolve this decision conflict."
+      },
+      "checked_evidence": {
+        "assessment_count": 8,
+        "unique_reference_count": 2,
+        "groups": [
+          {
+            "ref": "git:fd0a35409b7f10ea96d6f2af192632bb79b5d810:proof.txt",
+            "event_refs": [
+              "XA#accept",
+              "XA#check-fixed",
+              "XA#review-fixed",
+              "XR#accept",
+              "XR#check-fixed",
+              "XR#review-fixed"
+            ]
+          },
+          {
+            "ref": "git:62ba249ef5cafdee4860900220f826dfad0ba869:proof.txt",
+            "event_refs": ["XI#check", "XI#review"]
+          }
+        ]
+      },
+      "actor_declared_next_action": {
+        "event_ref": "XI#next",
+        "actor": "fixture-agent",
+        "action": "Correct finding-1 and review the correction.",
+        "source_revision": "62ba249ef5cafdee4860900220f826dfad0ba869",
+        "temporal_status": "historical; referenced finding is now resolved",
+        "blocking_review_ref": "XI#review",
+        "blocking_finding_id": "finding-1",
+        "current_source_action": "not recorded",
+        "conflict_resolution_action": "not recorded"
+      }
+    }
+  ]
+}

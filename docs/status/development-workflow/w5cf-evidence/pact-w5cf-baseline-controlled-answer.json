@@ -1,0 +1,238 @@
+{
+  "recipient": "Doctor Biz",
+  "measurement": {
+    "functions_exec_calls": 1,
+    "exec_command_calls": 1,
+    "cli_commands": 27,
+    "cli_count_basis": "Parent-specified recipe; output truncation prevents independently counting every returned record.",
+    "stdout_bytes": 50493,
+    "stderr_bytes": 0,
+    "exit_code": 0,
+    "model_version": "unknown",
+    "failures": [
+      "The tool response omitted 1852 tokens despite both output budgets being 30000.",
+      "The missing region includes most of the complete store's initial commit, its two evidence assessments, and the beginning of the conflict query."
+    ],
+    "additional_actions": 0
+  },
+  "notation": {
+    "event": "An alias followed by #local_id expands to pact:event:<commit-id>#<local_id>.",
+    "commits": {
+      "O": "sha256:fa4533a332c343918dc8eed3995559b8d0653a7695af9682cc4e3e80650526d0",
+      "C0": "sha256:70010e294b7e5d621fdbbd7abbdcccb346821774049f149c47c5f1ceeacf4f4e",
+      "C1": "sha256:489f22261d053110c8f58d51f0cb2804a110cf9c6aca27980ad3476a9e16c8db",
+      "F0": "sha256:9b3f923be02331733239e1d7358ca26615e71195e48ba04d692479f233f19c27",
+      "FA": "sha256:96c331aa5a2497b4fd2668c0293a890378538b0b999fa80a56b88d2ddfae118c",
+      "FR": "sha256:c72e442c88d68a9e86a48a925a23bc05bbbd88d4092d96716379e77027795942"
+    },
+    "source_repository": "synthetic/widget",
+    "initial_revision": "62ba249ef5cafdee4860900220f826dfad0ba869",
+    "corrected_revision": "fd0a35409b7f10ea96d6f2af192632bb79b5d810",
+    "policy_digest": "sha256:e9d050d6b7170e608677c0c56b338a888c2ec001499b0119adca52cf0c8fd437",
+    "proof_digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+    "initial_proof": "git:62ba249ef5cafdee4860900220f826dfad0ba869:proof.txt",
+    "corrected_proof": "git:fd0a35409b7f10ea96d6f2af192632bb79b5d810:proof.txt"
+  },
+  "common_limits": {
+    "projector": "No projector executed; these conclusions interpret query, verify, show, and evidence-check results.",
+    "local_completeness": "Each strict verification reports locally_closed, no blockers, current index, valid objects, and ok=true.",
+    "global_completeness": "unknown",
+    "authority": "Each store uses one locally bootstrapped trusted root; all inspected commits are authorized.",
+    "reviewer_independence": "Not established by a single signing root.",
+    "execution": "Recorded check claims and matching evidence bytes do not establish actual test or review execution.",
+    "causality": "Parent edges establish observation. Array order and immutable-reference tie breakers do not.",
+    "local_references": "local:* payload references resolve only within the containing commit.",
+    "evidence_immutability": "Inspected proof references use full Git revisions and matching content digests."
+  },
+  "stores": {
+    "open": {
+      "source_revision": "62ba249ef5cafdee4860900220f826dfad0ba869",
+      "frontier": ["O"],
+      "check": {
+        "ref": "O#check",
+        "name": "unit",
+        "command": ["go", "test", "./..."],
+        "exit_code": 0,
+        "outcome": "passed"
+      },
+      "findings": [
+        {
+          "identity": {"review_ref": "O#review", "finding_id": "finding-1"},
+          "severity": "important",
+          "summary": "Synthetic input loses a declared fact.",
+          "status": "open",
+          "resolution_refs": []
+        }
+      ],
+      "review": {"ref": "O#review", "verdict": "changes_required"},
+      "decisions": [],
+      "recorded_policy_digest": null,
+      "conclusion": "not_recorded",
+      "reasons": [
+        "No explicit acceptance decision exists.",
+        "The important finding remains open.",
+        "The current review requires changes."
+      ],
+      "evidence": {
+        "checked_events": ["O#check", "O#review"],
+        "assessment_count": 2,
+        "unique_reference_count": 1,
+        "ref": "initial_proof",
+        "declared_and_actual_digest": "proof_digest",
+        "status": "matching",
+        "bytes_per_assessment": 77,
+        "immutable": true
+      },
+      "next_action": {
+        "ref": "O#next",
+        "actor": "fixture-agent",
+        "action": "Correct finding-1 and review the correction.",
+        "status": "current actor declaration",
+        "blocking_review": "O#review",
+        "blocking_finding": "finding-1"
+      },
+      "completeness": {"events": 3, "commits": 1, "query_has_more": false}
+    },
+    "complete": {
+      "source_revision": "fd0a35409b7f10ea96d6f2af192632bb79b5d810",
+      "frontier": ["C1"],
+      "parents": {"C1": ["C0"]},
+      "check": {
+        "ref": "C1#check-fixed",
+        "name": "unit",
+        "command": ["go", "test", "./..."],
+        "exit_code": 0,
+        "outcome": "passed"
+      },
+      "findings": [
+        {
+          "identity": {"review_ref": "C0#review", "finding_id": "finding-1"},
+          "severity": "unknown: original payload truncated",
+          "status": "resolved by an explicit, causally observing review",
+          "resolution_refs": ["C1#review-fixed"],
+          "correction_source_revision": "fd0a35409b7f10ea96d6f2af192632bb79b5d810"
+        }
+      ],
+      "review": {"ref": "C1#review-fixed", "verdict": "approved", "new_findings": []},
+      "decisions": [
+        {
+          "ref": "C1#accept",
+          "decision": "accepted",
+          "check_refs": ["C1#check-fixed"],
+          "review_refs": ["C1#review-fixed"],
+          "policy_digest": "sha256:e9d050d6b7170e608677c0c56b338a888c2ec001499b0119adca52cf0c8fd437"
+        }
+      ],
+      "conclusion": "unresolved",
+      "conclusion_scope": "Reader verification gap caused by truncated output, not an observed decision conflict.",
+      "reasons": [
+        "Visible acceptance selects a passed check and approved review on the same corrected revision.",
+        "Its selected proof assessments match immutable references.",
+        "The correction commit observes the original review through its parent.",
+        "Most of the original review payload is missing, so I cannot verify every initial finding or exclude another open Important/Critical finding."
+      ],
+      "evidence": {
+        "visible_checked_events": ["C1#accept", "C1#check-fixed", "C1#review-fixed"],
+        "visible_assessment_count": 3,
+        "recipe_assessment_count": 5,
+        "unobserved_assessments_due_to_truncation": 2,
+        "visible_ref": "corrected_proof",
+        "visible_declared_and_actual_digest": "proof_digest",
+        "visible_status": "matching",
+        "bytes_per_visible_assessment": 77,
+        "immutable": true
+      },
+      "next_action": {
+        "historical_ref": "C0#next",
+        "historical_payload": "Not visible in full because of truncation.",
+        "current_declaration": "No next-action event exists in current commit C1."
+      },
+      "completeness": {"events": 6, "commits": 2, "query_has_more": false}
+    },
+    "conflict": {
+      "source_revision": "fd0a35409b7f10ea96d6f2af192632bb79b5d810",
+      "frontier": ["FA", "FR"],
+      "parents": {"FA": ["F0"], "FR": ["F0"]},
+      "checks": [
+        {
+          "ref": "FA#check-fixed",
+          "name": "unit",
+          "command": ["go", "test", "./..."],
+          "exit_code": 0,
+          "outcome": "passed"
+        },
+        {
+          "ref": "FR#check-fixed",
+          "name": "unit",
+          "command": ["go", "test", "./..."],
+          "exit_code": 0,
+          "outcome": "passed"
+        }
+      ],
+      "findings": [
+        {
+          "identity": {"review_ref": "F0#review", "finding_id": "finding-1"},
+          "severity": "important",
+          "summary": "Synthetic input loses a declared fact.",
+          "status": "resolved",
+          "resolution_refs": ["FA#review-fixed", "FR#review-fixed"],
+          "correction_source_revision": "fd0a35409b7f10ea96d6f2af192632bb79b5d810",
+          "causal_basis": "Both correction commits have F0 as their parent."
+        }
+      ],
+      "reviews": [
+        {"ref": "FA#review-fixed", "verdict": "approved", "new_findings": []},
+        {"ref": "FR#review-fixed", "verdict": "approved", "new_findings": []}
+      ],
+      "decisions": [
+        {
+          "ref": "FA#accept",
+          "decision": "accepted",
+          "check_refs": ["FA#check-fixed"],
+          "review_refs": ["FA#review-fixed"],
+          "policy_digest": "sha256:e9d050d6b7170e608677c0c56b338a888c2ec001499b0119adca52cf0c8fd437"
+        },
+        {
+          "ref": "FR#accept",
+          "decision": "rejected",
+          "check_refs": ["FR#check-fixed"],
+          "review_refs": ["FR#review-fixed"],
+          "policy_digest": "sha256:e9d050d6b7170e608677c0c56b338a888c2ec001499b0119adca52cf0c8fd437"
+        }
+      ],
+      "conclusion": "unresolved",
+      "reasons": [
+        "Concurrent accepted and rejected decisions address the same source revision.",
+        "Neither decision observes or supersedes the other.",
+        "Both have passed checks, approved reviews, matching immutable proof, and observed resolutions.",
+        "No open Important/Critical finding remains in the inspected objects.",
+        "No decision wins through batch array order, reference order, or timestamps."
+      ],
+      "evidence": {
+        "checked_events": [
+          "F0#check", "F0#review",
+          "FA#accept", "FA#check-fixed", "FA#review-fixed",
+          "FR#accept", "FR#check-fixed", "FR#review-fixed"
+        ],
+        "assessment_count": 8,
+        "unique_reference_count": 2,
+        "references": [
+          {"ref": "initial_proof", "assessment_count": 2},
+          {"ref": "corrected_proof", "assessment_count": 6}
+        ],
+        "declared_and_actual_digest": "proof_digest",
+        "status": "matching for all eight assessments",
+        "bytes_per_assessment": 77,
+        "immutable": true
+      },
+      "next_action": {
+        "ref": "F0#next",
+        "actor": "fixture-agent",
+        "action": "Correct finding-1 and review the correction.",
+        "status": "historical declaration on the initial revision",
+        "current_declaration": "No current next-action event addresses the concurrent decision conflict."
+      },
+      "completeness": {"events": 9, "commits": 3, "query_has_more": false}
+    }
+  }
+}

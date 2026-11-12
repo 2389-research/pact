@@ -1,0 +1,17 @@
+{
+  "gate": "reject_public_command",
+  "reason": "Tool-call count ties; promotion requires strictly fewer calls.",
+  "rubric_categories": ["exact_source_and_frontier", "scoped_check_facts", "finding_identity_severity_status", "exact_resolution_refs", "explicit_decisions_and_policy", "supported_acceptance_with_reasons", "actually_checked_immutable_evidence", "declared_next_action_and_history", "local_global_authority_independence_limits", "applicable_interpreter_identity"],
+  "scenarios": [
+    {"name": "open", "expected_acceptance": "not_recorded", "baseline_all_categories": "pass", "prototype_all_categories": "pass", "baseline_calls": 1, "prototype_calls": 1, "baseline_stdout_bytes": 8718, "prototype_stdout_bytes": 3083},
+    {"name": "complete", "expected_acceptance": "supported", "baseline_all_categories": "pass", "prototype_all_categories": "pass", "baseline_calls": 1, "prototype_calls": 1, "baseline_stdout_bytes": 16844, "prototype_stdout_bytes": 5153},
+    {"name": "conflict", "expected_acceptance": "unresolved", "baseline_all_categories": "pass", "prototype_all_categories": "pass", "baseline_calls": 1, "prototype_calls": 1, "baseline_stdout_bytes": 24932, "prototype_stdout_bytes": 7771}
+  ],
+  "missed_blockers": {"baseline": 0, "prototype": 0},
+  "missed_or_changed_required_facts": {"baseline": 0, "prototype": 0},
+  "unsupported_acceptance_claims": {"baseline": 0, "prototype": 0},
+  "final_command_failures": {"baseline": 0, "prototype": 0},
+  "method": "Compared each full structured answer with public fixture facts, retained raw event/proof output, and the independent acceptance rubric. Exact refs were matched to each store, not copied across stores.",
+  "representation_difference": "Baseline exposes raw review payloads and parent edges and runs no projector. Prototype reports derived findings/support and its exact projector identity; both readers state this limit.",
+  "measurement_scope": "Raw stdout bytes include newlines. Tool-call count is distinct from CLI process count. Metadata counting and post-trial artifact writes are excluded and disclosed."
+}

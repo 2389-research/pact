@@ -1,0 +1,10 @@
+[
+  "/tmp/pact-w5cf-read-final/pact",
+  "evidence",
+  "check",
+  "--repo",
+  "/tmp/pact-w5cf-read-final/complete",
+  "--event-ref",
+  "pact:event:sha256:489f22261d053110c8f58d51f0cb2804a110cf9c6aca27980ad3476a9e16c8db#review-fixed",
+  "--json"
+]

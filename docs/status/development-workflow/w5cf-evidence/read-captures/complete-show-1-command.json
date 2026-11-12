@@ -1,0 +1,8 @@
+[
+  "/tmp/pact-w5cf-read-final/pact",
+  "show",
+  "--repo",
+  "/tmp/pact-w5cf-read-final/complete",
+  "sha256:489f22261d053110c8f58d51f0cb2804a110cf9c6aca27980ad3476a9e16c8db",
+  "--json"
+]

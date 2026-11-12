@@ -1,0 +1,813 @@
+{
+  "addressed_to": "Doctor Biz",
+  "trial": "final fresh read-only baseline",
+  "model": {
+    "exposed_model": "unknown",
+    "exposed_version": "unknown",
+    "declared_agent_identity": "Codex, based on GPT-6; no exact runtime model/version was exposed."
+  },
+  "policy": {
+    "requirements": [
+      "Explicit acceptance",
+      "Selected same-source passed checks",
+      "Selected same-source approved reviews",
+      "Matching immutable proof",
+      "Causally observed resolution",
+      "No open Important or Critical finding"
+    ],
+    "interpretation": [
+      "Parent edges establish observation.",
+      "Array order does not establish observation.",
+      "Local payload references resolve within their own commit.",
+      "Concurrent incompatible decisions have no winner."
+    ]
+  },
+  "cases": [
+    {
+      "scenario": "open",
+      "namespace": "org/example/development",
+      "subject": "widget/task-1",
+      "requested_source": {
+        "repository": "synthetic/widget",
+        "revision": "62ba249ef5cafdee4860900220f826dfad0ba869"
+      },
+      "frontier": [
+        "sha256:fa4533a332c343918dc8eed3995559b8d0653a7695af9682cc4e3e80650526d0"
+      ],
+      "commit_count": 1,
+      "event_count": 3,
+      "causal_edges": [],
+      "checks": [
+        {
+          "event_ref": "pact:event:sha256:fa4533a332c343918dc8eed3995559b8d0653a7695af9682cc4e3e80650526d0#check",
+          "source": {
+            "repository": "synthetic/widget",
+            "revision": "62ba249ef5cafdee4860900220f826dfad0ba869"
+          },
+          "role": "requested_source",
+          "name": "unit",
+          "command": [
+            "go",
+            "test",
+            "./..."
+          ],
+          "exit_code": 0,
+          "outcome": "passed",
+          "claim_limit": "Recorded execution claim; this read trial did not execute go test."
+        }
+      ],
+      "reviews": [
+        {
+          "event_ref": "pact:event:sha256:fa4533a332c343918dc8eed3995559b8d0653a7695af9682cc4e3e80650526d0#review",
+          "source": {
+            "repository": "synthetic/widget",
+            "revision": "62ba249ef5cafdee4860900220f826dfad0ba869"
+          },
+          "verdict": "changes_required",
+          "role": "requested_source",
+          "finding_ids": [
+            "finding-1"
+          ],
+          "resolves": []
+        }
+      ],
+      "findings": [
+        {
+          "review_event_ref": "pact:event:sha256:fa4533a332c343918dc8eed3995559b8d0653a7695af9682cc4e3e80650526d0#review",
+          "finding_id": "finding-1",
+          "severity": "important",
+          "summary": "Synthetic input loses a declared fact.",
+          "source": {
+            "repository": "synthetic/widget",
+            "revision": "62ba249ef5cafdee4860900220f826dfad0ba869"
+          },
+          "status": "open",
+          "resolution_event_refs": [],
+          "correction_source": null,
+          "causality": "No resolution event is recorded.",
+          "evidence_status": "matching",
+          "evidence_digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446"
+        }
+      ],
+      "open_important_or_critical_findings": 1,
+      "acceptance": {
+        "conclusion": "not_recorded",
+        "policy_ref": null,
+        "policy_basis": "Caller-supplied fixed policy; no policy document was separately read.",
+        "decisions": [],
+        "reasons": [
+          "No explicit acceptance decision appears in the complete local query.",
+          "The Important finding remains open.",
+          "The review requires changes despite the recorded passing check."
+        ],
+        "winner": null
+      },
+      "evidence": {
+        "checked_assessment_count": 2,
+        "checked_distinct_refs": 1,
+        "checked_distinct_content_digests": 1,
+        "assessments": [
+          {
+            "ref": "git:62ba249ef5cafdee4860900220f826dfad0ba869:proof.txt",
+            "expected_digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "actual_digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "status": "matching",
+            "immutability": "Pinned Git revision and path, with matching SHA-256 content digest.",
+            "bytes": 77,
+            "checked_event_refs": [
+              "pact:event:sha256:fa4533a332c343918dc8eed3995559b8d0653a7695af9682cc4e3e80650526d0#check",
+              "pact:event:sha256:fa4533a332c343918dc8eed3995559b8d0653a7695af9682cc4e3e80650526d0#review"
+            ],
+            "assessment_count": 2,
+            "evidence_index": 0
+          }
+        ],
+        "unchecked_events": [
+          "pact:event:sha256:fa4533a332c343918dc8eed3995559b8d0653a7695af9682cc4e3e80650526d0#next"
+        ],
+        "scope": "Only emitted evidence-check assessments are claimed as checked. The next-action event's evidence_indexes is empty.",
+        "limit": "Matching bytes establish reference integrity, not actual test execution, correctness, or reviewer independence."
+      },
+      "next_action": {
+        "event_ref": "pact:event:sha256:fa4533a332c343918dc8eed3995559b8d0653a7695af9682cc4e3e80650526d0#next",
+        "actor": "fixture-agent",
+        "source": {
+          "repository": "synthetic/widget",
+          "revision": "62ba249ef5cafdee4860900220f826dfad0ba869"
+        },
+        "action": "Correct finding-1 and review the correction.",
+        "blocking_event_refs": [
+          "pact:event:sha256:fa4533a332c343918dc8eed3995559b8d0653a7695af9682cc4e3e80650526d0#review"
+        ],
+        "blocking_findings": [
+          {
+            "review_event_ref": "pact:event:sha256:fa4533a332c343918dc8eed3995559b8d0653a7695af9682cc4e3e80650526d0#review",
+            "finding_id": "finding-1"
+          }
+        ],
+        "status": "current_requested_source_declaration",
+        "current_requested_source_declaration": "pact:event:sha256:fa4533a332c343918dc8eed3995559b8d0653a7695af9682cc4e3e80650526d0#next",
+        "limit": "This is an actor-declared action, not proof that the action was performed.",
+        "reader_handoff": "Address the open finding and obtain review before seeking acceptance."
+      },
+      "completeness": {
+        "scope": "local_object_set",
+        "status": "locally_closed",
+        "global_completeness": "unknown",
+        "index_state": "current",
+        "index_coverage": "complete",
+        "has_more": false,
+        "unresolved_query_references": [],
+        "verify_ok": true,
+        "verify_errors": [],
+        "verify_warnings": [],
+        "diagnostics_truncated": false,
+        "resource_limits": "within_limits",
+        "limit": "Local closure and complete pagination do not establish global completeness."
+      },
+      "authority": {
+        "signer": "ed25519:sha256:578a0aa52d3f67ed88d7a2a69dd4b1defe7567554361c20c471cb06e838f641c",
+        "label": "Synthetic Fixture",
+        "status": "authorized",
+        "basis": "Locally bootstrapped trusted root.",
+        "authenticity": "valid",
+        "integrity": "valid",
+        "structure": "valid",
+        "independent_reviewers_established": false,
+        "limit": "All events in this store share one signer. Local root authorization does not establish independent reviewers, external authority, or factual execution."
+      },
+      "projector": {
+        "executed": false,
+        "identity": null,
+        "method": "Manual interpretation of query, verify, object show, and selected evidence-check output under the supplied policy."
+      },
+      "measurement": {
+        "functions_exec_calls": 1,
+        "exec_command_calls": 1,
+        "pact_cli_calls": 5,
+        "stdout_bytes": 8718,
+        "stderr_bytes": 0,
+        "exit_code": 0,
+        "failures": []
+      }
+    },
+    {
+      "scenario": "complete",
+      "namespace": "org/example/development",
+      "subject": "widget/task-1",
+      "requested_source": {
+        "repository": "synthetic/widget",
+        "revision": "fd0a35409b7f10ea96d6f2af192632bb79b5d810"
+      },
+      "frontier": [
+        "sha256:489f22261d053110c8f58d51f0cb2804a110cf9c6aca27980ad3476a9e16c8db"
+      ],
+      "commit_count": 2,
+      "event_count": 6,
+      "causal_edges": [
+        {
+          "child": "sha256:489f22261d053110c8f58d51f0cb2804a110cf9c6aca27980ad3476a9e16c8db",
+          "parent": "sha256:70010e294b7e5d621fdbbd7abbdcccb346821774049f149c47c5f1ceeacf4f4e"
+        }
+      ],
+      "checks": [
+        {
+          "event_ref": "pact:event:sha256:70010e294b7e5d621fdbbd7abbdcccb346821774049f149c47c5f1ceeacf4f4e#check",
+          "source": {
+            "repository": "synthetic/widget",
+            "revision": "62ba249ef5cafdee4860900220f826dfad0ba869"
+          },
+          "role": "historical",
+          "name": "unit",
+          "command": [
+            "go",
+            "test",
+            "./..."
+          ],
+          "exit_code": 0,
+          "outcome": "passed",
+          "claim_limit": "Recorded execution claim; this read trial did not execute go test."
+        },
+        {
+          "event_ref": "pact:event:sha256:489f22261d053110c8f58d51f0cb2804a110cf9c6aca27980ad3476a9e16c8db#check-fixed",
+          "source": {
+            "repository": "synthetic/widget",
+            "revision": "fd0a35409b7f10ea96d6f2af192632bb79b5d810"
+          },
+          "role": "requested_source",
+          "name": "unit",
+          "command": [
+            "go",
+            "test",
+            "./..."
+          ],
+          "exit_code": 0,
+          "outcome": "passed",
+          "claim_limit": "Recorded execution claim; this read trial did not execute go test."
+        }
+      ],
+      "reviews": [
+        {
+          "event_ref": "pact:event:sha256:70010e294b7e5d621fdbbd7abbdcccb346821774049f149c47c5f1ceeacf4f4e#review",
+          "source": {
+            "repository": "synthetic/widget",
+            "revision": "62ba249ef5cafdee4860900220f826dfad0ba869"
+          },
+          "verdict": "changes_required",
+          "role": "historical",
+          "finding_ids": [
+            "finding-1"
+          ],
+          "resolves": []
+        },
+        {
+          "event_ref": "pact:event:sha256:489f22261d053110c8f58d51f0cb2804a110cf9c6aca27980ad3476a9e16c8db#review-fixed",
+          "source": {
+            "repository": "synthetic/widget",
+            "revision": "fd0a35409b7f10ea96d6f2af192632bb79b5d810"
+          },
+          "verdict": "approved",
+          "role": "requested_source",
+          "finding_ids": [],
+          "resolves": [
+            {
+              "review_event_ref": "pact:event:sha256:70010e294b7e5d621fdbbd7abbdcccb346821774049f149c47c5f1ceeacf4f4e#review",
+              "finding_id": "finding-1",
+              "correction_source": {
+                "repository": "synthetic/widget",
+                "revision": "fd0a35409b7f10ea96d6f2af192632bb79b5d810"
+              },
+              "evidence_indexes": [
+                0
+              ]
+            }
+          ]
+        }
+      ],
+      "findings": [
+        {
+          "review_event_ref": "pact:event:sha256:70010e294b7e5d621fdbbd7abbdcccb346821774049f149c47c5f1ceeacf4f4e#review",
+          "finding_id": "finding-1",
+          "severity": "important",
+          "summary": "Synthetic input loses a declared fact.",
+          "source": {
+            "repository": "synthetic/widget",
+            "revision": "62ba249ef5cafdee4860900220f826dfad0ba869"
+          },
+          "status": "resolved",
+          "resolution_event_refs": [
+            "pact:event:sha256:489f22261d053110c8f58d51f0cb2804a110cf9c6aca27980ad3476a9e16c8db#review-fixed"
+          ],
+          "correction_source": {
+            "repository": "synthetic/widget",
+            "revision": "fd0a35409b7f10ea96d6f2af192632bb79b5d810"
+          },
+          "causality": "Each resolving review's commit has the original review's commit as a parent. This establishes observation.",
+          "evidence_status": "matching",
+          "evidence_digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446"
+        }
+      ],
+      "open_important_or_critical_findings": 0,
+      "acceptance": {
+        "conclusion": "supported",
+        "policy_ref": "sha256:e9d050d6b7170e608677c0c56b338a888c2ec001499b0119adca52cf0c8fd437",
+        "policy_basis": "Caller-supplied fixed policy; no policy document was separately read.",
+        "decisions": [
+          {
+            "event_ref": "pact:event:sha256:489f22261d053110c8f58d51f0cb2804a110cf9c6aca27980ad3476a9e16c8db#accept",
+            "decision": "accepted",
+            "source": {
+              "repository": "synthetic/widget",
+              "revision": "fd0a35409b7f10ea96d6f2af192632bb79b5d810"
+            },
+            "policy_ref": "sha256:e9d050d6b7170e608677c0c56b338a888c2ec001499b0119adca52cf0c8fd437",
+            "check_refs": [
+              "pact:event:sha256:489f22261d053110c8f58d51f0cb2804a110cf9c6aca27980ad3476a9e16c8db#check-fixed"
+            ],
+            "review_refs": [
+              "pact:event:sha256:489f22261d053110c8f58d51f0cb2804a110cf9c6aca27980ad3476a9e16c8db#review-fixed"
+            ],
+            "caused_by": [
+              "pact:event:sha256:489f22261d053110c8f58d51f0cb2804a110cf9c6aca27980ad3476a9e16c8db#check-fixed",
+              "pact:event:sha256:489f22261d053110c8f58d51f0cb2804a110cf9c6aca27980ad3476a9e16c8db#review-fixed"
+            ],
+            "supersedes": [],
+            "rationale": "The selected check and explicit resolution support the correction.",
+            "selection_scope": "Local payload references resolve only within this decision's own commit.",
+            "evidence_support": "Selected same-source check passed; selected same-source review approved and explicitly resolved the Important finding. Selected proof matched immutable Git evidence.",
+            "conclusion": "Supported under the supplied fixed policy within the observed local object set."
+          }
+        ],
+        "reasons": [
+          "An explicit accepted decision selects a passed check and approved review on the requested source.",
+          "The selected review explicitly resolves the Important finding on the correction source.",
+          "A parent edge proves the correction observed the original finding.",
+          "Decision, selected check, and selected review proof all matched immutable evidence.",
+          "No open Important or Critical finding remains in the observed local history."
+        ],
+        "winner": "pact:event:sha256:489f22261d053110c8f58d51f0cb2804a110cf9c6aca27980ad3476a9e16c8db#accept"
+      },
+      "evidence": {
+        "checked_assessment_count": 5,
+        "checked_distinct_refs": 2,
+        "checked_distinct_content_digests": 1,
+        "assessments": [
+          {
+            "ref": "git:62ba249ef5cafdee4860900220f826dfad0ba869:proof.txt",
+            "expected_digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "actual_digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "status": "matching",
+            "immutability": "Pinned Git revision and path, with matching SHA-256 content digest.",
+            "bytes": 77,
+            "checked_event_refs": [
+              "pact:event:sha256:70010e294b7e5d621fdbbd7abbdcccb346821774049f149c47c5f1ceeacf4f4e#check",
+              "pact:event:sha256:70010e294b7e5d621fdbbd7abbdcccb346821774049f149c47c5f1ceeacf4f4e#review"
+            ],
+            "assessment_count": 2,
+            "evidence_index": 0
+          },
+          {
+            "ref": "git:fd0a35409b7f10ea96d6f2af192632bb79b5d810:proof.txt",
+            "expected_digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "actual_digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "status": "matching",
+            "immutability": "Pinned Git revision and path, with matching SHA-256 content digest.",
+            "bytes": 77,
+            "checked_event_refs": [
+              "pact:event:sha256:489f22261d053110c8f58d51f0cb2804a110cf9c6aca27980ad3476a9e16c8db#accept",
+              "pact:event:sha256:489f22261d053110c8f58d51f0cb2804a110cf9c6aca27980ad3476a9e16c8db#check-fixed",
+              "pact:event:sha256:489f22261d053110c8f58d51f0cb2804a110cf9c6aca27980ad3476a9e16c8db#review-fixed"
+            ],
+            "assessment_count": 3,
+            "evidence_index": 0
+          }
+        ],
+        "unchecked_events": [
+          "pact:event:sha256:70010e294b7e5d621fdbbd7abbdcccb346821774049f149c47c5f1ceeacf4f4e#next"
+        ],
+        "scope": "Only emitted evidence-check assessments are claimed as checked. The next-action event's evidence_indexes is empty.",
+        "limit": "Matching bytes establish reference integrity, not actual test execution, correctness, or reviewer independence."
+      },
+      "next_action": {
+        "event_ref": "pact:event:sha256:70010e294b7e5d621fdbbd7abbdcccb346821774049f149c47c5f1ceeacf4f4e#next",
+        "actor": "fixture-agent",
+        "source": {
+          "repository": "synthetic/widget",
+          "revision": "62ba249ef5cafdee4860900220f826dfad0ba869"
+        },
+        "action": "Correct finding-1 and review the correction.",
+        "blocking_event_refs": [
+          "pact:event:sha256:70010e294b7e5d621fdbbd7abbdcccb346821774049f149c47c5f1ceeacf4f4e#review"
+        ],
+        "blocking_findings": [
+          {
+            "review_event_ref": "pact:event:sha256:70010e294b7e5d621fdbbd7abbdcccb346821774049f149c47c5f1ceeacf4f4e#review",
+            "finding_id": "finding-1"
+          }
+        ],
+        "status": "historical_source_declaration",
+        "current_requested_source_declaration": null,
+        "limit": "No next-action declaration exists for the requested corrected source. The historical declaration is not automatically a current instruction.",
+        "reader_handoff": "Local evidence supports the recorded acceptance; no further actor-declared action is recorded for the correction."
+      },
+      "completeness": {
+        "scope": "local_object_set",
+        "status": "locally_closed",
+        "global_completeness": "unknown",
+        "index_state": "current",
+        "index_coverage": "complete",
+        "has_more": false,
+        "unresolved_query_references": [],
+        "verify_ok": true,
+        "verify_errors": [],
+        "verify_warnings": [],
+        "diagnostics_truncated": false,
+        "resource_limits": "within_limits",
+        "limit": "Local closure and complete pagination do not establish global completeness."
+      },
+      "authority": {
+        "signer": "ed25519:sha256:d93147f6448d319d196845550100c35e9b9706d78e2eafcc299ef82b4870d99a",
+        "label": "Synthetic Fixture",
+        "status": "authorized",
+        "basis": "Locally bootstrapped trusted root.",
+        "authenticity": "valid",
+        "integrity": "valid",
+        "structure": "valid",
+        "independent_reviewers_established": false,
+        "limit": "All events in this store share one signer. Local root authorization does not establish independent reviewers, external authority, or factual execution."
+      },
+      "projector": {
+        "executed": false,
+        "identity": null,
+        "method": "Manual interpretation of query, verify, object show, and selected evidence-check output under the supplied policy."
+      },
+      "measurement": {
+        "functions_exec_calls": 1,
+        "exec_command_calls": 1,
+        "pact_cli_calls": 9,
+        "stdout_bytes": 16844,
+        "stderr_bytes": 0,
+        "exit_code": 0,
+        "failures": []
+      }
+    },
+    {
+      "scenario": "conflict",
+      "namespace": "org/example/development",
+      "subject": "widget/task-1",
+      "requested_source": {
+        "repository": "synthetic/widget",
+        "revision": "fd0a35409b7f10ea96d6f2af192632bb79b5d810"
+      },
+      "frontier": [
+        "sha256:96c331aa5a2497b4fd2668c0293a890378538b0b999fa80a56b88d2ddfae118c",
+        "sha256:c72e442c88d68a9e86a48a925a23bc05bbbd88d4092d96716379e77027795942"
+      ],
+      "commit_count": 3,
+      "event_count": 9,
+      "causal_edges": [
+        {
+          "child": "sha256:96c331aa5a2497b4fd2668c0293a890378538b0b999fa80a56b88d2ddfae118c",
+          "parent": "sha256:9b3f923be02331733239e1d7358ca26615e71195e48ba04d692479f233f19c27"
+        },
+        {
+          "child": "sha256:c72e442c88d68a9e86a48a925a23bc05bbbd88d4092d96716379e77027795942",
+          "parent": "sha256:9b3f923be02331733239e1d7358ca26615e71195e48ba04d692479f233f19c27"
+        }
+      ],
+      "checks": [
+        {
+          "event_ref": "pact:event:sha256:9b3f923be02331733239e1d7358ca26615e71195e48ba04d692479f233f19c27#check",
+          "source": {
+            "repository": "synthetic/widget",
+            "revision": "62ba249ef5cafdee4860900220f826dfad0ba869"
+          },
+          "role": "historical",
+          "name": "unit",
+          "command": [
+            "go",
+            "test",
+            "./..."
+          ],
+          "exit_code": 0,
+          "outcome": "passed",
+          "claim_limit": "Recorded execution claim; this read trial did not execute go test."
+        },
+        {
+          "event_ref": "pact:event:sha256:96c331aa5a2497b4fd2668c0293a890378538b0b999fa80a56b88d2ddfae118c#check-fixed",
+          "source": {
+            "repository": "synthetic/widget",
+            "revision": "fd0a35409b7f10ea96d6f2af192632bb79b5d810"
+          },
+          "role": "requested_source",
+          "name": "unit",
+          "command": [
+            "go",
+            "test",
+            "./..."
+          ],
+          "exit_code": 0,
+          "outcome": "passed",
+          "claim_limit": "Recorded execution claim; this read trial did not execute go test."
+        },
+        {
+          "event_ref": "pact:event:sha256:c72e442c88d68a9e86a48a925a23bc05bbbd88d4092d96716379e77027795942#check-fixed",
+          "source": {
+            "repository": "synthetic/widget",
+            "revision": "fd0a35409b7f10ea96d6f2af192632bb79b5d810"
+          },
+          "role": "requested_source",
+          "name": "unit",
+          "command": [
+            "go",
+            "test",
+            "./..."
+          ],
+          "exit_code": 0,
+          "outcome": "passed",
+          "claim_limit": "Recorded execution claim; this read trial did not execute go test."
+        }
+      ],
+      "reviews": [
+        {
+          "event_ref": "pact:event:sha256:9b3f923be02331733239e1d7358ca26615e71195e48ba04d692479f233f19c27#review",
+          "source": {
+            "repository": "synthetic/widget",
+            "revision": "62ba249ef5cafdee4860900220f826dfad0ba869"
+          },
+          "verdict": "changes_required",
+          "role": "historical",
+          "finding_ids": [
+            "finding-1"
+          ],
+          "resolves": []
+        },
+        {
+          "event_ref": "pact:event:sha256:96c331aa5a2497b4fd2668c0293a890378538b0b999fa80a56b88d2ddfae118c#review-fixed",
+          "source": {
+            "repository": "synthetic/widget",
+            "revision": "fd0a35409b7f10ea96d6f2af192632bb79b5d810"
+          },
+          "verdict": "approved",
+          "role": "requested_source",
+          "finding_ids": [],
+          "resolves": [
+            {
+              "review_event_ref": "pact:event:sha256:9b3f923be02331733239e1d7358ca26615e71195e48ba04d692479f233f19c27#review",
+              "finding_id": "finding-1",
+              "correction_source": {
+                "repository": "synthetic/widget",
+                "revision": "fd0a35409b7f10ea96d6f2af192632bb79b5d810"
+              },
+              "evidence_indexes": [
+                0
+              ]
+            }
+          ]
+        },
+        {
+          "event_ref": "pact:event:sha256:c72e442c88d68a9e86a48a925a23bc05bbbd88d4092d96716379e77027795942#review-fixed",
+          "source": {
+            "repository": "synthetic/widget",
+            "revision": "fd0a35409b7f10ea96d6f2af192632bb79b5d810"
+          },
+          "verdict": "approved",
+          "role": "requested_source",
+          "finding_ids": [],
+          "resolves": [
+            {
+              "review_event_ref": "pact:event:sha256:9b3f923be02331733239e1d7358ca26615e71195e48ba04d692479f233f19c27#review",
+              "finding_id": "finding-1",
+              "correction_source": {
+                "repository": "synthetic/widget",
+                "revision": "fd0a35409b7f10ea96d6f2af192632bb79b5d810"
+              },
+              "evidence_indexes": [
+                0
+              ]
+            }
+          ]
+        }
+      ],
+      "findings": [
+        {
+          "review_event_ref": "pact:event:sha256:9b3f923be02331733239e1d7358ca26615e71195e48ba04d692479f233f19c27#review",
+          "finding_id": "finding-1",
+          "severity": "important",
+          "summary": "Synthetic input loses a declared fact.",
+          "source": {
+            "repository": "synthetic/widget",
+            "revision": "62ba249ef5cafdee4860900220f826dfad0ba869"
+          },
+          "status": "resolved",
+          "resolution_event_refs": [
+            "pact:event:sha256:96c331aa5a2497b4fd2668c0293a890378538b0b999fa80a56b88d2ddfae118c#review-fixed",
+            "pact:event:sha256:c72e442c88d68a9e86a48a925a23bc05bbbd88d4092d96716379e77027795942#review-fixed"
+          ],
+          "correction_source": {
+            "repository": "synthetic/widget",
+            "revision": "fd0a35409b7f10ea96d6f2af192632bb79b5d810"
+          },
+          "causality": "Each resolving review's commit has the original review's commit as a parent. This establishes observation.",
+          "evidence_status": "matching",
+          "evidence_digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446"
+        }
+      ],
+      "open_important_or_critical_findings": 0,
+      "acceptance": {
+        "conclusion": "unresolved",
+        "policy_ref": "sha256:e9d050d6b7170e608677c0c56b338a888c2ec001499b0119adca52cf0c8fd437",
+        "policy_basis": "Caller-supplied fixed policy; no policy document was separately read.",
+        "decisions": [
+          {
+            "event_ref": "pact:event:sha256:96c331aa5a2497b4fd2668c0293a890378538b0b999fa80a56b88d2ddfae118c#accept",
+            "decision": "accepted",
+            "source": {
+              "repository": "synthetic/widget",
+              "revision": "fd0a35409b7f10ea96d6f2af192632bb79b5d810"
+            },
+            "policy_ref": "sha256:e9d050d6b7170e608677c0c56b338a888c2ec001499b0119adca52cf0c8fd437",
+            "check_refs": [
+              "pact:event:sha256:96c331aa5a2497b4fd2668c0293a890378538b0b999fa80a56b88d2ddfae118c#check-fixed"
+            ],
+            "review_refs": [
+              "pact:event:sha256:96c331aa5a2497b4fd2668c0293a890378538b0b999fa80a56b88d2ddfae118c#review-fixed"
+            ],
+            "caused_by": [
+              "pact:event:sha256:96c331aa5a2497b4fd2668c0293a890378538b0b999fa80a56b88d2ddfae118c#check-fixed",
+              "pact:event:sha256:96c331aa5a2497b4fd2668c0293a890378538b0b999fa80a56b88d2ddfae118c#review-fixed"
+            ],
+            "supersedes": [],
+            "rationale": "The selected check and explicit resolution support the correction.",
+            "selection_scope": "Local payload references resolve only within this decision's own commit.",
+            "evidence_support": "Selected same-source check passed; selected same-source review approved and explicitly resolved the Important finding. Selected proof matched immutable Git evidence.",
+            "conclusion": "Acceptance has supporting evidence, but concurrent rejection prevents a supported overall acceptance."
+          },
+          {
+            "event_ref": "pact:event:sha256:c72e442c88d68a9e86a48a925a23bc05bbbd88d4092d96716379e77027795942#accept",
+            "decision": "rejected",
+            "source": {
+              "repository": "synthetic/widget",
+              "revision": "fd0a35409b7f10ea96d6f2af192632bb79b5d810"
+            },
+            "policy_ref": "sha256:e9d050d6b7170e608677c0c56b338a888c2ec001499b0119adca52cf0c8fd437",
+            "check_refs": [
+              "pact:event:sha256:c72e442c88d68a9e86a48a925a23bc05bbbd88d4092d96716379e77027795942#check-fixed"
+            ],
+            "review_refs": [
+              "pact:event:sha256:c72e442c88d68a9e86a48a925a23bc05bbbd88d4092d96716379e77027795942#review-fixed"
+            ],
+            "caused_by": [
+              "pact:event:sha256:c72e442c88d68a9e86a48a925a23bc05bbbd88d4092d96716379e77027795942#check-fixed",
+              "pact:event:sha256:c72e442c88d68a9e86a48a925a23bc05bbbd88d4092d96716379e77027795942#review-fixed"
+            ],
+            "supersedes": [],
+            "rationale": "The selected check and explicit resolution support the correction.",
+            "selection_scope": "Local payload references resolve only within this decision's own commit.",
+            "evidence_support": "Selected same-source check passed; selected same-source review approved and explicitly resolved the Important finding. Selected proof matched immutable Git evidence.",
+            "conclusion": "Explicit rejection remains an incompatible concurrent decision."
+          }
+        ],
+        "reasons": [
+          "Two sibling frontier commits record accepted and rejected decisions for the same requested source and policy.",
+          "Both commits observe the original review; neither observes or supersedes the other.",
+          "Both select their own same-commit passed check and approved review.",
+          "The original Important finding has causally observed resolution on both branches.",
+          "Concurrent incompatible decisions have no winner.",
+          "Array order, equal timestamps, immutable-reference tie breaking, and valid signatures cannot select a winner."
+        ],
+        "winner": null
+      },
+      "evidence": {
+        "checked_assessment_count": 8,
+        "checked_distinct_refs": 2,
+        "checked_distinct_content_digests": 1,
+        "assessments": [
+          {
+            "ref": "git:62ba249ef5cafdee4860900220f826dfad0ba869:proof.txt",
+            "expected_digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "actual_digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "status": "matching",
+            "immutability": "Pinned Git revision and path, with matching SHA-256 content digest.",
+            "bytes": 77,
+            "checked_event_refs": [
+              "pact:event:sha256:9b3f923be02331733239e1d7358ca26615e71195e48ba04d692479f233f19c27#check",
+              "pact:event:sha256:9b3f923be02331733239e1d7358ca26615e71195e48ba04d692479f233f19c27#review"
+            ],
+            "assessment_count": 2,
+            "evidence_index": 0
+          },
+          {
+            "ref": "git:fd0a35409b7f10ea96d6f2af192632bb79b5d810:proof.txt",
+            "expected_digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "actual_digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "status": "matching",
+            "immutability": "Pinned Git revision and path, with matching SHA-256 content digest.",
+            "bytes": 77,
+            "checked_event_refs": [
+              "pact:event:sha256:96c331aa5a2497b4fd2668c0293a890378538b0b999fa80a56b88d2ddfae118c#accept",
+              "pact:event:sha256:96c331aa5a2497b4fd2668c0293a890378538b0b999fa80a56b88d2ddfae118c#check-fixed",
+              "pact:event:sha256:96c331aa5a2497b4fd2668c0293a890378538b0b999fa80a56b88d2ddfae118c#review-fixed",
+              "pact:event:sha256:c72e442c88d68a9e86a48a925a23bc05bbbd88d4092d96716379e77027795942#accept",
+              "pact:event:sha256:c72e442c88d68a9e86a48a925a23bc05bbbd88d4092d96716379e77027795942#check-fixed",
+              "pact:event:sha256:c72e442c88d68a9e86a48a925a23bc05bbbd88d4092d96716379e77027795942#review-fixed"
+            ],
+            "assessment_count": 6,
+            "evidence_index": 0
+          }
+        ],
+        "unchecked_events": [
+          "pact:event:sha256:9b3f923be02331733239e1d7358ca26615e71195e48ba04d692479f233f19c27#next"
+        ],
+        "scope": "Only emitted evidence-check assessments are claimed as checked. The next-action event's evidence_indexes is empty.",
+        "limit": "Matching bytes establish reference integrity, not actual test execution, correctness, or reviewer independence."
+      },
+      "next_action": {
+        "event_ref": "pact:event:sha256:9b3f923be02331733239e1d7358ca26615e71195e48ba04d692479f233f19c27#next",
+        "actor": "fixture-agent",
+        "source": {
+          "repository": "synthetic/widget",
+          "revision": "62ba249ef5cafdee4860900220f826dfad0ba869"
+        },
+        "action": "Correct finding-1 and review the correction.",
+        "blocking_event_refs": [
+          "pact:event:sha256:9b3f923be02331733239e1d7358ca26615e71195e48ba04d692479f233f19c27#review"
+        ],
+        "blocking_findings": [
+          {
+            "review_event_ref": "pact:event:sha256:9b3f923be02331733239e1d7358ca26615e71195e48ba04d692479f233f19c27#review",
+            "finding_id": "finding-1"
+          }
+        ],
+        "status": "historical_source_declaration",
+        "current_requested_source_declaration": null,
+        "limit": "No next-action declaration exists for the requested corrected source. The historical declaration is not automatically a current instruction.",
+        "reader_handoff": "Reconcile the conflicting decisions before treating the requested source as accepted. This recommendation is the reader's, not an actor declaration."
+      },
+      "completeness": {
+        "scope": "local_object_set",
+        "status": "locally_closed",
+        "global_completeness": "unknown",
+        "index_state": "current",
+        "index_coverage": "complete",
+        "has_more": false,
+        "unresolved_query_references": [],
+        "verify_ok": true,
+        "verify_errors": [],
+        "verify_warnings": [],
+        "diagnostics_truncated": false,
+        "resource_limits": "within_limits",
+        "limit": "Local closure and complete pagination do not establish global completeness."
+      },
+      "authority": {
+        "signer": "ed25519:sha256:ffa7aadf83947c31c693c85a2028feed6bbbdf6d26579bb0684d3ee089858636",
+        "label": "Synthetic Fixture",
+        "status": "authorized",
+        "basis": "Locally bootstrapped trusted root.",
+        "authenticity": "valid",
+        "integrity": "valid",
+        "structure": "valid",
+        "independent_reviewers_established": false,
+        "limit": "All events in this store share one signer. Local root authorization does not establish independent reviewers, external authority, or factual execution."
+      },
+      "projector": {
+        "executed": false,
+        "identity": null,
+        "method": "Manual interpretation of query, verify, object show, and selected evidence-check output under the supplied policy."
+      },
+      "measurement": {
+        "functions_exec_calls": 1,
+        "exec_command_calls": 1,
+        "pact_cli_calls": 13,
+        "stdout_bytes": 24932,
+        "stderr_bytes": 0,
+        "exit_code": 0,
+        "failures": []
+      }
+    }
+  ],
+  "totals": {
+    "measured_read_functions_exec_calls": 3,
+    "measured_read_exec_command_calls": 3,
+    "pact_cli_calls": 27,
+    "stdout_bytes": 50494,
+    "stderr_bytes": 0,
+    "evidence_assessments": 15,
+    "failures": [],
+    "extra_read_calls": 0,
+    "tool_count_note": "Three functions.exec orchestration calls each invoked one exec_command. These are separate layers, not six read operations.",
+    "cli_count_note": "PACT CLI calls: open 5, complete 9, conflict 13. Shell capture, cat, wc, and shell builtins are excluded."
+  },
+  "post_trial_artifact": {
+    "path": "/tmp/pact-w5cf-final-baseline-answer.json",
+    "functions_exec_calls": 1,
+    "apply_patch_calls": 1,
+    "excluded_from_measured_read_count": true,
+    "purpose": "Retain the structured answer after the three measured reads."
+  },
+  "limits": [
+    "No tests, oracles, other trial answers, or private keys were read.",
+    "No projector was executed.",
+    "No source edits or external actions were performed."
+  ]
+}

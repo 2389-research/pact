@@ -1,0 +1,620 @@
+{
+  "addressee": "Doctor Biz",
+  "trial": "final prototype read-only",
+  "model": {
+    "exposed_family": "GPT-6",
+    "exact_model": "unknown",
+    "version": "unknown"
+  },
+  "fixed_policy": {
+    "explicit_acceptance_required": true,
+    "same_source_selected_passed_checks_required": true,
+    "approved_selected_reviews_required": true,
+    "matching_immutable_proof_required": true,
+    "causally_observed_resolution_required": true,
+    "open_important_or_critical_findings_block_acceptance": true,
+    "concurrent_incompatible_decisions_have_no_winner": true,
+    "local_refs_resolve_within_own_commit": true,
+    "parent_edges_supply_observation": true,
+    "array_order_supplies_observation": false
+  },
+  "cases": [
+    {
+      "scenario": "open",
+      "namespace": "org/example/development",
+      "subject": "widget/task-1",
+      "requested_source": {
+        "repository": "synthetic/widget",
+        "revision": "62ba249ef5cafdee4860900220f826dfad0ba869"
+      },
+      "reported_source_revision": "62ba249ef5cafdee4860900220f826dfad0ba869",
+      "frontier": [
+        "sha256:fa4533a332c343918dc8eed3995559b8d0653a7695af9682cc4e3e80650526d0"
+      ],
+      "checks": [
+        {
+          "event_ref": "pact:event:sha256:fa4533a332c343918dc8eed3995559b8d0653a7695af9682cc4e3e80650526d0#check",
+          "source": {
+            "repository": "synthetic/widget",
+            "revision": "62ba249ef5cafdee4860900220f826dfad0ba869"
+          },
+          "name": "unit",
+          "command": [
+            "go",
+            "test",
+            "./..."
+          ],
+          "exit_code": 0,
+          "outcome": "passed",
+          "operation_id": "initial",
+          "interpretation": "recorded claim; actual check execution was not independently observed"
+        }
+      ],
+      "findings": [
+        {
+          "finding_id": "finding-1",
+          "review_event_ref": "pact:event:sha256:fa4533a332c343918dc8eed3995559b8d0653a7695af9682cc4e3e80650526d0#review",
+          "severity": "important",
+          "status": "open",
+          "summary": "Synthetic input loses a declared fact.",
+          "source": {
+            "repository": "synthetic/widget",
+            "revision": "62ba249ef5cafdee4860900220f826dfad0ba869"
+          },
+          "resolved_by": []
+        }
+      ],
+      "decisions": [],
+      "policy_digest": "sha256:e9d050d6b7170e608677c0c56b338a888c2ec001499b0119adca52cf0c8fd437",
+      "profile_digest": "sha256:b89dd93eb851ca4db63e9e29fbd1d060310f2268c8d37ed00c46004f2eafeab9",
+      "acceptance": {
+        "status": "not_recorded",
+        "decision_refs": [],
+        "reported_reasons": [],
+        "explanation": "No explicit acceptance is recorded. Finding-1 remains Important and open; the passed check alone does not establish acceptance.",
+        "review_and_causality_limit": "The projection does not expose raw review payloads or parent edges. Approved-review and causal-observation requirements are represented by the projector conclusion rather than separately verified from raw events. Array order provides no causal evidence."
+      },
+      "evidence": {
+        "assessment_count": 2,
+        "unique_reference_count": 1,
+        "assessments": [
+          {
+            "event_ref": "pact:event:sha256:fa4533a332c343918dc8eed3995559b8d0653a7695af9682cc4e3e80650526d0#check",
+            "index": 0,
+            "ref": "git:62ba249ef5cafdee4860900220f826dfad0ba869:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "actual_digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "bytes": 77,
+            "status": "matching",
+            "durable": true,
+            "immutability": "commit-addressed Git reference"
+          },
+          {
+            "event_ref": "pact:event:sha256:fa4533a332c343918dc8eed3995559b8d0653a7695af9682cc4e3e80650526d0#review",
+            "index": 0,
+            "ref": "git:62ba249ef5cafdee4860900220f826dfad0ba869:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "actual_digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "bytes": 77,
+            "status": "matching",
+            "durable": true,
+            "immutability": "commit-addressed Git reference"
+          }
+        ],
+        "verification_limit": "These are evidence assessments returned by the executed projector. The reader did not separately fetch the proof or observe test execution."
+      },
+      "actor_declared_next_action": {
+        "event_ref": "pact:event:sha256:fa4533a332c343918dc8eed3995559b8d0653a7695af9682cc4e3e80650526d0#next",
+        "actor": "fixture-agent",
+        "action": "Correct finding-1 and review the correction.",
+        "source": {
+          "repository": "synthetic/widget",
+          "revision": "62ba249ef5cafdee4860900220f826dfad0ba869"
+        },
+        "blocking_event_refs": [
+          "pact:event:sha256:fa4533a332c343918dc8eed3995559b8d0653a7695af9682cc4e3e80650526d0#review"
+        ],
+        "blocking_findings": [
+          {
+            "finding_id": "finding-1",
+            "review_event_ref": "pact:event:sha256:fa4533a332c343918dc8eed3995559b8d0653a7695af9682cc4e3e80650526d0#review"
+          }
+        ],
+        "temporal_status": "current for the requested source; its finding remains open",
+        "current_source_action_recorded": true,
+        "limit": "This is an actor declaration, not proof the action occurred."
+      },
+      "completeness": {
+        "scope": "selected_local_frontier",
+        "status": "locally_closed",
+        "issues": [],
+        "authority": "locally_configured_root",
+        "global_completeness": "unknown",
+        "reviewer_independence": "not_established"
+      },
+      "projector_identity": {
+        "version": "development/projector/v1",
+        "digest": "sha256:2bbf4768d020ecc4d3009aa89f297b519577d67d25f312cd0f9651b2bf8e4d2e"
+      },
+      "projector_executed": true,
+      "measurement": {
+        "read_functions_exec_calls": 1,
+        "read_exec_command_calls": 1,
+        "projectdriver_cli_processes": 1,
+        "exit_code": 0,
+        "stdout_bytes": 3083,
+        "stderr_bytes": 0,
+        "stdout_path": "/tmp/pact-w5cf-final-prototype-open.stdout",
+        "stderr_path": "/tmp/pact-w5cf-final-prototype-open.stderr",
+        "failures": []
+      }
+    },
+    {
+      "scenario": "complete",
+      "namespace": "org/example/development",
+      "subject": "widget/task-1",
+      "requested_source": {
+        "repository": "synthetic/widget",
+        "revision": "fd0a35409b7f10ea96d6f2af192632bb79b5d810"
+      },
+      "reported_source_revision": "fd0a35409b7f10ea96d6f2af192632bb79b5d810",
+      "frontier": [
+        "sha256:489f22261d053110c8f58d51f0cb2804a110cf9c6aca27980ad3476a9e16c8db"
+      ],
+      "checks": [
+        {
+          "event_ref": "pact:event:sha256:489f22261d053110c8f58d51f0cb2804a110cf9c6aca27980ad3476a9e16c8db#check-fixed",
+          "source": {
+            "repository": "synthetic/widget",
+            "revision": "fd0a35409b7f10ea96d6f2af192632bb79b5d810"
+          },
+          "name": "unit",
+          "command": [
+            "go",
+            "test",
+            "./..."
+          ],
+          "exit_code": 0,
+          "outcome": "passed",
+          "operation_id": "corrected",
+          "interpretation": "recorded claim; actual check execution was not independently observed"
+        }
+      ],
+      "findings": [
+        {
+          "finding_id": "finding-1",
+          "review_event_ref": "pact:event:sha256:70010e294b7e5d621fdbbd7abbdcccb346821774049f149c47c5f1ceeacf4f4e#review",
+          "severity": "important",
+          "status": "resolved",
+          "summary": "Synthetic input loses a declared fact.",
+          "source": {
+            "repository": "synthetic/widget",
+            "revision": "62ba249ef5cafdee4860900220f826dfad0ba869"
+          },
+          "resolved_by": [
+            "pact:event:sha256:489f22261d053110c8f58d51f0cb2804a110cf9c6aca27980ad3476a9e16c8db#review-fixed"
+          ]
+        }
+      ],
+      "decisions": [
+        {
+          "event_ref": "pact:event:sha256:489f22261d053110c8f58d51f0cb2804a110cf9c6aca27980ad3476a9e16c8db#accept",
+          "decision": "accepted",
+          "source": {
+            "repository": "synthetic/widget",
+            "revision": "fd0a35409b7f10ea96d6f2af192632bb79b5d810"
+          },
+          "operation_id": "corrected",
+          "policy_ref": "sha256:e9d050d6b7170e608677c0c56b338a888c2ec001499b0119adca52cf0c8fd437",
+          "check_refs": [
+            "pact:event:sha256:489f22261d053110c8f58d51f0cb2804a110cf9c6aca27980ad3476a9e16c8db#check-fixed"
+          ],
+          "review_refs": [
+            "pact:event:sha256:489f22261d053110c8f58d51f0cb2804a110cf9c6aca27980ad3476a9e16c8db#review-fixed"
+          ],
+          "local_ref_resolution": "Both local references resolve within this decision's own commit.",
+          "rationale": "The selected check and explicit resolution support the correction."
+        }
+      ],
+      "policy_digest": "sha256:e9d050d6b7170e608677c0c56b338a888c2ec001499b0119adca52cf0c8fd437",
+      "profile_digest": "sha256:b89dd93eb851ca4db63e9e29fbd1d060310f2268c8d37ed00c46004f2eafeab9",
+      "acceptance": {
+        "status": "supported",
+        "decision_refs": [
+          "pact:event:sha256:489f22261d053110c8f58d51f0cb2804a110cf9c6aca27980ad3476a9e16c8db#accept"
+        ],
+        "reported_reasons": [],
+        "explanation": "The projector supports the explicit acceptance under the reported policy. It reports a same-source passed selected check, a resolving review reference, matching immutable evidence, and no remaining open finding.",
+        "review_and_causality_limit": "The projection does not expose raw review payloads or parent edges. Approved-review and causal-observation requirements are represented by the projector conclusion rather than separately verified from raw events. Array order provides no causal evidence."
+      },
+      "evidence": {
+        "assessment_count": 5,
+        "unique_reference_count": 2,
+        "assessments": [
+          {
+            "event_ref": "pact:event:sha256:70010e294b7e5d621fdbbd7abbdcccb346821774049f149c47c5f1ceeacf4f4e#check",
+            "index": 0,
+            "ref": "git:62ba249ef5cafdee4860900220f826dfad0ba869:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "actual_digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "bytes": 77,
+            "status": "matching",
+            "durable": true,
+            "immutability": "commit-addressed Git reference"
+          },
+          {
+            "event_ref": "pact:event:sha256:70010e294b7e5d621fdbbd7abbdcccb346821774049f149c47c5f1ceeacf4f4e#review",
+            "index": 0,
+            "ref": "git:62ba249ef5cafdee4860900220f826dfad0ba869:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "actual_digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "bytes": 77,
+            "status": "matching",
+            "durable": true,
+            "immutability": "commit-addressed Git reference"
+          },
+          {
+            "event_ref": "pact:event:sha256:489f22261d053110c8f58d51f0cb2804a110cf9c6aca27980ad3476a9e16c8db#accept",
+            "index": 0,
+            "ref": "git:fd0a35409b7f10ea96d6f2af192632bb79b5d810:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "actual_digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "bytes": 77,
+            "status": "matching",
+            "durable": true,
+            "immutability": "commit-addressed Git reference"
+          },
+          {
+            "event_ref": "pact:event:sha256:489f22261d053110c8f58d51f0cb2804a110cf9c6aca27980ad3476a9e16c8db#check-fixed",
+            "index": 0,
+            "ref": "git:fd0a35409b7f10ea96d6f2af192632bb79b5d810:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "actual_digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "bytes": 77,
+            "status": "matching",
+            "durable": true,
+            "immutability": "commit-addressed Git reference"
+          },
+          {
+            "event_ref": "pact:event:sha256:489f22261d053110c8f58d51f0cb2804a110cf9c6aca27980ad3476a9e16c8db#review-fixed",
+            "index": 0,
+            "ref": "git:fd0a35409b7f10ea96d6f2af192632bb79b5d810:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "actual_digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "bytes": 77,
+            "status": "matching",
+            "durable": true,
+            "immutability": "commit-addressed Git reference"
+          }
+        ],
+        "verification_limit": "These are evidence assessments returned by the executed projector. The reader did not separately fetch the proof or observe test execution."
+      },
+      "actor_declared_next_action": {
+        "event_ref": "pact:event:sha256:70010e294b7e5d621fdbbd7abbdcccb346821774049f149c47c5f1ceeacf4f4e#next",
+        "actor": "fixture-agent",
+        "action": "Correct finding-1 and review the correction.",
+        "source": {
+          "repository": "synthetic/widget",
+          "revision": "62ba249ef5cafdee4860900220f826dfad0ba869"
+        },
+        "blocking_event_refs": [
+          "pact:event:sha256:70010e294b7e5d621fdbbd7abbdcccb346821774049f149c47c5f1ceeacf4f4e#review"
+        ],
+        "blocking_findings": [
+          {
+            "finding_id": "finding-1",
+            "review_event_ref": "pact:event:sha256:70010e294b7e5d621fdbbd7abbdcccb346821774049f149c47c5f1ceeacf4f4e#review"
+          }
+        ],
+        "temporal_status": "historical; refers to the initial source and now-resolved finding",
+        "current_source_action_recorded": false,
+        "limit": "No next-action declaration for the requested corrected source is shown."
+      },
+      "completeness": {
+        "scope": "selected_local_frontier",
+        "status": "locally_closed",
+        "issues": [],
+        "authority": "locally_configured_root",
+        "global_completeness": "unknown",
+        "reviewer_independence": "not_established"
+      },
+      "projector_identity": {
+        "version": "development/projector/v1",
+        "digest": "sha256:2bbf4768d020ecc4d3009aa89f297b519577d67d25f312cd0f9651b2bf8e4d2e"
+      },
+      "projector_executed": true,
+      "measurement": {
+        "read_functions_exec_calls": 1,
+        "read_exec_command_calls": 1,
+        "projectdriver_cli_processes": 1,
+        "exit_code": 0,
+        "stdout_bytes": 5153,
+        "stderr_bytes": 0,
+        "stdout_path": "/tmp/pact-w5cf-final-prototype-complete.stdout",
+        "stderr_path": "/tmp/pact-w5cf-final-prototype-complete.stderr",
+        "failures": []
+      }
+    },
+    {
+      "scenario": "conflict",
+      "namespace": "org/example/development",
+      "subject": "widget/task-1",
+      "requested_source": {
+        "repository": "synthetic/widget",
+        "revision": "fd0a35409b7f10ea96d6f2af192632bb79b5d810"
+      },
+      "reported_source_revision": "fd0a35409b7f10ea96d6f2af192632bb79b5d810",
+      "frontier": [
+        "sha256:96c331aa5a2497b4fd2668c0293a890378538b0b999fa80a56b88d2ddfae118c",
+        "sha256:c72e442c88d68a9e86a48a925a23bc05bbbd88d4092d96716379e77027795942"
+      ],
+      "checks": [
+        {
+          "event_ref": "pact:event:sha256:96c331aa5a2497b4fd2668c0293a890378538b0b999fa80a56b88d2ddfae118c#check-fixed",
+          "source": {
+            "repository": "synthetic/widget",
+            "revision": "fd0a35409b7f10ea96d6f2af192632bb79b5d810"
+          },
+          "name": "unit",
+          "command": [
+            "go",
+            "test",
+            "./..."
+          ],
+          "exit_code": 0,
+          "outcome": "passed",
+          "operation_id": "corrected",
+          "interpretation": "recorded claim; actual check execution was not independently observed"
+        },
+        {
+          "event_ref": "pact:event:sha256:c72e442c88d68a9e86a48a925a23bc05bbbd88d4092d96716379e77027795942#check-fixed",
+          "source": {
+            "repository": "synthetic/widget",
+            "revision": "fd0a35409b7f10ea96d6f2af192632bb79b5d810"
+          },
+          "name": "unit",
+          "command": [
+            "go",
+            "test",
+            "./..."
+          ],
+          "exit_code": 0,
+          "outcome": "passed",
+          "operation_id": "rejected",
+          "interpretation": "recorded claim; actual check execution was not independently observed"
+        }
+      ],
+      "findings": [
+        {
+          "finding_id": "finding-1",
+          "review_event_ref": "pact:event:sha256:9b3f923be02331733239e1d7358ca26615e71195e48ba04d692479f233f19c27#review",
+          "severity": "important",
+          "status": "resolved",
+          "summary": "Synthetic input loses a declared fact.",
+          "source": {
+            "repository": "synthetic/widget",
+            "revision": "62ba249ef5cafdee4860900220f826dfad0ba869"
+          },
+          "resolved_by": [
+            "pact:event:sha256:96c331aa5a2497b4fd2668c0293a890378538b0b999fa80a56b88d2ddfae118c#review-fixed",
+            "pact:event:sha256:c72e442c88d68a9e86a48a925a23bc05bbbd88d4092d96716379e77027795942#review-fixed"
+          ]
+        }
+      ],
+      "decisions": [
+        {
+          "event_ref": "pact:event:sha256:96c331aa5a2497b4fd2668c0293a890378538b0b999fa80a56b88d2ddfae118c#accept",
+          "decision": "accepted",
+          "source": {
+            "repository": "synthetic/widget",
+            "revision": "fd0a35409b7f10ea96d6f2af192632bb79b5d810"
+          },
+          "operation_id": "corrected",
+          "policy_ref": "sha256:e9d050d6b7170e608677c0c56b338a888c2ec001499b0119adca52cf0c8fd437",
+          "check_refs": [
+            "pact:event:sha256:96c331aa5a2497b4fd2668c0293a890378538b0b999fa80a56b88d2ddfae118c#check-fixed"
+          ],
+          "review_refs": [
+            "pact:event:sha256:96c331aa5a2497b4fd2668c0293a890378538b0b999fa80a56b88d2ddfae118c#review-fixed"
+          ],
+          "local_ref_resolution": "Both local references resolve within this decision's own commit.",
+          "rationale": "The selected check and explicit resolution support the correction."
+        },
+        {
+          "event_ref": "pact:event:sha256:c72e442c88d68a9e86a48a925a23bc05bbbd88d4092d96716379e77027795942#accept",
+          "decision": "rejected",
+          "source": {
+            "repository": "synthetic/widget",
+            "revision": "fd0a35409b7f10ea96d6f2af192632bb79b5d810"
+          },
+          "operation_id": "rejected",
+          "policy_ref": "sha256:e9d050d6b7170e608677c0c56b338a888c2ec001499b0119adca52cf0c8fd437",
+          "check_refs": [
+            "pact:event:sha256:c72e442c88d68a9e86a48a925a23bc05bbbd88d4092d96716379e77027795942#check-fixed"
+          ],
+          "review_refs": [
+            "pact:event:sha256:c72e442c88d68a9e86a48a925a23bc05bbbd88d4092d96716379e77027795942#review-fixed"
+          ],
+          "local_ref_resolution": "Both local references resolve within this decision's own commit.",
+          "rationale": "The selected check and explicit resolution support the correction."
+        }
+      ],
+      "policy_digest": "sha256:e9d050d6b7170e608677c0c56b338a888c2ec001499b0119adca52cf0c8fd437",
+      "profile_digest": "sha256:b89dd93eb851ca4db63e9e29fbd1d060310f2268c8d37ed00c46004f2eafeab9",
+      "acceptance": {
+        "status": "unresolved",
+        "decision_refs": [
+          "pact:event:sha256:96c331aa5a2497b4fd2668c0293a890378538b0b999fa80a56b88d2ddfae118c#accept",
+          "pact:event:sha256:c72e442c88d68a9e86a48a925a23bc05bbbd88d4092d96716379e77027795942#accept"
+        ],
+        "reported_reasons": [
+          "concurrent_incompatible_decisions"
+        ],
+        "explanation": "Concurrent accepted and rejected decisions are incompatible. Neither wins; matching evidence, passed checks, and resolved findings do not settle the decision conflict.",
+        "review_and_causality_limit": "The projection does not expose raw review payloads or parent edges. Approved-review and causal-observation requirements are represented by the projector conclusion rather than separately verified from raw events. Array order provides no causal evidence."
+      },
+      "evidence": {
+        "assessment_count": 8,
+        "unique_reference_count": 2,
+        "assessments": [
+          {
+            "event_ref": "pact:event:sha256:9b3f923be02331733239e1d7358ca26615e71195e48ba04d692479f233f19c27#check",
+            "index": 0,
+            "ref": "git:62ba249ef5cafdee4860900220f826dfad0ba869:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "actual_digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "bytes": 77,
+            "status": "matching",
+            "durable": true,
+            "immutability": "commit-addressed Git reference"
+          },
+          {
+            "event_ref": "pact:event:sha256:9b3f923be02331733239e1d7358ca26615e71195e48ba04d692479f233f19c27#review",
+            "index": 0,
+            "ref": "git:62ba249ef5cafdee4860900220f826dfad0ba869:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "actual_digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "bytes": 77,
+            "status": "matching",
+            "durable": true,
+            "immutability": "commit-addressed Git reference"
+          },
+          {
+            "event_ref": "pact:event:sha256:96c331aa5a2497b4fd2668c0293a890378538b0b999fa80a56b88d2ddfae118c#accept",
+            "index": 0,
+            "ref": "git:fd0a35409b7f10ea96d6f2af192632bb79b5d810:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "actual_digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "bytes": 77,
+            "status": "matching",
+            "durable": true,
+            "immutability": "commit-addressed Git reference"
+          },
+          {
+            "event_ref": "pact:event:sha256:96c331aa5a2497b4fd2668c0293a890378538b0b999fa80a56b88d2ddfae118c#check-fixed",
+            "index": 0,
+            "ref": "git:fd0a35409b7f10ea96d6f2af192632bb79b5d810:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "actual_digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "bytes": 77,
+            "status": "matching",
+            "durable": true,
+            "immutability": "commit-addressed Git reference"
+          },
+          {
+            "event_ref": "pact:event:sha256:96c331aa5a2497b4fd2668c0293a890378538b0b999fa80a56b88d2ddfae118c#review-fixed",
+            "index": 0,
+            "ref": "git:fd0a35409b7f10ea96d6f2af192632bb79b5d810:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "actual_digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "bytes": 77,
+            "status": "matching",
+            "durable": true,
+            "immutability": "commit-addressed Git reference"
+          },
+          {
+            "event_ref": "pact:event:sha256:c72e442c88d68a9e86a48a925a23bc05bbbd88d4092d96716379e77027795942#accept",
+            "index": 0,
+            "ref": "git:fd0a35409b7f10ea96d6f2af192632bb79b5d810:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "actual_digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "bytes": 77,
+            "status": "matching",
+            "durable": true,
+            "immutability": "commit-addressed Git reference"
+          },
+          {
+            "event_ref": "pact:event:sha256:c72e442c88d68a9e86a48a925a23bc05bbbd88d4092d96716379e77027795942#check-fixed",
+            "index": 0,
+            "ref": "git:fd0a35409b7f10ea96d6f2af192632bb79b5d810:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "actual_digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "bytes": 77,
+            "status": "matching",
+            "durable": true,
+            "immutability": "commit-addressed Git reference"
+          },
+          {
+            "event_ref": "pact:event:sha256:c72e442c88d68a9e86a48a925a23bc05bbbd88d4092d96716379e77027795942#review-fixed",
+            "index": 0,
+            "ref": "git:fd0a35409b7f10ea96d6f2af192632bb79b5d810:proof.txt",
+            "digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "actual_digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+            "bytes": 77,
+            "status": "matching",
+            "durable": true,
+            "immutability": "commit-addressed Git reference"
+          }
+        ],
+        "verification_limit": "These are evidence assessments returned by the executed projector. The reader did not separately fetch the proof or observe test execution."
+      },
+      "actor_declared_next_action": {
+        "event_ref": "pact:event:sha256:9b3f923be02331733239e1d7358ca26615e71195e48ba04d692479f233f19c27#next",
+        "actor": "fixture-agent",
+        "action": "Correct finding-1 and review the correction.",
+        "source": {
+          "repository": "synthetic/widget",
+          "revision": "62ba249ef5cafdee4860900220f826dfad0ba869"
+        },
+        "blocking_event_refs": [
+          "pact:event:sha256:9b3f923be02331733239e1d7358ca26615e71195e48ba04d692479f233f19c27#review"
+        ],
+        "blocking_findings": [
+          {
+            "finding_id": "finding-1",
+            "review_event_ref": "pact:event:sha256:9b3f923be02331733239e1d7358ca26615e71195e48ba04d692479f233f19c27#review"
+          }
+        ],
+        "temporal_status": "historical; refers to the initial source and now-resolved finding",
+        "current_source_action_recorded": false,
+        "limit": "No next-action declaration for the requested corrected source is shown."
+      },
+      "completeness": {
+        "scope": "selected_local_frontier",
+        "status": "locally_closed",
+        "issues": [],
+        "authority": "locally_configured_root",
+        "global_completeness": "unknown",
+        "reviewer_independence": "not_established"
+      },
+      "projector_identity": {
+        "version": "development/projector/v1",
+        "digest": "sha256:2bbf4768d020ecc4d3009aa89f297b519577d67d25f312cd0f9651b2bf8e4d2e"
+      },
+      "projector_executed": true,
+      "measurement": {
+        "read_functions_exec_calls": 1,
+        "read_exec_command_calls": 1,
+        "projectdriver_cli_processes": 1,
+        "exit_code": 0,
+        "stdout_bytes": 7771,
+        "stderr_bytes": 0,
+        "stdout_path": "/tmp/pact-w5cf-final-prototype-conflict.stdout",
+        "stderr_path": "/tmp/pact-w5cf-final-prototype-conflict.stderr",
+        "failures": []
+      }
+    }
+  ],
+  "totals": {
+    "measured_read_functions_exec_calls": 3,
+    "measured_read_exec_command_calls": 3,
+    "projectdriver_cli_processes": 3,
+    "stdout_bytes": 16007,
+    "stderr_bytes": 0,
+    "failures": [],
+    "extra_read_calls": 0
+  },
+  "post_trial_artifact": {
+    "path": "/tmp/pact-w5cf-final-prototype-answer.json",
+    "functions_exec_calls": 1,
+    "apply_patch_calls": 1,
+    "excluded_from_read_call_counts": true,
+    "purpose": "Retain the structured answer after all three measured reads."
+  },
+  "limitations": [
+    "Only the three permitted prototype projections were read.",
+    "No tests, oracles, other trial answers, private keys, or raw review/commit payloads were inspected.",
+    "Local closure and configured-root authority establish neither global completeness nor independent reviewers.",
+    "Claims and matching proof bytes do not establish that the recorded command actually executed."
+  ]
+}

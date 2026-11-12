@@ -1,0 +1,11 @@
+[
+  "/tmp/pact-w5cf-read-final/pact",
+  "query",
+  "--repo",
+  "/tmp/pact-w5cf-read-final/open",
+  "--namespace",
+  "org/example/development",
+  "--subject",
+  "widget/task-1",
+  "--json"
+]

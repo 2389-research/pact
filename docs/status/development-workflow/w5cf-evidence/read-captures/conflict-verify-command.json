@@ -1,0 +1,8 @@
+[
+  "/tmp/pact-w5cf-read-final/pact",
+  "verify",
+  "--repo",
+  "/tmp/pact-w5cf-read-final/conflict",
+  "--strict",
+  "--json"
+]

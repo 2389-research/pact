@@ -1,0 +1,18 @@
+{
+  "binary": "/tmp/pact-w5cf-read-final/pact",
+  "prototype": "/tmp/pact-w5cf-read-final/projectdriver",
+  "repo": "/tmp/pact-w5cf-read-final/open",
+  "request": {
+    "namespace": "org/example/development",
+    "subject": "widget/task-1",
+    "source_revision": "62ba249ef5cafdee4860900220f826dfad0ba869",
+    "frontier": null
+  },
+  "objects": [
+    "sha256:fa4533a332c343918dc8eed3995559b8d0653a7695af9682cc4e3e80650526d0"
+  ],
+  "evidence_refs": [
+    "pact:event:sha256:fa4533a332c343918dc8eed3995559b8d0653a7695af9682cc4e3e80650526d0#check",
+    "pact:event:sha256:fa4533a332c343918dc8eed3995559b8d0653a7695af9682cc4e3e80650526d0#review"
+  ]
+}

@@ -1,0 +1,167 @@
+{
+  "measurement": {
+    "model_version": "unknown",
+    "tool_invocations": 2,
+    "exec_command_invocations": 2,
+    "recipe_invocations": 1,
+    "scenario_outputs": 3,
+    "additional_read_calls": 1,
+    "additional_read_purpose": "Measure captured stdout and stderr bytes.",
+    "direct_shell_program_invocations": {"sh": 1, "cat": 1, "wc": 1},
+    "underlying_pact_cli_invocations": "unknown; the recipe internals were not inspected",
+    "stdout_bytes": 16007,
+    "stderr_bytes": 0,
+    "shell_exit_codes": [0, 0],
+    "failures": [],
+    "captures": ["/tmp/pact-w5cf-prototype-agent.stdout", "/tmp/pact-w5cf-prototype-agent.stderr"]
+  },
+  "shared": {
+    "namespace": "org/example/development",
+    "subject": "widget/task-1",
+    "repository": "synthetic/widget",
+    "policy_digest": "sha256:e9d050d6b7170e608677c0c56b338a888c2ec001499b0119adca52cf0c8fd437",
+    "profile_digest": "sha256:b89dd93eb851ca4db63e9e29fbd1d060310f2268c8d37ed00c46004f2eafeab9",
+    "projector": {"version": "development/projector/v1", "digest": "sha256:2bbf4768d020ecc4d3009aa89f297b519577d67d25f312cd0f9651b2bf8e4d2e"},
+    "ref_notation": "A#event expands to pact:event:<commits[A]>#event. Commit aliases in frontiers expand to their complete sha256 values.",
+    "commits": {
+      "O": "sha256:fa4533a332c343918dc8eed3995559b8d0653a7695af9682cc4e3e80650526d0",
+      "C0": "sha256:70010e294b7e5d621fdbbd7abbdcccb346821774049f149c47c5f1ceeacf4f4e",
+      "C1": "sha256:489f22261d053110c8f58d51f0cb2804a110cf9c6aca27980ad3476a9e16c8db",
+      "X0": "sha256:9b3f923be02331733239e1d7358ca26615e71195e48ba04d692479f233f19c27",
+      "XA": "sha256:96c331aa5a2497b4fd2668c0293a890378538b0b999fa80a56b88d2ddfae118c",
+      "XR": "sha256:c72e442c88d68a9e86a48a925a23bc05bbbd88d4092d96716379e77027795942"
+    },
+    "evidence": {
+      "initial_ref": "git:62ba249ef5cafdee4860900220f826dfad0ba869:proof.txt",
+      "corrected_ref": "git:fd0a35409b7f10ea96d6f2af192632bb79b5d810:proof.txt",
+      "declared_and_actual_digest": "sha256:c3f58fa85abd4403a63dc44eb205a4be351054f86f0f748865d4094160d3f446",
+      "bytes_per_assessment": 77,
+      "status": "matching", "immutable": true, "durable": true,
+      "verification_scope": "Recipe-reported evidence assessments; no separate manual evidence inspection."
+    },
+    "completeness_each_scenario": {
+      "local": "locally_closed", "scope": "selected_local_frontier", "issues": [],
+      "global": "unknown", "authority": "locally_configured_root", "reviewer_independence": "not_established"
+    },
+    "limits": [
+      "Signed claims do not prove the reported checks or reviews actually ran.",
+      "A local signing root does not establish reviewer independence or global completeness.",
+      "Array order supplies no causal ordering.",
+      "Payload local refs resolve within their containing commit.",
+      "Resolution and acceptance support below are projector-reported; raw parent edges and review payloads were not separately returned or inspected.",
+      "Green checks alone do not establish acceptance."
+    ]
+  },
+  "scenarios": [
+    {
+      "name": "open",
+      "source_revision": "62ba249ef5cafdee4860900220f826dfad0ba869",
+      "frontier": ["O"],
+      "current_checks": [{"ref": "O#check", "name": "unit", "command": ["go", "test", "./..."], "outcome": "passed", "exit_code": 0, "source_revision": "62ba249ef5cafdee4860900220f826dfad0ba869"}],
+      "findings": [{"identity": {"review_ref": "O#review", "finding_id": "finding-1"}, "severity": "important", "summary": "Synthetic input loses a declared fact.", "status": "open", "resolution_refs": []}],
+      "decisions": [], "policy": "shared.policy_digest",
+      "acceptance": {
+        "status": "not_recorded", "decision_refs": [], "projector_reasons": [],
+        "handoff_reasons": ["No explicit acceptance decision is recorded.", "An Important finding remains open."]
+      },
+      "checked_evidence": {
+        "assessment_count": 2, "distinct_immutable_refs": 1,
+        "entries": [
+          {"event_ref": "O#check", "index": 0, "evidence": "shared.evidence.initial_ref"},
+          {"event_ref": "O#review", "index": 0, "evidence": "shared.evidence.initial_ref"}
+        ], "digest_status_immutability": "shared.evidence"
+      },
+      "actor_declared_next_action": {
+        "ref": "O#next", "actor": "fixture-agent", "action": "Correct finding-1 and review the correction.",
+        "source_revision": "62ba249ef5cafdee4860900220f826dfad0ba869", "historical": false,
+        "blocking_finding": {"review_ref": "O#review", "finding_id": "finding-1"}
+      },
+      "safe_handoff": "Correct the Important finding and review the correction. Do not claim acceptance.",
+      "completeness_and_authority": "shared.completeness_each_scenario", "profile_and_projector": "shared.profile_digest and shared.projector"
+    },
+    {
+      "name": "complete",
+      "source_revision": "fd0a35409b7f10ea96d6f2af192632bb79b5d810",
+      "frontier": ["C1"],
+      "current_checks": [{"ref": "C1#check-fixed", "name": "unit", "command": ["go", "test", "./..."], "outcome": "passed", "exit_code": 0, "source_revision": "fd0a35409b7f10ea96d6f2af192632bb79b5d810"}],
+      "findings": [{"identity": {"review_ref": "C0#review", "finding_id": "finding-1"}, "severity": "important", "summary": "Synthetic input loses a declared fact.", "status": "resolved", "resolution_refs": ["C1#review-fixed"], "causal_resolution": "Supported by the projector result under the supplied policy."}],
+      "decisions": [{
+        "ref": "C1#accept", "decision": "accepted", "source_revision": "fd0a35409b7f10ea96d6f2af192632bb79b5d810", "policy": "shared.policy_digest",
+        "selected_check_refs": ["C1#check-fixed"], "selected_review_refs": ["C1#review-fixed"],
+        "rationale": "The selected check and explicit resolution support the correction."
+      }],
+      "acceptance": {
+        "status": "supported", "decision_refs": ["C1#accept"], "projector_reasons": [],
+        "handoff_reasons": [
+          "An explicit acceptance selects matching-source checks and reviews.",
+          "The selected check passed.",
+          "The projector supports the selected review and causal resolution under the fixed policy.",
+          "Referenced immutable evidence matches.",
+          "No Important or Critical finding remains open."
+        ],
+        "review_visibility_limit": "The selected review payload and its approved outcome were not separately displayed."
+      },
+      "checked_evidence": {
+        "assessment_count": 5, "distinct_immutable_refs": 2,
+        "entries": [
+          {"event_ref": "C1#accept", "index": 0, "evidence": "shared.evidence.corrected_ref"},
+          {"event_ref": "C1#check-fixed", "index": 0, "evidence": "shared.evidence.corrected_ref"},
+          {"event_ref": "C1#review-fixed", "index": 0, "evidence": "shared.evidence.corrected_ref"},
+          {"event_ref": "C0#check", "index": 0, "evidence": "shared.evidence.initial_ref"},
+          {"event_ref": "C0#review", "index": 0, "evidence": "shared.evidence.initial_ref"}
+        ], "digest_status_immutability": "shared.evidence"
+      },
+      "actor_declared_next_action": {
+        "ref": "C0#next", "actor": "fixture-agent", "action": "Correct finding-1 and review the correction.",
+        "source_revision": "62ba249ef5cafdee4860900220f826dfad0ba869", "historical": true,
+        "blocking_finding": {"review_ref": "C0#review", "finding_id": "finding-1"},
+        "reason": "It describes the previous source revision and a finding now reported resolved."
+      },
+      "safe_handoff": "Report locally supported acceptance for the corrected revision. No current next action is recorded.",
+      "completeness_and_authority": "shared.completeness_each_scenario", "profile_and_projector": "shared.profile_digest and shared.projector"
+    },
+    {
+      "name": "conflict",
+      "source_revision": "fd0a35409b7f10ea96d6f2af192632bb79b5d810",
+      "frontier": ["XA", "XR"],
+      "current_checks": [
+        {"ref": "XA#check-fixed", "name": "unit", "command": ["go", "test", "./..."], "outcome": "passed", "exit_code": 0, "source_revision": "fd0a35409b7f10ea96d6f2af192632bb79b5d810"},
+        {"ref": "XR#check-fixed", "name": "unit", "command": ["go", "test", "./..."], "outcome": "passed", "exit_code": 0, "source_revision": "fd0a35409b7f10ea96d6f2af192632bb79b5d810"}
+      ],
+      "findings": [{"identity": {"review_ref": "X0#review", "finding_id": "finding-1"}, "severity": "important", "summary": "Synthetic input loses a declared fact.", "status": "resolved", "resolution_refs": ["XA#review-fixed", "XR#review-fixed"], "causal_resolution": "Both resolutions are reported by the projector."}],
+      "decisions": [
+        {"ref": "XA#accept", "decision": "accepted", "source_revision": "fd0a35409b7f10ea96d6f2af192632bb79b5d810", "policy": "shared.policy_digest", "selected_check_refs": ["XA#check-fixed"], "selected_review_refs": ["XA#review-fixed"]},
+        {"ref": "XR#accept", "decision": "rejected", "source_revision": "fd0a35409b7f10ea96d6f2af192632bb79b5d810", "policy": "shared.policy_digest", "selected_check_refs": ["XR#check-fixed"], "selected_review_refs": ["XR#review-fixed"]}
+      ],
+      "acceptance": {
+        "status": "unresolved", "decision_refs": ["XA#accept", "XR#accept"], "projector_reasons": ["concurrent_incompatible_decisions"],
+        "handoff_reasons": [
+          "Accepted and rejected decisions coexist on the current frontier.",
+          "Neither concurrent decision wins.",
+          "Passing checks, matching evidence, and resolved findings do not resolve incompatible decisions."
+        ]
+      },
+      "checked_evidence": {
+        "assessment_count": 8, "distinct_immutable_refs": 2,
+        "entries": [
+          {"event_ref": "XA#accept", "index": 0, "evidence": "shared.evidence.corrected_ref"},
+          {"event_ref": "XA#check-fixed", "index": 0, "evidence": "shared.evidence.corrected_ref"},
+          {"event_ref": "XA#review-fixed", "index": 0, "evidence": "shared.evidence.corrected_ref"},
+          {"event_ref": "X0#check", "index": 0, "evidence": "shared.evidence.initial_ref"},
+          {"event_ref": "X0#review", "index": 0, "evidence": "shared.evidence.initial_ref"},
+          {"event_ref": "XR#accept", "index": 0, "evidence": "shared.evidence.corrected_ref"},
+          {"event_ref": "XR#check-fixed", "index": 0, "evidence": "shared.evidence.corrected_ref"},
+          {"event_ref": "XR#review-fixed", "index": 0, "evidence": "shared.evidence.corrected_ref"}
+        ], "digest_status_immutability": "shared.evidence"
+      },
+      "actor_declared_next_action": {
+        "ref": "X0#next", "actor": "fixture-agent", "action": "Correct finding-1 and review the correction.",
+        "source_revision": "62ba249ef5cafdee4860900220f826dfad0ba869", "historical": true,
+        "blocking_finding": {"review_ref": "X0#review", "finding_id": "finding-1"},
+        "reason": "It describes the previous source revision and a finding now reported resolved."
+      },
+      "safe_handoff": "Keep acceptance unresolved. Reconcile both concurrent decisions explicitly; this is my recommendation, not a recorded actor action.",
+      "completeness_and_authority": "shared.completeness_each_scenario", "profile_and_projector": "shared.profile_digest and shared.projector"
+    }
+  ]
+}

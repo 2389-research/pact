@@ -1,0 +1,15 @@
+{
+  "configured_model": "gpt-6-astra",
+  "configured_reasoning_effort": "high",
+  "configuration_provenance": "Root explicitly dispatched the task agent with this configuration and confirmed it after the trials.",
+  "inheritance_contract": "A child with omitted model and reasoning overrides inherits its parent model and reasoning effort.",
+  "final_spawns": [
+    {"task_name": "baseline_final", "fork_turns": "none", "model_override": null, "reasoning_effort_override": null},
+    {"task_name": "prototype_final", "fork_turns": "none", "model_override": null, "reasoning_effort_override": null}
+  ],
+  "deployment_build_revision": null,
+  "deployment_build_revision_reason": "Not exposed by the runtime; no inference from the configured model identifier.",
+  "shared_prompt_contract": "Use three separate read calls, one per open/complete/conflict scenario; same exact sources, policy, fact rubric and output budget. Use only the assigned read recipe. Preserve exact refs and distinguish signed claims, local proof and global limits.",
+  "transport": {"functions_exec_max_output_tokens": 16000, "exec_command_max_output_tokens": 16000, "result_forwarding": "text(result.output), then exit code metadata"},
+  "bookkeeping": "Each reader wrote its answer after the three reads. That separate artifact write was reported and excluded from read-call counts."
+}

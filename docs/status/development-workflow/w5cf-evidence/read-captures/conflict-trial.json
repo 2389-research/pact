@@ -1,0 +1,26 @@
+{
+  "binary": "/tmp/pact-w5cf-read-final/pact",
+  "prototype": "/tmp/pact-w5cf-read-final/projectdriver",
+  "repo": "/tmp/pact-w5cf-read-final/conflict",
+  "request": {
+    "namespace": "org/example/development",
+    "subject": "widget/task-1",
+    "source_revision": "fd0a35409b7f10ea96d6f2af192632bb79b5d810",
+    "frontier": null
+  },
+  "objects": [
+    "sha256:9b3f923be02331733239e1d7358ca26615e71195e48ba04d692479f233f19c27",
+    "sha256:96c331aa5a2497b4fd2668c0293a890378538b0b999fa80a56b88d2ddfae118c",
+    "sha256:c72e442c88d68a9e86a48a925a23bc05bbbd88d4092d96716379e77027795942"
+  ],
+  "evidence_refs": [
+    "pact:event:sha256:9b3f923be02331733239e1d7358ca26615e71195e48ba04d692479f233f19c27#check",
+    "pact:event:sha256:9b3f923be02331733239e1d7358ca26615e71195e48ba04d692479f233f19c27#review",
+    "pact:event:sha256:96c331aa5a2497b4fd2668c0293a890378538b0b999fa80a56b88d2ddfae118c#check-fixed",
+    "pact:event:sha256:96c331aa5a2497b4fd2668c0293a890378538b0b999fa80a56b88d2ddfae118c#review-fixed",
+    "pact:event:sha256:96c331aa5a2497b4fd2668c0293a890378538b0b999fa80a56b88d2ddfae118c#accept",
+    "pact:event:sha256:c72e442c88d68a9e86a48a925a23bc05bbbd88d4092d96716379e77027795942#check-fixed",
+    "pact:event:sha256:c72e442c88d68a9e86a48a925a23bc05bbbd88d4092d96716379e77027795942#review-fixed",
+    "pact:event:sha256:c72e442c88d68a9e86a48a925a23bc05bbbd88d4092d96716379e77027795942#accept"
+  ]
+}

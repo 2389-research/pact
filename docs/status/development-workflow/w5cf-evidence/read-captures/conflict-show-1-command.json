@@ -1,0 +1,8 @@
+[
+  "/tmp/pact-w5cf-read-final/pact",
+  "show",
+  "--repo",
+  "/tmp/pact-w5cf-read-final/conflict",
+  "sha256:96c331aa5a2497b4fd2668c0293a890378538b0b999fa80a56b88d2ddfae118c",
+  "--json"
+]
