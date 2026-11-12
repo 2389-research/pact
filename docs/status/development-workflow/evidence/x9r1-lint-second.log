@@ -1,0 +1,15 @@
+internal/workflow/record.go:56:23: Function `Open->ReadLocal` should pass the context parameter (contextcheck)
+	st, err := store.Open(request.Repo)
+	                     ^
+internal/workflow/record.go:60:37: Function `LoadSigningKey->LoadKeyFile->decodeStrictJSON->Parse` should pass the context parameter (contextcheck)
+	key, err := identity.LoadSigningKey(request.KeyFile, st.Root())
+	                                   ^
+internal/workflow/record.go:101:39: Function `Commit->NormalizeEventBatch` should pass the context parameter (contextcheck)
+	committed, commitErr := ledger.Commit(st, key, batch, ledger.CommitOptions{Namespace: batch.Namespace})
+	                                     ^
+cmd/pact/record_command.go:77:51: G115: integer overflow conversion uint64 -> int64 (gosec)
+	raw, err := io.ReadAll(io.LimitReader(file, int64(ledger.Phase2Limits.ObjectBytes)+1))
+	                                                 ^
+4 issues:
+* contextcheck: 3
+* gosec: 1

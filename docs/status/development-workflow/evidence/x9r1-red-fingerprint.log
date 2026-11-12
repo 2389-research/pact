@@ -1,0 +1,5 @@
+--- FAIL: TestRecordIndexPendingDoesNotReportPreAdmissionFingerprint (0.08s)
+    record_test.go:130: pending creation reports pre-admission fingerprint: sha256:239a46f0a3514bf5f07eaea4b834fbe96ba805b502c0664d510886dc3a52fe87
+FAIL
+FAIL	pact/internal/workflow	0.199s
+FAIL

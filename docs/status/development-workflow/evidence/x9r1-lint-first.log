@@ -1,0 +1,5 @@
+tests/e2e/cli_test.go:1: : # pact/tests/e2e [pact/tests/e2e.test]
+tests/e2e/development_record_test.go:269:7: invalid operation: after[name] != value (slice can only be compared to nil) (typecheck)
+// ABOUTME: Exercises the built pact binary through its complete MVP operator lifecycle.
+1 issues:
+* typecheck: 1

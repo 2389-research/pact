@@ -1,0 +1,3 @@
+ok  	pact/internal/workflow	1.941s
+ok  	pact/cmd/pact	5.244s
+ok  	pact/tests/e2e	(cached)

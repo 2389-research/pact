@@ -1,0 +1,6 @@
+?   	pact/internal/workflow	[no test files]
+--- FAIL: TestCLIDevelopmentRecord (0.56s)
+    development_record_test.go:28: index_state = current, want ready
+FAIL
+FAIL	pact/tests/e2e	1.258s
+FAIL

@@ -1,0 +1,6 @@
+# pact/tests/e2e [pact/tests/e2e.test]
+tests/e2e/development_record_test.go:269:7: invalid operation: after[name] != value (slice can only be compared to nil)
+ok  	pact/internal/workflow	1.513s
+ok  	pact/cmd/pact	5.070s
+FAIL	pact/tests/e2e [build failed]
+FAIL

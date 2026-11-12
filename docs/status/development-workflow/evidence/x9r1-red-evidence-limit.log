@@ -1,0 +1,5 @@
+--- FAIL: TestRecordRetryReportsEvidenceLimitWithoutLosingAdmission (0.11s)
+    record_test.go:222: {Admission:existing ObjectID:sha256:685ce66ca95289a256d822ce8ec0ec750241e773d471abedcf2abfb6bfa85296 EventRefs:[pact:event:sha256:685ce66ca95289a256d822ce8ec0ec750241e773d471abedcf2abfb6bfa85296#check] SchemaValidation:valid Integrity:valid Authenticity:valid Authorization:authorized IndexState:current SourceFingerprint:sha256:18796548f76f8cb31cc4b1fac6c67e77c3ab63163e8e039777e6005b570da6c3 NextAction: Evidence:[] EvidenceState:unavailable ConflictingObjectIDs:[]} <nil>
+FAIL
+FAIL	pact/internal/workflow	0.236s
+FAIL

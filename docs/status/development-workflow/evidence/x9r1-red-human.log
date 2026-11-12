@@ -1,0 +1,4 @@
+# pact/cmd/pact [pact/cmd/pact.test]
+cmd/pact/record_command_test.go:27:10: undefined: emitRecordHuman
+FAIL	pact/cmd/pact [build failed]
+FAIL
