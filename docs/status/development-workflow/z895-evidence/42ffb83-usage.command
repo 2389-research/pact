@@ -1,0 +1,9 @@
+source=42ffb83368b94481fbf934fefcf060f79cad4168
+argument=env
+argument=-u
+argument=GOROOT
+argument=mise
+argument=exec
+argument=--
+argument=sh
+argument=.scratch/development-lifecycle/check-usage.sh
