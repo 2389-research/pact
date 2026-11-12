@@ -18,7 +18,16 @@ catalog owners. Publish a new brief only after comparison with existing reads.
 **Tech stack:** Existing Go module pact (Go floor 1.26), standard-library CLI,
 Ed25519, and the current SQLite index. No new runtime dependency is planned.
 
-## Planning state and next action
+## Execution outcome
+
+All eight katas and epic pact#ns4y are closed at the verified completion cut.
+Tested source: 5782f2499825d6090f8838ed755cffb2edbf713e.
+Final acceptance: PACT34d62c13#acceptance, namespace org/2389/pact.
+The measured gate rejected public pact brief publication.
+See [execution completion](../../status/development-workflow/completion.md) for proof and remaining limits.
+The task branch remains unmerged; no push, release, or deployment was performed.
+
+## Historical planning cut
 
 - Direction and planning authorized by Doctor Biz on 2026-11-11.
 - Baseline source: fd1f227794d6bf9956bd8eea0798254e0134918f.
@@ -98,15 +107,15 @@ kata show --project pact khqq --agent
 
 ## Execution checklist
 
-- [ ] pact#khqq: Define the development profile and synthetic scenario corpus.
-- [ ] pact#3ezv: Validate development inputs before immutable signing.
-- [ ] pact#spns: Resolve and check local files and immutable Git evidence.
-- [ ] pact#x9r1: Record validated workflow events with recoverable idempotency.
-- [ ] pact#pzm4: Derive development state without losing findings or uncertainty.
-- [ ] pact#w5cf: Evaluate and expose a bounded development work brief.
-- [ ] pact#z895: Prove the complete recording and handoff lifecycle.
-- [ ] pact#k7cc: Validate fresh-context handoffs and publish the supported workflow.
-- [ ] Close epic pact#ns4y only after every verified child is closed
+- [x] pact#khqq: Define the development profile and synthetic scenario corpus.
+- [x] pact#3ezv: Validate development inputs before immutable signing.
+- [x] pact#spns: Resolve and check local files and immutable Git evidence.
+- [x] pact#x9r1: Record validated workflow events with recoverable idempotency.
+- [x] pact#pzm4: Derive development state without losing findings or uncertainty.
+- [x] pact#w5cf: Evaluate the bounded brief and reject public command publication.
+- [x] pact#z895: Prove the complete recording and handoff lifecycle.
+- [x] pact#k7cc: Validate fresh-context handoffs and publish the supported workflow.
+- [x] Close epic pact#ns4y only after every verified child is closed
       and the final adoption decision/evidence is recorded.
 
 Validation and evidence can proceed after the contract; recording and projection

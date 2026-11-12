@@ -25,10 +25,11 @@ No main merge, release, or deployment is authorized.
 - pact#z895 is closed after independent main-model approval without findings.
   Source42ffb83 passed focused, canonical, full uncached race, fresh lint, usage, and hooks.
   Proofc36c52a; parent review7a71a2e; PACTebdc6dae.
-- pact#k7cc implementation and independent task review are complete at source5782f24.
-  Proof2f2ad80; task review20193ff; final integration review approved without blocking findings.
-  Final PACT publication and task/epic closure remain with the coordinator.
-- The first seven implementation katas are closed; only k7cc and its epic await closure.
+- pact#k7cc and epic pact#ns4y are closed after final publication and fresh readback.
+  Source5782f24; proof2f2ad80; task review20193ff; final integration review approved.
+- All eight implementation katas are closed; the ready queue is empty.
+- Execution is complete within the documented local scope.
+  See completion.md for commands, evidence, the final ledger cut, and known limits.
 - Parent owns PACT appends, tracker updates, Kata closure, and integration.
 - Only the active implementation owner writes production code. Reviews are read-only.
 
@@ -59,6 +60,11 @@ No main merge, release, or deployment is authorized.
   They replace aggregate argv metadata while preserving component outcomes and original history.
   All corrected objects passed fresh readback and strict verification.
   See provenance-correction.md; no test was rerun for these metadata corrections.
+- Final acceptance: PACT34d62c13#acceptance in namespace org/2389/pact.
+  Schema, integrity, authenticity, accessed evidence, and local-root authorization passed separately.
+  Strict verification passed with a current index; exact-cut local support is positive.
+  All eight task closures and epic closure were freshly read back.
+  Minor guide-input-budget remains visible and open in the projection.
 
 ## Open review findings
 

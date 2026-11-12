@@ -4,7 +4,9 @@
 # PACT development workflow design
 
 Date: 2026-11-11.
-Status: Direction authorized by Doctor Biz; implementation remains open in Kata.
+Status: Implemented and verified; all eight katas and their epic are closed.
+The measured gate rejected public brief publication.
+See [completion](../../status/development-workflow/completion.md) for the exact execution cut and limits.
 Baseline: fd1f227794d6bf9956bd8eea0798254e0134918f.
 Evidence: [consumer audit](consumer-audit.md).
 Execution: [implementation plan](implementation-plan.md).
