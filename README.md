@@ -341,7 +341,7 @@ trusted timestamps, hardware key service, or global completeness claim.
 
 ## Repository gate
 
-Install `uv`, then run the full Go gate, compiled scratch index lifecycle, and
+Install `uv` and `jq`, then run the full Go gate, compiled scratch index lifecycle, and
 bundled Python reference suite with:
 
 ```sh
