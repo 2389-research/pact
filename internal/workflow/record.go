@@ -49,7 +49,9 @@ func Record(ctx context.Context, request RecordRequest) (RecordResult, error) {
 	}
 	batch, err := development.ValidateInput(ctx, request.Input)
 	if err != nil {
-		result.SchemaValidation = "invalid"
+		if !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+			result.SchemaValidation = "invalid"
+		}
 		return result, err
 	}
 	result.SchemaValidation = "valid"

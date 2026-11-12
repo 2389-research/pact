@@ -195,6 +195,35 @@ func TestRecordValidationPrecedesKeyAndCanonicalAccess(t *testing.T) {
 	}
 }
 
+func TestRecordCanceledValidationRemainsUnchecked(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		ctx  func(context.Context) (context.Context, context.CancelFunc)
+		want error
+	}{
+		{"canceled", func(parent context.Context) (context.Context, context.CancelFunc) {
+			ctx, cancel := context.WithCancel(parent)
+			cancel()
+			return ctx, cancel
+		}, context.Canceled},
+		{"deadline", func(parent context.Context) (context.Context, context.CancelFunc) {
+			return context.WithDeadline(parent, time.Now().Add(-time.Second))
+		}, context.DeadlineExceeded},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			ctx, cancel := test.ctx(t.Context())
+			defer cancel()
+			result, err := Record(ctx, RecordRequest{})
+			if !errors.Is(err, test.want) {
+				t.Fatalf("error = %v, want %v", err, test.want)
+			}
+			if result.SchemaValidation != "unchecked" || result.ObjectID != "" {
+				t.Fatalf("uncompleted validation claimed a result: %+v", result)
+			}
+		})
+	}
+}
+
 func TestRecordIndexPendingDoesNotReportPreAdmissionFingerprint(t *testing.T) {
 	request, st := fixture(t)
 	os.RemoveAll(filepath.Join(st.Dir(), "index"))
