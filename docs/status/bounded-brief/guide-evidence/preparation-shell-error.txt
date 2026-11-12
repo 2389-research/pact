@@ -1,0 +1,7 @@
+A later preparation shell successfully printed the fixture-preparation log and goals.
+It wrote baseline-SKILL.md and copied both recipes and the common rubric.
+An accidental final command `/ tmp` then failed without changing any source or fixture.
+Its exact stderr was:
+zsh:5: permission denied: /
+The numeric exit status was not forwarded by the exploratory tool wrapper.
+The completed preparation log and goals remain retained. No preparation was repeated.

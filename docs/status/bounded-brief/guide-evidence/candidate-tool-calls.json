@@ -1,0 +1,47 @@
+[
+  {
+    "call": 1,
+    "functions_exec_pragma": "// @exec: {\"max_output_tokens\":16000}",
+    "exec_command_arguments": {
+      "cmd": "cat goals.json fact-rubric.md /Users/harper/.codex/worktrees/add2/pact/docs/pact-ledger/SKILL.md candidate-read.sh",
+      "workdir": "/tmp/pact-guide-readers-b1e00dd",
+      "max_output_tokens": 16000
+    }
+  },
+  {
+    "call": 2,
+    "functions_exec_pragma": "// @exec: {\"max_output_tokens\":16000}",
+    "exec_command_arguments": {
+      "cmd": "sh candidate-read.sh /tmp/pact-guide-readers-b1e00dd/pact /tmp/pact-guide-readers-b1e00dd/open 62ba249ef5cafdee4860900220f826dfad0ba869 /tmp/pact-guide-readers-b1e00dd/candidate-open",
+      "workdir": "/tmp/pact-guide-readers-b1e00dd",
+      "max_output_tokens": 16000
+    }
+  },
+  {
+    "call": 3,
+    "functions_exec_pragma": "// @exec: {\"max_output_tokens\":16000}",
+    "exec_command_arguments": {
+      "cmd": "sh candidate-read.sh /tmp/pact-guide-readers-b1e00dd/pact /tmp/pact-guide-readers-b1e00dd/complete fd0a35409b7f10ea96d6f2af192632bb79b5d810 /tmp/pact-guide-readers-b1e00dd/candidate-complete",
+      "workdir": "/tmp/pact-guide-readers-b1e00dd",
+      "max_output_tokens": 16000
+    }
+  },
+  {
+    "call": 4,
+    "functions_exec_pragma": "// @exec: {\"max_output_tokens\":16000}",
+    "exec_command_arguments": {
+      "cmd": "sh candidate-read.sh /tmp/pact-guide-readers-b1e00dd/pact /tmp/pact-guide-readers-b1e00dd/conflict fd0a35409b7f10ea96d6f2af192632bb79b5d810 /tmp/pact-guide-readers-b1e00dd/candidate-conflict",
+      "workdir": "/tmp/pact-guide-readers-b1e00dd",
+      "max_output_tokens": 16000
+    }
+  },
+  {
+    "call": 5,
+    "functions_exec_pragma": "// @exec: {\"max_output_tokens\":16000}",
+    "exec_command_arguments": {
+      "cmd": "wc -c goals.json fact-rubric.md /Users/harper/.codex/worktrees/add2/pact/docs/pact-ledger/SKILL.md candidate-read.sh\nshasum -a 256 /Users/harper/.codex/worktrees/add2/pact/docs/pact-ledger/SKILL.md\nfor scenario in open complete conflict; do\n  printf '%s\\n' \"$scenario\"\n  wc -c \"candidate-$scenario/brief.stdout\" \"candidate-$scenario/brief.stderr\" \"candidate-$scenario/brief.exit\" \"candidate-$scenario/commands.jsonl\"\n  jq -s 'length' \"candidate-$scenario/commands.jsonl\"\n  cat \"candidate-$scenario/brief.exit\"\ndone",
+      "workdir": "/tmp/pact-guide-readers-b1e00dd",
+      "max_output_tokens": 16000
+    }
+  }
+]

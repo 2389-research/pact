@@ -1,0 +1,6 @@
+{"reader":"baseline","scenario":"open","guide_input_bytes":42710,"context_stdout_bytes":46716,"top_level_cli_invocations":5,"stdout_bytes":8742,"stderr_bytes":0,"cli_failures":0}
+{"reader":"baseline","scenario":"complete","guide_input_bytes":42710,"context_stdout_bytes":46716,"top_level_cli_invocations":9,"stdout_bytes":16874,"stderr_bytes":0,"cli_failures":0}
+{"reader":"baseline","scenario":"conflict","guide_input_bytes":42710,"context_stdout_bytes":46716,"top_level_cli_invocations":13,"stdout_bytes":24968,"stderr_bytes":0,"cli_failures":0}
+{"reader":"candidate","scenario":"open","guide_input_bytes":12284,"context_stdout_bytes":15279,"top_level_cli_invocations":1,"stdout_bytes":3103,"stderr_bytes":0,"cli_failures":0}
+{"reader":"candidate","scenario":"complete","guide_input_bytes":12284,"context_stdout_bytes":15279,"top_level_cli_invocations":1,"stdout_bytes":5173,"stderr_bytes":0,"cli_failures":0}
+{"reader":"candidate","scenario":"conflict","guide_input_bytes":12284,"context_stdout_bytes":15279,"top_level_cli_invocations":1,"stdout_bytes":7791,"stderr_bytes":0,"cli_failures":0}

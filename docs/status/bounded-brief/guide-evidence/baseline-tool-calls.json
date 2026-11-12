@@ -1,0 +1,52 @@
+[
+  {
+    "call": 1,
+    "functions_exec_pragma": "// @exec: {\"max_output_tokens\":16000}",
+    "inner_exec_command_arguments": {
+      "cmd": "cat goals.json fact-rubric.md baseline-SKILL.md baseline-read.sh",
+      "workdir": "/tmp/pact-guide-readers-b1e00dd",
+      "max_output_tokens": 16000
+    },
+    "stdout_forwarding": "text(result.output)"
+  },
+  {
+    "call": 2,
+    "functions_exec_pragma": "// @exec: {\"max_output_tokens\":16000}",
+    "inner_exec_command_arguments": {
+      "cmd": "sh baseline-read.sh /tmp/pact-guide-readers-b1e00dd/pact /tmp/pact-guide-readers-b1e00dd/open 62ba249ef5cafdee4860900220f826dfad0ba869 /tmp/pact-guide-readers-b1e00dd/baseline-open",
+      "workdir": "/tmp/pact-guide-readers-b1e00dd",
+      "max_output_tokens": 16000
+    },
+    "stdout_forwarding": "text(result.output)"
+  },
+  {
+    "call": 3,
+    "functions_exec_pragma": "// @exec: {\"max_output_tokens\":16000}",
+    "inner_exec_command_arguments": {
+      "cmd": "sh baseline-read.sh /tmp/pact-guide-readers-b1e00dd/pact /tmp/pact-guide-readers-b1e00dd/complete fd0a35409b7f10ea96d6f2af192632bb79b5d810 /tmp/pact-guide-readers-b1e00dd/baseline-complete",
+      "workdir": "/tmp/pact-guide-readers-b1e00dd",
+      "max_output_tokens": 16000
+    },
+    "stdout_forwarding": "text(result.output)"
+  },
+  {
+    "call": 4,
+    "functions_exec_pragma": "// @exec: {\"max_output_tokens\":16000}",
+    "inner_exec_command_arguments": {
+      "cmd": "sh baseline-read.sh /tmp/pact-guide-readers-b1e00dd/pact /tmp/pact-guide-readers-b1e00dd/conflict fd0a35409b7f10ea96d6f2af192632bb79b5d810 /tmp/pact-guide-readers-b1e00dd/baseline-conflict",
+      "workdir": "/tmp/pact-guide-readers-b1e00dd",
+      "max_output_tokens": 16000
+    },
+    "stdout_forwarding": "text(result.output)"
+  },
+  {
+    "call": 5,
+    "functions_exec_pragma": "// @exec: {\"max_output_tokens\":16000}",
+    "inner_exec_command_arguments": {
+      "cmd": "ruby <<'RUBY'\nrequire 'json'\nfiles = %w[goals.json fact-rubric.md baseline-SKILL.md baseline-read.sh]\nreport = {input_bytes: files.to_h { |file| [file, File.size(file)] }, scenarios: {}}\n%w[open complete conflict].each do |scenario|\n  dir = \"baseline-#{scenario}\"\n  commands = File.readlines(\"#{dir}/commands.jsonl\").map { |line| JSON.parse(line) }\n  streams = commands.map do |command|\n    name = command.fetch('name')\n    stdout = File.binread(\"#{dir}/#{name}.stdout\")\n    stderr = File.binread(\"#{dir}/#{name}.stderr\")\n    {name: name, stdout_bytes: stdout.bytesize, stderr_bytes: stderr.bytesize, stdout_terminal_newline: stdout.end_with?(\"\\n\"), exit: File.read(\"#{dir}/#{name}.exit\").to_i}\n  end\n  report[:scenarios][scenario] = {cli_invocations: commands.length, commands_jsonl_bytes: File.size(\"#{dir}/commands.jsonl\"), stdout_bytes: streams.sum { |stream| stream[:stdout_bytes] }, stderr_bytes: streams.sum { |stream| stream[:stderr_bytes] }, failures: streams.count { |stream| stream[:exit] != 0 }, streams: streams}\nend\nreport[:input_context_bytes] = report[:input_bytes].values.sum\nreport[:cli_stdout_bytes] = report[:scenarios].values.sum { |scenario| scenario[:stdout_bytes] }\nreport[:cli_stderr_bytes] = report[:scenarios].values.sum { |scenario| scenario[:stderr_bytes] }\nreport[:cli_invocations] = report[:scenarios].values.sum { |scenario| scenario[:cli_invocations] }\nreport[:functions_exec_calls] = 5\nreport[:exec_command_calls] = 5\nreport[:counting_call_cli_invocations] = 0\nreport[:counting_stdout_bytes] = 0\nreport[:total_raw_stdout_delivered_bytes] = 0\nloop do\n  output = JSON.pretty_generate(report) + \"\\n\"\n  size = output.bytesize\n  total = report[:input_context_bytes] + report[:cli_stdout_bytes] + size\n  break if report[:counting_stdout_bytes] == size && report[:total_raw_stdout_delivered_bytes] == total\n  report[:counting_stdout_bytes] = size\n  report[:total_raw_stdout_delivered_bytes] = total\nend\nputs JSON.pretty_generate(report)\nRUBY",
+      "workdir": "/tmp/pact-guide-readers-b1e00dd",
+      "max_output_tokens": 16000
+    },
+    "stdout_forwarding": "text(result.output)"
+  }
+]
