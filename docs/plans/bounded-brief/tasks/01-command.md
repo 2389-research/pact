@@ -27,17 +27,17 @@ Preserve their messages and semantics; classify unexpected read failures separat
 
 ## Test-first steps
 
-- [ ] Add failing catalog/usage, real-store JSON, human, and writer-error scenarios.
-- [ ] Add actual encoded-byte boundaries at required-1, required, and required+1.
-- [ ] Include quotes, backslashes, control characters, Unicode, and the final newline.
-- [ ] Prove valid small budgets return a bounded limit error with empty stdout.
-- [ ] Prove an oversized blocking finding cannot become a partial accepted view.
-- [ ] Exercise missing/stale indexes, explicit frontier stability, and protected file hashes.
-- [ ] Exercise open Important findings, absent decisions, explicit resolutions, and concurrent decisions through compiled CLI.
-- [ ] Implement the minimal catalog adapter and shared-state renderer to pass those cases.
-- [ ] Measure the actual command against efficient query/show/verify/evidence reads on identical public stores.
-- [ ] Report every required fact/ref, stdout byte, top-level CLI count, outer call count, and failure separately.
-- [ ] Self-review, commit with hooks, run exact-source focused/canonical/race/fresh-lint gates, and retain proof.
+- [x] Add failing catalog/usage, real-store JSON, human, and writer-error scenarios.
+- [x] Add actual encoded-byte boundaries at required-1, required, and required+1.
+- [x] Include quotes, backslashes, control characters, Unicode, and the final newline.
+- [x] Prove valid small budgets return a bounded limit error with empty stdout.
+- [x] Prove an oversized blocking finding cannot become a partial accepted view.
+- [x] Exercise missing/stale indexes, explicit frontier stability, and protected file hashes.
+- [x] Exercise open Important findings, absent decisions, explicit resolutions, and concurrent decisions through compiled CLI.
+- [x] Implement the minimal catalog adapter and shared-state renderer to pass those cases.
+- [x] Measure the actual command against efficient query/show/verify/evidence reads on identical public stores.
+- [x] Report every required fact/ref, stdout byte, top-level CLI count, outer call count, and failure separately.
+- [x] Self-review, commit with hooks, run exact-source focused/canonical/race/fresh-lint gates, and retain proof.
 
 The public JSON must preserve the complete WorkState, with operation=brief added.
 Human output must retain meaningful proof and blocker fields, not merely an overall status.

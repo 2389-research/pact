@@ -25,17 +25,17 @@ Keep unknown global completeness and shared-key independence limits visible.
 
 ## Test-first steps
 
-- [ ] Add a failing quickstart size/byte-parity contract and native brief example assertions.
-- [ ] Condense the original guide while preserving actual supported instructions.
-- [ ] Execute the authored record and brief examples with real Git/store/key/index bindings.
-- [ ] Verify guide links and native help rather than testing only copied source strings.
-- [ ] Prepare identical open, corrected, and conflict public stores once.
-- [ ] Use two clean reader contexts with the same configured model and explicit inner/outer output budgets.
-- [ ] Give the baseline its actual public read recipe and the candidate its native brief recipe.
-- [ ] Compare exact source/ref/blocker/decision/evidence/action/authority facts against an authored rubric.
-- [ ] Count guide bytes, output bytes, tool calls, top-level CLI work, errors, missing facts, and unsupported claims.
-- [ ] Retain ties and regressions; do not rerun pairs seeking a favorable result.
-- [ ] Run focused guide/example tests, canonical check, race, fresh lint, and normal hooks on frozen source.
+- [x] Add a failing quickstart size/byte-parity contract and native brief example assertions.
+- [x] Condense the original guide while preserving actual supported instructions.
+- [x] Execute the authored record and brief examples with real Git/store/key/index bindings.
+- [x] Verify guide links and native help rather than testing only copied source strings.
+- [x] Prepare identical open, corrected, and conflict public stores once.
+- [x] Use two clean reader contexts with the same configured model and explicit inner/outer output budgets.
+- [x] Give the baseline its actual public read recipe and the candidate its native brief recipe.
+- [x] Compare exact source/ref/blocker/decision/evidence/action/authority facts against an authored rubric.
+- [x] Count guide bytes, output bytes, tool calls, top-level CLI work, errors, missing facts, and unsupported claims.
+- [x] Retain ties and regressions; do not rerun pairs seeking a favorable result.
+- [x] Run focused guide/example tests, canonical check, race, fresh lint, and normal hooks on frozen source.
 
 The previous guide was42,710 bytes and exceeded one outer context budget.
 This task must prove the new bounded guide is actually delivered without truncation.

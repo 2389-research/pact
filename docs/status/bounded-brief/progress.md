@@ -24,13 +24,19 @@ All source/artifact hashes and four frozen-source gate exits passed controller i
 The actual public command passes the revised native gate for every fixture scenario.
 Outer calls remain separately reported; no general efficiency claim is made.
 
-Current state: guide kata r0dq is ready after its native dependency closed.
-Its source is still the42,710-byte guide; the12,288-byte target is not implemented yet.
-Next owner: /root/brief_guide in this worktree after the committed command checkpoint.
-Task1 owns command/rendering/tests/measurement; task2 owns the short guide and fresh-context exercise.
-The controller owns integration, PACT, Kata, and this progress file.
+The guide implementation and task review are complete; kata r0dq awaits the signed completion checkpoint.
+Source:b1e00dd1c9b2280c18af0ce50a65191dc24480d0; proof:9a691a1548d915dcd50212bd8dc0aa855e8f948b.
+The sole guide and raw quickstart contain12,284 bytes, below the12,288-byte limit.
+Real authored record/brief examples and all four frozen-source gates passed.
+Independent main-model task review approved without findings; see guide-review.md.
+Both fresh readers reported complete delivery and no truncation under explicit matched budgets.
+Raw tool-response envelopes were not retained; this is not an independent transport attestation.
+The candidate preserved required selected-source state facts and explicitly left original payloads unread.
+One pair measured CLI counts5/9/13 versus1/1/1 and stdout8742/16874/24968 versus3103/5173/7791 bytes.
+Retrieval/accounting calls tie at five each; additional artifact-delivery calls remain separately recorded.
+The controller owns final integration review, PACT, Kata, and this progress file.
 The old negative comparison remains valid under its original shell-call gate.
 The approved new gate measures correctness, top-level CLI invocations, and returned bytes separately from outer calls.
 
-Next: dispatch task2, then complete its review, final integration review, PACT, and Kata closure.
+Next: finish final integration review, append exact-source PACT proof, and close the guide kata and epic.
 Keep private keys outside Git and never initialize another project ledger in this worktree.
