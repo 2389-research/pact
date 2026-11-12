@@ -1,0 +1,8 @@
+--- FAIL: TestRecordCanceledValidationRemainsUnchecked (0.00s)
+    --- FAIL: TestRecordCanceledValidationRemainsUnchecked/canceled (0.00s)
+        record_test.go:221: uncompleted validation claimed a result: {Admission:unknown ObjectID: EventRefs:[] SchemaValidation:invalid Integrity:unchecked Authenticity:unchecked Authorization:indeterminate IndexState:unchecked SourceFingerprint: NextAction:Retry the same input and operation_id to reconcile canonical history. Evidence:[] EvidenceState:unchecked ConflictingObjectIDs:[]}
+    --- FAIL: TestRecordCanceledValidationRemainsUnchecked/deadline (0.00s)
+        record_test.go:221: uncompleted validation claimed a result: {Admission:unknown ObjectID: EventRefs:[] SchemaValidation:invalid Integrity:unchecked Authenticity:unchecked Authorization:indeterminate IndexState:unchecked SourceFingerprint: NextAction:Retry the same input and operation_id to reconcile canonical history. Evidence:[] EvidenceState:unchecked ConflictingObjectIDs:[]}
+FAIL
+FAIL	pact/internal/workflow	0.131s
+FAIL
