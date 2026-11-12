@@ -39,9 +39,19 @@ usage, canonical/race/lint gates, review, and signed evidence before closure.
 ## PACT publication boundary
 
 The canonical ledger remains the main checkout's .pact under org/2389/pact.
-The managed worktree excludes its restored ledger copy. Planning evidence will
-name an immutable Git revision and byte digests; the PACT publication result is
-added to this report after actual admission and post-write verification.
+The managed worktree excludes its restored ledger copy. The signed planning
+commit is sha256:8ffe712f46822413a784d0b2fbc509e5525054eabac5685030a21c2bd2bde54b.
+Its artifacts, direction, and planning-checks events name Git revision
+63e876bef56c84f137f280b7788cdc295cdef65b and 17 distinct retained evidence
+files with exact byte digests. Strict post-write integrity, signature, DAG,
+and reference verification passed. Authorization is authorized by the existing
+locally bootstrapped root; the rebuilt index is current and the replica is
+locally closed, with global completeness unknown.
+
+The exact result is retained in [planning-ledger.json](evidence/planning-ledger.json).
+The new canonical object is included in the task branch through Git object/index
+staging; no second PACT store was initialized and no object was manually admitted
+through file copying. All implementation katas remain open.
 The report itself stays outside that signed artifact set to avoid a circular
 reference between its event ID and its own hash.
 

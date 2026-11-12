@@ -1,0 +1,52 @@
+{
+  "operation": "planning-publication",
+  "planning_revision": "63e876bef56c84f137f280b7788cdc295cdef65b",
+  "namespace": "org/2389/pact",
+  "object_id": "sha256:8ffe712f46822413a784d0b2fbc509e5525054eabac5685030a21c2bd2bde54b",
+  "event_refs": [
+    "pact:event:sha256:8ffe712f46822413a784d0b2fbc509e5525054eabac5685030a21c2bd2bde54b#artifacts",
+    "pact:event:sha256:8ffe712f46822413a784d0b2fbc509e5525054eabac5685030a21c2bd2bde54b#direction",
+    "pact:event:sha256:8ffe712f46822413a784d0b2fbc509e5525054eabac5685030a21c2bd2bde54b#planning-checks"
+  ],
+  "integrity": "valid",
+  "authenticity": "valid",
+  "authorization": "authorized",
+  "authorization_reasons": [
+    "signer is a locally bootstrapped trusted root"
+  ],
+  "frontier": {
+    "org/2389/pact": [
+      "sha256:8ffe712f46822413a784d0b2fbc509e5525054eabac5685030a21c2bd2bde54b"
+    ]
+  },
+  "health": "healthy",
+  "index": {
+    "coverage": "complete",
+    "logical_digest": "sha256:35919304c5771a6aa5efeb245b50769ce63d219185e64d8fac67e4007b17bf79",
+    "path": "/Users/harper/Public/src/2389/pact/.pact/index/pact-v1.sqlite3",
+    "rebuild_required": false,
+    "schema_version": 1,
+    "source_fingerprint": "sha256:cc51aa65a501870ba77f811ae48bcf6ddf78417e03a0bacc1874dea6701d77dc",
+    "state": "current"
+  },
+  "replica": {
+    "blockers": [],
+    "completeness": "locally_closed",
+    "global_completeness": "unknown",
+    "scope": "local_object_set"
+  },
+  "counts": {
+    "authenticity": 0,
+    "authorized": 3,
+    "checkpoints": 2,
+    "commits": 3,
+    "dag": 0,
+    "events": 5,
+    "indeterminate": 0,
+    "integrity": 0,
+    "objects": 5,
+    "references": 0,
+    "structure": 0,
+    "unauthorized": 0
+  }
+}
