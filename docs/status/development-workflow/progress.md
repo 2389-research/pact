@@ -9,7 +9,8 @@ Branch: feat/development-workflow; managed worktree /Users/harper/.codex/worktre
 Starting revision: 0871778f5f41cf4e695072de872da4f3f94cf087.
 Canonical ledger: /Users/harper/Public/src/2389/pact/.pact, namespace org/2389/pact.
 Doctor Biz authorized the task-branch push and release tag on 2026-11-12.
-Release target: v1.1.0; see release-v1.1.0.md.
+Release target: v1.1.1 after the missing-uv workflow correction; see release-v1.1.1.md.
+The v1.1.0 tag remains preserved with its failed release run.
 No main merge or service deployment is part of this release operation.
 
 ## Current work
