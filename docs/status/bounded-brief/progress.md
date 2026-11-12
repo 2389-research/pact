@@ -11,11 +11,14 @@ Canonical ledger: /Users/harper/Public/src/2389/pact/.pact; namespace org/2389/p
 
 Epic: pact#aenx; command kata: pact#sn7z; guide kata: pact#r0dq.
 All three records and the native blocking edge were freshly read back.
-Current state: planning cut prepared; no brief command implemented yet.
+Planning source:2d86b68e64b54b564c6189f74b673a9432e35e4a.
+Approval PACT object:sha256:3b87d1dd4a788da7bd33b8d507aadc802adb1f9be15ee3989a23d6225293a810.
+Fresh readback and strict verification passed with local-root authorization and a current index.
+Current state: command kata sn7z claimed; no brief command implemented yet.
 Task1 owns command/rendering/tests/measurement; task2 owns the short guide and fresh-context exercise.
 The controller owns integration, PACT, Kata, and this progress file.
 The old negative comparison remains valid under its original shell-call gate.
 The approved new gate measures correctness, top-level CLI invocations, and returned bytes separately from outer calls.
 
-Next: commit this planning cut, record the approval in PACT, and dispatch task1.
+Next: dispatch task1 from the committed planning checkpoint.
 Keep private keys outside Git and never initialize another project ledger in this worktree.
