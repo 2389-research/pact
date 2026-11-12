@@ -13,6 +13,9 @@
   2026-11-12 bounded-brief follow-up in docs/plans/bounded-brief/implementation-plan.md.
   Its gate keeps correctness mandatory and measures CLI work and bytes separately
   from outer shell calls. Preserve the original rejection as its historical cut.
+  `pact brief` now exposes complete bounded WorkState at an exact source/frontier.
+  Exit 0 means observation, not acceptance. Historical declared actions retain
+  their own source; do not treat their presence as current work.
 
 - 2026-11-06: When Doctor Biz requests the review-squad workflow, discover and
   invoke that specific workflow or state that it is unavailable. Ad hoc parallel

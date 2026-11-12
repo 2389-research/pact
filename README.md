@@ -105,6 +105,8 @@ The embedded `pact quickstart` output is that same guide.
 ```sh
 pact record --repo /path/to/project --profile development/v1 \
   --input /path/to/record.json --key-file /path/outside/project/operator.key.json --json
+pact brief --repo /path/to/project --profile development/v1 \
+  --namespace org/example/development --subject widget/task-1 --source-revision FULL_GIT_REVISION --json
 pact query --repo /path/to/project --namespace org/example/development --subject widget/task-1 --json
 pact show --repo /path/to/project EXACT_OBJECT_OR_EVENT_REF --json
 pact evidence check --repo /path/to/project --event-ref EXACT_EVENT_REF --json
@@ -118,9 +120,13 @@ Retry uncertain writes with the same input, operation ID, namespace, and signer.
 Read admission and index readiness separately; an index failure does not undo admission.
 Raw `commit` and `checkpoint` writes still require an explicit `index rebuild`.
 
-There is no public `pact brief` command; the development projector remains internal.
-The [adoption evaluation](docs/status/development-workflow-evaluation.md) reports the
-supported public read recipe and its measured limits.
+`pact brief` returns complete development state over an exact source and captured frontier.
+Its default limit is 16,384 encoded bytes, including the newline.
+Use `--max-bytes` from 1,024 through 65,536; oversized required state exits 2 with empty stdout.
+Reads never repair an index. Use explicit `index rebuild` when readiness fails.
+Exit 0 means successful observation, not acceptance.
+The [canonical guide](docs/pact-ledger/SKILL.md#read-a-handoff) explains cuts, limits, and exact proof.
+The [earlier adoption evaluation](docs/status/development-workflow-evaluation.md) retains its historical result.
 Schema checks, signatures, local-root authority, evidence availability, and supported
 acceptance remain separate layers. A shared key does not establish independent review.
 Local closure does not establish global completeness or organizational approval.

@@ -9,8 +9,11 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
+
+	"pact/internal/canonical"
 )
 
 func TestCLIDevelopmentGuideExample(t *testing.T) {
@@ -86,4 +89,74 @@ func TestCLIDevelopmentGuideExample(t *testing.T) {
 	if !bytes.Equal(proof, runFixtureGit(t, repo, nil, "show", "HEAD:proof.txt")) {
 		t.Fatal("guide proof differs from exact Git blob")
 	}
+	_, tail, found = strings.Cut(string(guide), "<!-- development-brief-example -->\n\n```sh\n")
+	if !found {
+		t.Fatal("guide lacks executable native brief example")
+	}
+	script, _, found = strings.Cut(tail, "\n```")
+	if !found {
+		t.Fatal("brief example has no closing fence")
+	}
+	command = exec.Command("sh", "-eu")
+	command.Stdin = strings.NewReader(script)
+	for _, entry := range os.Environ() {
+		if !strings.HasPrefix(entry, "GIT_") {
+			command.Env = append(command.Env, entry)
+		}
+	}
+	command.Env = append(command.Env, "pact="+binary, "repo="+repo, "work_dir="+workspace)
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("authored brief example: %v\n%s", err, output)
+	}
+	state := read("brief-result")
+	checks := state["checks"].([]any)
+	if state["operation"] != "brief" || state["subject"] != "widget/task-1" || len(checks) != 1 || state["supported_acceptance"].(map[string]any)["status"] != "not_recorded" {
+		t.Fatalf("brief lost recorded check or inferred acceptance: %v", state)
+	}
+	check := checks[0].(map[string]any)
+	if check["event_ref"] != ref || check["source"].(map[string]any)["revision"] != strings.TrimSpace(string(runFixtureGit(t, repo, nil, "rev-parse", "HEAD"))) {
+		t.Fatalf("brief lost exact source or reference: %v", check)
+	}
+	for _, link := range regexp.MustCompile(`\]\((references/[^)#]+)(?:#[^)]*)?\)`).FindAllStringSubmatch(string(guide), -1) {
+		if _, err := os.Stat(filepath.Join(root, "docs/pact-ledger", link[1])); err != nil {
+			t.Errorf("guide link %s: %v", link[1], err)
+		}
+	}
+	help := exec.Command(binary, "brief", "--help")
+	output, err := help.CombinedOutput()
+	if err != nil {
+		t.Fatalf("brief help: %v: %s", err, output)
+	}
+	for _, flag := range []string{"--profile", "--namespace", "--subject", "--source-revision", "--frontier", "--max-bytes", "--json"} {
+		if !bytes.Contains(output, []byte(flag)) {
+			t.Errorf("native help omits guide flag %s", flag)
+		}
+	}
+}
+
+// Retain public stores for two read-only readers without running either read path.
+// Signers stay outside the stores and disappear with the test's temporary directory.
+func TestCLIBriefGuideReaderFixtures(t *testing.T) {
+	workspace := os.Getenv("PACT_GUIDE_READER_DIR")
+	if workspace == "" {
+		t.Skip("set PACT_GUIDE_READER_DIR to retain public reader fixtures")
+	}
+	if err := os.Mkdir(workspace, 0700); err != nil {
+		t.Fatalf("reader fixture directory must not exist: %v", err)
+	}
+	binary := filepath.Join(workspace, "pact")
+	buildBinary(t, projectRoot(t), binary)
+	goals := map[string]any{}
+	for _, scenario := range []string{"open", "complete", "conflict"} {
+		fixture := newBoundedFixture(t, workspace, binary, scenario, boundedInputs(t))
+		goals[scenario] = map[string]any{"repo": fixture.trial.Repo, "request": fixture.trial.Request}
+		protected := map[string]string{}
+		for name, raw := range snapshotSetupFiles(t, fixture.trial.Repo, fixture.key) {
+			if relative, err := filepath.Rel(fixture.trial.Repo, name); err == nil && !strings.HasPrefix(relative, "..") {
+				protected[relative] = canonical.Digest(raw)
+			}
+		}
+		writeTrialJSON(t, filepath.Join(workspace, scenario+"-protected.json"), protected)
+	}
+	writeTrialJSON(t, filepath.Join(workspace, "goals.json"), goals)
 }

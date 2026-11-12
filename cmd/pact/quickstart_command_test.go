@@ -24,7 +24,16 @@ func TestQuickstartEmitsCanonicalGoSkill(t *testing.T) {
 	if !bytes.Equal(stdout.Bytes(), want) {
 		t.Fatalf("quickstart bytes differ from canonical SKILL.md")
 	}
+	if len(want) > 12288 || stdout.Len() > 12288 {
+		t.Errorf("operator guide exceeds 12288 bytes: source=%d quickstart=%d", len(want), stdout.Len())
+	}
 	output := stdout.String()
+	for _, command := range commandCatalog() {
+		name := "pact " + strings.Join(command.path, " ")
+		if !strings.Contains(output, name) {
+			t.Errorf("guide omits shipped command %q", name)
+		}
+	}
 	for _, required := range []string{"name: pact-ledger", "pact setup", "pact verify", "pact commit", "pact query", "pact record", "pact evidence check", "development/v1", "not_recorded", "shared key"} {
 		if !strings.Contains(output, required) {
 			t.Fatalf("quickstart lacks %q", required)
